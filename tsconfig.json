@@ -12,5 +12,5 @@
     "esModuleInterop": true,
     "isolatedModules": true
   },
-  "include": ["src", "tsup.config.ts", "vitest.config.ts"]
+  "include": ["src", "tsdown.config.ts", "vitest.config.ts"]
 }
