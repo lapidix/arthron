@@ -4,8 +4,6 @@
 
 A composable `fetch` client. Create one from config, plug in interceptors and middleware, get a plain `Response` back. Zero dependencies, TypeScript first, Node 18+ and browsers.
 
-> *arthron* (ἄρθρον) — Greek for "joint": the place where two parts meet and work as one.
-
 ## Install
 
 ```sh
