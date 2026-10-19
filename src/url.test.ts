@@ -33,6 +33,14 @@ describe("resolveUrl", () => {
       "https://a/u?a=1&a=2",
     );
   });
+  it("inserts params before a #fragment", () => {
+    expect(resolveUrl("https://a", "/u#frag", { q: 1 })).toBe(
+      "https://a/u?q=1#frag",
+    );
+    expect(resolveUrl("https://a", "/u?a=1#frag", { b: 2 })).toBe(
+      "https://a/u?a=1&b=2#frag",
+    );
+  });
   it("adds nothing when params is empty or all nullish", () => {
     expect(resolveUrl("https://a", "/u", {})).toBe("https://a/u");
     expect(resolveUrl("https://a", "/u", { a: null })).toBe("https://a/u");

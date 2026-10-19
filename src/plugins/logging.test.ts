@@ -62,6 +62,15 @@ describe("logging", () => {
     );
     expect(logger.log).not.toHaveBeenCalled();
   });
+  it("drops userinfo as well as the query string", async () => {
+    const logger = spyLogger();
+    await runPipeline(
+      [logging({ logger })],
+      { url: "https://user:secret@a/u?token=1", init: {} },
+      async () => jsonResponse({}),
+    );
+    expect(logger.log.mock.calls[0]?.[0]).toBe("[arthron] → GET https://a/u");
+  });
   it("defaults method to GET", async () => {
     const logger = spyLogger();
     await runPipeline(

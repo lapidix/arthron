@@ -42,5 +42,9 @@ export function resolveUrl(
   }
   const query = toQueryString(params);
   if (!query) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}${query}`;
+  // The query goes before any #fragment, or the server never sees it.
+  const hash = url.indexOf("#");
+  const [base, fragment] =
+    hash === -1 ? [url, ""] : [url.slice(0, hash), url.slice(hash)];
+  return `${base}${base.includes("?") ? "&" : "?"}${query}${fragment}`;
 }

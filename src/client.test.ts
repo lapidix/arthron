@@ -76,6 +76,16 @@ describe("arthron — argument errors reject instead of throwing synchronously",
     );
     expect(fetch.calls).toHaveLength(0);
   });
+  it.each(["GET", "HEAD"])(
+    "%s with a body rejects with TypeError before fetch",
+    async (method) => {
+      const { api, fetch } = make();
+      await expect(
+        api.request("/u", { method, body: { a: 1 } }),
+      ).rejects.toBeInstanceOf(TypeError);
+      expect(fetch.calls).toHaveLength(0);
+    },
+  );
   it("unserializable body rejects", async () => {
     const { api, fetch } = make();
     await expect(api.post("/u", { n: 1n })).rejects.toBeInstanceOf(TypeError);
@@ -116,6 +126,17 @@ describe("arthron — config", () => {
     await arthron({ baseURL: "https://a" }).get("/u");
     expect(spy).toHaveBeenCalledOnce();
     spy.mockRestore();
+  });
+  it("resolves globalThis.fetch at call time, so a later global patch is seen", async () => {
+    const api = arthron({ baseURL: "https://a" });
+    const spy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse({ late: true }));
+    try {
+      expect(await api.get("/u").json()).toEqual({ late: true });
+    } finally {
+      spy.mockRestore();
+    }
   });
   it("passes signal and other RequestInit through", async () => {
     const { api, fetch } = make();

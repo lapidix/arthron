@@ -1,6 +1,16 @@
 import { isArthronError, isCancellation } from "../error";
 import type { Plugin } from "../types";
 
+/** Origin + pathname only — the query and userinfo tend to carry secrets. */
+function displayPath(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return url.split("?")[0] ?? url;
+  }
+}
+
 export type LoggingOptions = {
   /** Default `true`. The library never reads `NODE_ENV` — pass `isDev` yourself. */
   enabled?: boolean;
@@ -25,7 +35,7 @@ export function logging(options: LoggingOptions = {}): Plugin {
     middleware: async (ctx, next) => {
       if (!enabled) return next(ctx);
       const method = ctx.init.method ?? "GET";
-      const path = ctx.url.split("?")[0];
+      const path = displayPath(ctx.url);
       const started = now();
       const elapsed = () => `${Math.round(now() - started)}ms`;
 

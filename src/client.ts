@@ -14,6 +14,8 @@ import type {
 } from "./types";
 import { resolveUrl } from "./url";
 
+const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
+
 type Resolved = Omit<ArthronConfig, "headers" | "use"> & {
   headers: Record<string, string>;
   use: readonly Plugin[];
@@ -31,10 +33,12 @@ function resolveConfig(config: ArthronConfig): Resolved {
  */
 export function arthron(config: ArthronConfig = {}): Arthron {
   const resolved = resolveConfig(config);
-  const fetchImpl = resolved.fetch ?? globalThis.fetch;
 
   /** The one place a failure becomes an ArthronError. Cancellation passes through. */
   const send = async (ctx: RequestContext): Promise<Response> => {
+    // Resolved per call, not per client: a global patched after the client was
+    // created (msw's `server.listen()`, for one) must still be honoured.
+    const fetchImpl = resolved.fetch ?? globalThis.fetch;
     let res: Response;
     try {
       res = await fetchImpl(ctx.url, ctx.init);
@@ -53,6 +57,12 @@ export function arthron(config: ArthronConfig = {}): Arthron {
     { params, headers: callHeaders, ...init }: RequestOptions,
   ): ArthronPromise => {
     try {
+      if (rawBody !== undefined && BODYLESS_METHODS.has(method.toUpperCase())) {
+        // fetch rejects these with a TypeError that would otherwise be mistaken for a network failure and retried.
+        throw new TypeError(
+          `arthron: ${method.toUpperCase()} requests cannot have a body`,
+        );
+      }
       const url = resolveUrl(resolved.baseURL, path, params);
       const { body, headers } = serializeBody(
         rawBody,
