@@ -82,10 +82,12 @@ export type QueryParams =
   | URLSearchParams;
 
 /**
- * Headers as config and per-call options accept them: any `HeadersInit`, or a
- * plain object whose `null`/`undefined` values delete that header from the
- * layer underneath (a client default, an inherited header).
+ * Headers as config and per-call options accept them: anything fetch's
+ * `headers` takes, or a plain object whose `null`/`undefined` values delete
+ * that header from the layer underneath (a client default, an inherited
+ * header). Not spelled `HeadersInit`: that name exists only in the DOM lib,
+ * and a Node project typed with `@types/node` alone does not have it.
  */
 export type HeadersOption =
-  | HeadersInit
+  | NonNullable<RequestInit["headers"]>
   | Record<string, string | null | undefined>;
