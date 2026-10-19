@@ -15,6 +15,7 @@ export type {
   ErrorInterceptor,
   ErrorMessageResolver,
   Middleware,
+  NdjsonOptions,
   Plugin,
   QueryParams,
   RequestContext,
@@ -22,4 +23,5 @@ export type {
   RequestOptions,
   ResponseInterceptor,
   SseEvent,
+  SseOptions,
 } from "./types";

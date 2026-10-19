@@ -93,3 +93,53 @@ describe("parseNdjson", () => {
     ).rejects.toBeInstanceOf(SyntaxError);
   });
 });
+
+describe("stream limits", () => {
+  /** A body that records whether it was cancelled. */
+  const tracked = (...chunks: string[]) => {
+    const seen = { cancelled: false };
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const enc = new TextEncoder();
+        for (const c of chunks) controller.enqueue(enc.encode(c));
+      },
+      cancel() {
+        seen.cancelled = true;
+      },
+    });
+    return { seen, response: new Response(body) };
+  };
+  it("rejects a line longer than maxLineLength and cancels the body", async () => {
+    const { seen, response } = tracked("a".repeat(30), "a".repeat(30));
+    await expect(
+      collect(parseNdjson(response, { maxLineLength: 50 })),
+    ).rejects.toThrow(/maxLineLength/);
+    expect(seen.cancelled).toBe(true);
+  });
+  it("rejects an SSE event whose data outgrows maxEventSize", async () => {
+    const { seen, response } = tracked(
+      "data: 0123456789\n",
+      "data: 0123456789\n",
+      "data: 0123456789\n",
+    );
+    await expect(
+      collect(parseSse(response, { maxEventSize: 25 })),
+    ).rejects.toThrow(/maxEventSize/);
+    expect(seen.cancelled).toBe(true);
+  });
+  it("still parses events within the limits", async () => {
+    expect(
+      await collect(
+        parseSse(stream("data: 0123456789\n\n"), {
+          maxLineLength: 20,
+          maxEventSize: 10,
+        }),
+      ),
+    ).toEqual([{ data: "0123456789" }]);
+  });
+  it("keeps a CRLF split over three chunks as one break", async () => {
+    expect(
+      await collect(parseSse(stream("data: a\r", "\n", "\ndata: b\n\n"))),
+    ).toEqual([{ data: "a" }, { data: "b" }]);
+  });
+});

@@ -1,4 +1,9 @@
-import { parseNdjson, parseSse } from "./stream";
+import {
+  type NdjsonOptions,
+  parseNdjson,
+  parseSse,
+  type SseOptions,
+} from "./stream";
 import type { ArthronPromise } from "./types";
 
 /** Defer the Response until iteration starts, so the helper itself never rejects. */
@@ -27,7 +32,9 @@ export function toArthronPromise(promise: Promise<Response>): ArthronPromise {
     blob: () => promise.then((res) => res.blob()),
     arrayBuffer: () => promise.then((res) => res.arrayBuffer()),
     formData: () => promise.then((res) => res.formData()),
-    sse: () => iterate(promise, parseSse),
-    ndjson: <T = unknown>() => iterate(promise, parseNdjson<T>),
+    sse: (options?: SseOptions) =>
+      iterate(promise, (res) => parseSse(res, options)),
+    ndjson: <T = unknown>(options?: NdjsonOptions) =>
+      iterate(promise, (res) => parseNdjson<T>(res, options)),
   });
 }
