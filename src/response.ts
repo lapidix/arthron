@@ -13,9 +13,16 @@ export function rebuildResponse(
     statusText: original.statusText,
     headers: original.headers,
   });
-  return Object.defineProperties(rebuilt, {
-    url: { value: original.url },
-    redirected: { value: original.redirected },
-    type: { value: original.type },
+  return withFetchedFields(rebuilt, original);
+}
+
+/** Copy the fields the constructor resets — onto `clone()`s as well. */
+function withFetchedFields(target: Response, from: Response): Response {
+  const clone = target.clone.bind(target);
+  return Object.defineProperties(target, {
+    url: { value: from.url },
+    redirected: { value: from.redirected },
+    type: { value: from.type },
+    clone: { value: () => withFetchedFields(clone(), from) },
   });
 }

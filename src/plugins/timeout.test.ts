@@ -253,3 +253,81 @@ describe("timeout while streaming", () => {
     expect((err as Error).name).toBe("TimeoutError");
   });
 });
+
+describe("timeout — idle", () => {
+  const enc = new TextEncoder();
+  /** A body that sends `count` chunks `every` ms apart, then closes — or stalls if `stallAfter` is set. */
+  const drip = (count: number, every: number, stallAfter?: number) =>
+    (() =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            async start(controller) {
+              for (let i = 0; i < count; i++) {
+                await new Promise((r) => setTimeout(r, every));
+                controller.enqueue(enc.encode(`data: ${i}\n\n`));
+                if (stallAfter !== undefined && i + 1 >= stallAfter) return;
+              }
+              controller.close();
+            },
+          }),
+        ),
+      )) as unknown as typeof fetch;
+
+  it("keeps a stream that is still flowing, however long it runs", async () => {
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: drip(10, 10),
+      use: [timeout(Number.POSITIVE_INFINITY, { idle: 40 })],
+    });
+    let events = 0;
+    for await (const _ of api.get("/s").sse()) events += 1;
+    expect(events).toBe(10);
+  });
+  it("aborts once no data has arrived for `idle` ms", async () => {
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: drip(10, 5, 2),
+      use: [timeout(Number.POSITIVE_INFINITY, { idle: 30 })],
+    });
+    let events = 0;
+    const err = await (async () => {
+      for await (const _ of api.get("/s").sse()) events += 1;
+    })().catch((e: unknown) => e);
+    expect(events).toBe(2);
+    expect((err as Error).name).toBe("TimeoutError");
+  });
+  it("counts the wait for headers as idle time too", async () => {
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: hangingFetch(),
+      use: [timeout(Number.POSITIVE_INFINITY, { idle: 20 })],
+    });
+    await expect(api.get("/u")).rejects.toMatchObject({ name: "TimeoutError" });
+  });
+  it("rejects a bad idle value when the plugin is created", () => {
+    expect(() => timeout(1000, { idle: -1 })).toThrow(TypeError);
+  });
+});
+
+describe("timeout — clone() keeps the fetched fields", () => {
+  it("url, redirected and type survive res.clone()", async () => {
+    const fetched = Object.defineProperties(jsonResponse({}), {
+      url: { value: "https://a/final" },
+      redirected: { value: true },
+      type: { value: "basic" },
+    });
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: fakeFetch(fetched),
+      use: [timeout(1000)],
+    });
+    const copy = (await api.get("/start")).clone();
+    expect([copy.url, copy.redirected, copy.type]).toEqual([
+      "https://a/final",
+      true,
+      "basic",
+    ]);
+    await copy.text();
+  });
+});
