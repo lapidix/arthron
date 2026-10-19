@@ -23,12 +23,18 @@ type ArthronErrorInit = {
  */
 export class ArthronError extends Error {
   override readonly name = "ArthronError";
+  /** HTTP status of the failed response; `0` when fetch itself failed (network). */
   readonly status: number;
   readonly statusText: string;
+  /** Response headers; empty for network failures. */
   readonly headers: Headers;
+  /** Parsed body: JSON if it parses, else the text, else `undefined`. */
   readonly data: unknown;
+  /** The context that was sent — url and init after request interceptors. */
   readonly request: RequestContext;
+  /** The original Response, still readable (the body was parsed from a clone). Absent for network failures. */
   readonly response: Response | undefined;
+  /** The underlying error for network failures. */
   override readonly cause: unknown;
 
   constructor(init: ArthronErrorInit) {
@@ -43,6 +49,7 @@ export class ArthronError extends Error {
   }
 }
 
+/** `true` for errors arthron produced: a `!ok` response or a network failure. Cancellations and plugin bugs are not ArthronErrors. */
 export function isArthronError(error: unknown): error is ArthronError {
   return error instanceof ArthronError;
 }

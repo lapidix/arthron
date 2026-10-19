@@ -35,7 +35,7 @@ export function resolveUrl(
   } else {
     if (baseURL === undefined) {
       throw new TypeError(
-        `arthron: relative path "${path}" requires a baseURL`,
+        `arthron: relative path "${path}" needs a baseURL — pass baseURL in arthron({ baseURL }) or use an absolute URL`,
       );
     }
     url = `${baseURL.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;

@@ -31,6 +31,12 @@ const server = createServer((req, res) => {
     res.writeHead(503, { "retry-after": "0" }).end();
     return;
   }
+  if (req.url === "/events") {
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    res.write("data: one\n\n");
+    res.end("event: end\ndata: two\n\n");
+    return;
+  }
   if (req.url === "/slow") {
     setTimeout(() => res.end("{}"), 2_000);
     return;
@@ -60,6 +66,15 @@ try {
   hits = 0;
   await api.get("/flaky");
   assert(hits === 2, "retry re-runs the request after a 503");
+
+  const events = [];
+  for await (const e of api.get("/events").sse()) events.push(e);
+  assert(
+    events.length === 2 &&
+      events[1].event === "end" &&
+      events[1].data === "two",
+    ".sse() streams server-sent events",
+  );
 
   const slow = await api.get("/slow").catch((e) => e);
   assert(

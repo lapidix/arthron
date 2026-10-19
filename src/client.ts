@@ -60,7 +60,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
       if (rawBody !== undefined && BODYLESS_METHODS.has(method.toUpperCase())) {
         // fetch rejects these with a TypeError that would otherwise be mistaken for a network failure and retried.
         throw new TypeError(
-          `arthron: ${method.toUpperCase()} requests cannot have a body`,
+          `arthron: ${method.toUpperCase()} requests cannot carry a body — send it as params (query) or switch to POST`,
         );
       }
       const url = resolveUrl(resolved.baseURL, path, params);
@@ -109,7 +109,9 @@ export function arthron(config: ArthronConfig = {}): Arthron {
       if (!method) {
         return toArthronPromise(
           Promise.reject(
-            new TypeError("arthron: request() requires init.method"),
+            new TypeError(
+              'arthron: request() needs init.method — e.g. request(path, { method: "OPTIONS" }); use get/post/... for the common verbs',
+            ),
           ),
         );
       }
