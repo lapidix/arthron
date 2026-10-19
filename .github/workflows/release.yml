@@ -1,9 +1,15 @@
 name: Release
 
-# Publishes to npm when a `vX.Y.Z` tag is pushed, via npm Trusted Publishing
-# (OIDC) — no token in secrets. One-time setup on npmjs.com:
-#   package arthron → Settings → Trusted Publisher → GitHub Actions
-#   owner: lapidix · repository: arthron · workflow: release.yml
+# Stages a release on npm when a `vX.Y.Z` tag is pushed, via npm Trusted
+# Publishing (OIDC) — no token in secrets. The trusted publisher on npmjs.com
+# (package arthron → Settings → Trusted Publisher) is GitHub Actions ·
+# lapidix/arthron · release.yml · environment npm, allowed to *stage* only:
+# a stolen workflow or action cannot put a version live.
+#
+# Two human gates: the `npm` environment needs a reviewer's approval before
+# this job runs, and the staged version goes live only once a maintainer
+# approves it with 2FA — on npmjs.com, or `npm stage list arthron` then
+# `npm stage approve <stage-id>`.
 on:
   push:
     tags: ["v*"]
@@ -25,7 +31,7 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      # Trusted Publishing needs npm >= 11.5.1; Node 22 ships an older npm.
+      # Staged publishing needs npm >= 11.15.0; Node 22 ships an older npm.
       # Pinned: this job can publish, so it must not pull whatever is newest.
       - run: npm install -g npm@12.2.0
       - run: pnpm install --frozen-lockfile
@@ -34,4 +40,5 @@ jobs:
           pkg=$(node -p "require('./package.json').version")
           tag="${GITHUB_REF_NAME#v}"
           [ "$pkg" = "$tag" ] || { echo "package.json is $pkg but tag is $tag"; exit 1; }
-      - run: npm publish --provenance --access public
+      # Stage only: the trusted publisher refuses a direct `npm publish`.
+      - run: npm stage publish --provenance --access public
