@@ -19,6 +19,7 @@ describe("public surface", () => {
         "ieum",
         "isIeumError",
         "logging",
+        "retry",
       ].sort(),
     );
   });
