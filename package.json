@@ -1,0 +1,51 @@
+{
+  "name": "ieum",
+  "version": "0.0.1",
+  "description": "Composable fetch client — create from config, plug in interceptors and middleware",
+  "license": "MIT",
+  "author": "lapidix",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lapidix/ieum.git"
+  },
+  "keywords": [
+    "fetch",
+    "http-client",
+    "interceptors",
+    "middleware",
+    "typescript"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "tsup": "^9.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
