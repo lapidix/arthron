@@ -49,7 +49,7 @@ class ArthronError extends Error {
   cause?: unknown;       // underlying error for network failure
   toJSON(): { name, message, status, statusText, method, url /* no query/userinfo */, data };
 }
-isArthronError(e): e is ArthronError
+isArthronError(e): e is ArthronError   // branded with Symbol.for: works (and instanceof works) across the ESM and CJS copies
 ```
 
 - Only `!response.ok` and fetch rejection become ArthronError — and not every non-ok: opaque responses (no-cors) and the 3xx of `redirect: "manual"` are returned; `throwOn(res)` (config or per call) narrows further. An ok response never rejects. Aborts (`AbortError`/`TimeoutError` or any custom `abort(reason)`, including during the error-body read) and exceptions thrown by plugins propagate untouched and skip error interceptors.

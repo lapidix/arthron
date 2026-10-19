@@ -24,6 +24,18 @@ assert(
   "ESM and CJS export the same names",
 );
 
+const crossCopy = await cjs
+  .arthron({
+    baseURL: "https://copies.test",
+    fetch: async () => new Response("", { status: 500 }),
+  })
+  .get("/x")
+  .catch((e) => e);
+assert(
+  esm.isArthronError(crossCopy) && crossCopy instanceof esm.ArthronError,
+  "the ESM build recognises an ArthronError from the CJS build",
+);
+
 let hits = 0;
 let endlessClosed = false;
 const server = createServer((req, res) => {

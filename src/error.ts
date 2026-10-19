@@ -19,6 +19,13 @@ type ArthronErrorInit = {
 };
 
 /**
+ * Marks an ArthronError across copies of this package. The ESM and CJS
+ * builds can both end up loaded (a CJS dependency creates the client, ESM
+ * app code catches), each with its own class — `Symbol.for` is shared.
+ */
+const BRAND = Symbol.for("arthron.ArthronError");
+
+/**
  * The only error arthron itself produces. Two sources: a response with
  * `ok === false`, or fetch rejecting outright (network failure, `status` 0).
  * Everything else — cancellation, interceptor bugs — is rethrown untouched.
@@ -53,7 +60,15 @@ export class ArthronError extends Error {
       headers: { value: init.headers },
       request: { value: init.request },
       response: { value: init.response },
+      [BRAND]: { value: true },
     });
+  }
+
+  /** `instanceof ArthronError` holds for an error from any copy of the package. */
+  static override [Symbol.hasInstance](value: unknown): boolean {
+    return this === ArthronError
+      ? isArthronError(value)
+      : Function.prototype[Symbol.hasInstance].call(this, value);
   }
 
   /** What serializers see: no headers, no body, no query or userinfo. */
@@ -72,7 +87,11 @@ export class ArthronError extends Error {
 
 /** `true` for errors arthron produced: a `!ok` response or a network failure. Cancellations and plugin bugs are not ArthronErrors. */
 export function isArthronError(error: unknown): error is ArthronError {
-  return error instanceof ArthronError;
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { [BRAND]?: unknown })[BRAND] === true
+  );
 }
 
 /**
