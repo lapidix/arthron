@@ -28,17 +28,20 @@ function resolveConfig(config: ArthronConfig): Resolved {
 }
 
 /**
- * fetch rejects a malformed URL or method with a TypeError that looks just
- * like a network failure (status 0, retried). A bodiless `Request` runs the
- * same checks up front, so those become argument errors instead.
+ * The global fetch rejects a malformed URL or method with a TypeError that
+ * looks just like a network failure (status 0, retried). A bodiless `Request`
+ * runs the same checks first, so those become argument errors instead. Only
+ * for the global fetch: an injected one owns its URL rules (SvelteKit's
+ * server-side `fetch` accepts relative URLs, for one).
  */
 function assertSendable(url: string, method: string): void {
   if (typeof Request !== "function") return;
   try {
     new Request(url, { method });
   } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
     throw new TypeError(
-      `arthron: cannot send ${method} ${url} — use an absolute URL or a baseURL with a scheme (https://…), and a valid HTTP method`,
+      `arthron: cannot send ${method} ${url} (${reason}) — use an absolute URL or a baseURL with a scheme (https://…), and a valid HTTP method`,
       { cause },
     );
   }
@@ -56,6 +59,12 @@ export function arthron(config: ArthronConfig = {}): Arthron {
     // Resolved per call, not per client: a global patched after the client was
     // created (msw's `server.listen()`, for one) must still be honoured.
     const fetchImpl = resolved.fetch ?? globalThis.fetch;
+    // Here rather than before the pipeline, so it sees the URL the request
+    // interceptors produced. A TypeError is not an ArthronError: retry and
+    // error interceptors leave it alone.
+    if (resolved.fetch === undefined) {
+      assertSendable(ctx.url, ctx.init.method ?? "GET");
+    }
     const { signal } = ctx.init;
     let res: Response;
     try {
@@ -86,7 +95,6 @@ export function arthron(config: ArthronConfig = {}): Arthron {
         );
       }
       const url = resolveUrl(resolved.baseURL, path, params);
-      assertSendable(url, method);
       const { body, headers } = serializeBody(
         rawBody,
         mergeHeaders(resolved.headers, callHeaders),
