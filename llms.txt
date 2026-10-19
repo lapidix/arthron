@@ -59,7 +59,7 @@ isArthronError(e): e is ArthronError
 
 ```ts
 type Plugin = {
-  name?: string;
+  name?: string;   // identity: use/extend replace a same-named plugin in place; without(name) removes it
   middleware?: (ctx, next: (ctx) => Promise<Response>) => Promise<Response>; // wraps the call; may call next again (retry) or not at all
   request?: (ctx) => ctx;                      // per attempt, before fetch
   response?: (res, ctx) => Response;           // per successful attempt; body is single-use, clone() to peek
@@ -72,7 +72,7 @@ type RequestContext = { url: string; init: Omit<RequestInit, "headers"> & { head
 
 Order: `middleware[0]( middleware[1]( attempt: request interceptors → fetch → response | error interceptors ) )`. Each attempt gets a fresh copy of ctx (headers, and a FormData/URLSearchParams body).
 
-`api.use(...plugins)` and `api.extend(config)` return NEW clients; the original is unchanged.
+`api.use(...plugins)`, `api.extend(config)` and `api.without(...names)` return NEW clients; the original is unchanged. A named plugin replaces the one with the same name at its position (built-ins: "retry", "timeout", "logging"); unnamed plugins append.
 
 Helpers (identity, for typing): `definePlugin(p)`, `defineMiddleware(m)`, `defineInterceptor.request(f) / .response(f) / .error(f)`.
 

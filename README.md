@@ -117,7 +117,7 @@ const authed = base.use(auth()); // base + auth
 const admin = authed.extend({ headers: { "x-role": "admin" } }); // authed + header
 ```
 
-`extend` shallow-merges the config, merges headers case-insensitively (child wins), and appends plugins.
+`extend` shallow-merges the config, merges headers case-insensitively (child wins), and adds plugins the way `use` does: a plugin whose `name` is already there replaces it in place — so `streaming = base.use(timeout(120_000))` loosens the inherited `timeout`, and a second `retry()` does not multiply attempts — while unnamed plugins append. `without("retry")` returns a client without that plugin. The built-ins are named `retry`, `timeout` and `logging`.
 
 ## Plugins
 
@@ -125,7 +125,7 @@ A plugin is an object with any of four slots:
 
 ```ts
 type Plugin = {
-  name?: string;
+  name?: string; // identity: use/extend replace the plugin of the same name, without(name) removes it
   middleware?: (ctx: RequestContext, next: (ctx: RequestContext) => Promise<Response>) => Promise<Response>;
   request?: (ctx: RequestContext) => RequestContext | Promise<RequestContext>;
   response?: (res: Response, ctx: RequestContext) => Response | Promise<Response>;
@@ -285,8 +285,9 @@ type ArthronConfig = {
 get(path, init) · delete(path, init) · head(path, init)
 post(path, body, init) · put(path, body, init) · patch(path, body, init)
 request(path, { method, body, ...init })
-use(...plugins) → new client
+use(...plugins) → new client (same-name plugins replaced in place)
 extend(config) → new client
+without(...names) → new client without those plugins
 ```
 
 All arguments after `path` are optional, except `method` in `request`.

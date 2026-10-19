@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { arthron } from "./client";
 import { ArthronError } from "./error";
+import { logging } from "./plugins/logging";
 import { retry } from "./plugins/retry";
+import { timeout } from "./plugins/timeout";
 import { fakeFetch, jsonResponse } from "./test-utils";
 import type { ArthronConfig, Plugin } from "./types";
 
@@ -381,5 +383,85 @@ describe("arthron — immutability", () => {
     parent.use(tag("late"));
     await child.get("/u");
     expect(headersOf(fetch.calls[0]?.init)["x-tag"]).toBeUndefined();
+  });
+});
+
+describe("arthron — plugins by name", () => {
+  /** A middleware that records `label` each time it runs. */
+  const mark = (log: string[], label: string, name?: string): Plugin => ({
+    ...(name !== undefined && { name }),
+    middleware: (c, next) => {
+      log.push(label);
+      return next(c);
+    },
+  });
+  it("use() replaces a plugin with the same name in place", async () => {
+    const log: string[] = [];
+    const base = arthron({
+      baseURL: "https://a",
+      fetch: fakeFetch(jsonResponse({})),
+      use: [mark(log, "auth-v1", "auth"), mark(log, "other")],
+    });
+    await base.use(mark(log, "auth-v2", "auth")).get("/u");
+    expect(log).toEqual(["auth-v2", "other"]);
+  });
+  it("unnamed plugins still append", async () => {
+    const log: string[] = [];
+    const base = arthron({
+      baseURL: "https://a",
+      fetch: fakeFetch(jsonResponse({})),
+      use: [mark(log, "a")],
+    });
+    await base.use(mark(log, "b")).get("/u");
+    expect(log).toEqual(["a", "b"]);
+  });
+  it("a second retry() replaces the inherited one instead of multiplying attempts", async () => {
+    const fetch = fakeFetch(jsonResponse({}, { status: 503 }));
+    const api = arthron({
+      baseURL: "https://a",
+      fetch,
+      use: [retry({ sleep: async () => {} })],
+    }).use(retry({ retries: 0 }));
+    await expect(api.get("/u")).rejects.toMatchObject({ status: 503 });
+    expect(fetch.calls).toHaveLength(1);
+  });
+  it("a replaced logging() keeps its outer position and logs once per call", async () => {
+    const phases: string[] = [];
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: fakeFetch(jsonResponse({}, { status: 503 }), jsonResponse({})),
+      use: [logging({ enabled: false }), retry({ sleep: async () => {} })],
+    }).use(logging({ onEvent: (e) => phases.push(e.phase) }));
+    await api.get("/u");
+    expect(phases).toEqual(["start", "success"]);
+  });
+  it("without() removes plugins by name", async () => {
+    // Answers after 30 ms unless its signal aborts first, as fetch would.
+    const slow = ((_url: string, init: RequestInit) =>
+      new Promise<Response>((resolve, reject) => {
+        const t = setTimeout(() => resolve(jsonResponse({ ok: 1 })), 30);
+        init.signal?.addEventListener("abort", () => {
+          clearTimeout(t);
+          reject(init.signal?.reason);
+        });
+      })) as unknown as typeof fetch;
+    const base = arthron({
+      baseURL: "https://a",
+      fetch: slow,
+      use: [timeout(5)],
+    });
+    await expect(base.get("/u")).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+    expect(await base.without("timeout").get("/u").json()).toEqual({ ok: 1 });
+  });
+  it("collapses duplicate names in the initial config, last one in the first one's place", async () => {
+    const log: string[] = [];
+    await arthron({
+      baseURL: "https://a",
+      fetch: fakeFetch(jsonResponse({})),
+      use: [mark(log, "x1", "x"), mark(log, "y"), mark(log, "x2", "x")],
+    }).get("/u");
+    expect(log).toEqual(["x2", "y"]);
   });
 });
