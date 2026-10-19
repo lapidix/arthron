@@ -20,6 +20,7 @@ describe("public surface", () => {
         "isArthronError",
         "logging",
         "retry",
+        "timeout",
       ].sort(),
     );
   });

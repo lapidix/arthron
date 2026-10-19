@@ -3,6 +3,7 @@ export { defineInterceptor, defineMiddleware, definePlugin } from "./define";
 export { ArthronError, isArthronError } from "./error";
 export { type LoggingOptions, logging } from "./plugins/logging";
 export { type RetryOptions, retry } from "./plugins/retry";
+export { timeout } from "./plugins/timeout";
 export type {
   Arthron,
   ArthronConfig,
