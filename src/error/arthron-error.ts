@@ -7,6 +7,7 @@ type ArthronErrorInit = {
   statusText: string;
   headers: Headers;
   data: unknown;
+  detail?: string | undefined;
   request: RequestContext;
   response?: Response;
   cause?: unknown;
@@ -34,6 +35,14 @@ export class ArthronError extends Error {
   /** Parsed body: JSON if it parses, else the text, else `undefined`. */
   readonly data: unknown;
   /**
+   * The server's own explanation, picked out of `data` (by default
+   * `message` → `error` → `error.message` → `detail`; see the `errorDetail`
+   * config). `undefined` when the body had none. Untrusted server text: show
+   * it to users as text, never as HTML. `message`, by contrast, is written by
+   * arthron — method, URL without query, status — and is meant for logs.
+   */
+  readonly detail: string | undefined;
+  /**
    * The context that was sent — url and init after request interceptors.
    * Not enumerable: it holds credentials, so `JSON.stringify`, `console.error`
    * and error trackers leave it out. Read it directly when you need it.
@@ -49,6 +58,7 @@ export class ArthronError extends Error {
     this.status = init.status;
     this.statusText = init.statusText;
     this.data = init.data;
+    this.detail = init.detail;
     this.cause = init.cause;
     Object.defineProperties(this, {
       headers: { value: init.headers },
@@ -70,6 +80,7 @@ export class ArthronError extends Error {
     return {
       name: this.name,
       message: this.message,
+      detail: this.detail,
       status: this.status,
       statusText: this.statusText,
       method: this.request.init.method ?? "GET",

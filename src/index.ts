@@ -34,7 +34,7 @@ export type {
 } from "./types/request.types";
 export type {
   ArthronPromise,
-  ErrorMessageResolver,
+  ErrorDetailResolver,
   InferOutput,
   NdjsonOptions,
   SchemaIssue,
