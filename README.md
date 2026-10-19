@@ -81,7 +81,7 @@ for await (const { event, data } of api.post("/v1/chat/completions", body).sse()
 for await (const row of api.get("/logs").ndjson<LogRow>()) console.log(row);
 ```
 
-`.sse()` follows the EventSource spec (multi-line `data:` joined with `\n`, comments ignored, dispatch on blank line, an event the stream ends inside is dropped). Both helpers honour `signal` and `timeout` while the body is being read, and leaving the loop early (`break`, `return`, a throw) closes the connection.
+`.sse()` parses `text/event-stream` the way the EventSource spec does: multi-line `data:` joined with `\n`, comments ignored, dispatch on a blank line, an event the stream ends inside dropped, `lastEventId` carried across events, `retry` accepted as digits only and carried on. It does not reconnect — to resume, send `headers: { "last-event-id": e.lastEventId }` on a new request. Both helpers honour `signal` and `timeout` while the body is being read, and leaving the loop early (`break`, `return`, a throw) closes the connection.
 
 A stream is untrusted input, so both helpers have limits: a line longer than `maxLineLength` (default 8 Mi characters), or an SSE event whose `data` outgrows `maxEventSize` (default 8 Mi), rejects the loop with a `RangeError` and closes the connection. Raise them per call if you expect bigger payloads: `.sse({ maxEventSize: 32 * 1024 * 1024 })`.
 
