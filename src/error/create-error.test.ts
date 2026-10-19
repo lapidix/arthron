@@ -111,6 +111,17 @@ describe("networkError", () => {
       "GET https://a/x failed: network error",
     );
   });
+  it("says why a ReadableStream body fails in a browser and what to send instead", () => {
+    const streaming = {
+      ...req,
+      init: { method: "POST", headers: {}, body: new ReadableStream() },
+    };
+    expect(
+      networkError(new TypeError("Failed to fetch"), streaming).message,
+    ).toBe(
+      "POST https://a/x failed: Failed to fetch — in a browser, a ReadableStream body streams only over HTTP/2; send a Blob or ArrayBuffer to an HTTP/1.1 server",
+    );
+  });
 });
 
 describe("isCancellation", () => {

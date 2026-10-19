@@ -1,3 +1,4 @@
+import { isReadableStream } from "../request/body";
 import { redactUrl } from "../request/url";
 import { rebuildResponse } from "../response/rebuild-response";
 import type { RequestContext } from "../types/request.types";
@@ -128,14 +129,23 @@ export async function responseError(
   });
 }
 
+/**
+ * Browsers that stream a request body (Chromium, current WebKit) do it only
+ * over HTTP/2, and fail one sent to an HTTP/1.1 server with the same bare
+ * "Failed to fetch" / "Load failed" as a dead server, so name the likely cause.
+ */
+const STREAM_BODY_HINT =
+  " — in a browser, a ReadableStream body streams only over HTTP/2; send a Blob or ArrayBuffer to an HTTP/1.1 server";
+
 export function networkError(
   cause: unknown,
   request: RequestContext,
 ): ArthronError {
+  const reason =
+    cause instanceof Error && cause.message ? cause.message : "network error";
+  const hint = isReadableStream(request.init.body) ? STREAM_BODY_HINT : "";
   return new ArthronError({
-    message: `${describeRequest(request)} failed: ${
-      cause instanceof Error && cause.message ? cause.message : "network error"
-    }`,
+    message: `${describeRequest(request)} failed: ${reason}${hint}`,
     status: 0,
     statusText: "",
     headers: new Headers(),
