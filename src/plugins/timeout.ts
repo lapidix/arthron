@@ -84,8 +84,9 @@ function deadlineTimer(
  *
  * A call can change the total deadline with `meta.timeout`.
  *
- * Built on `AbortController` + `setTimeout` rather than `AbortSignal.any` /
- * `AbortSignal.timeout` so it runs on Node 18.
+ * Deadlines are timers on an AbortController — not `AbortSignal.timeout`,
+ * since the idle one restarts — joined to the caller's signal with
+ * `AbortSignal.any`.
  */
 export function timeout(ms: number, options: TimeoutOptions = {}): Plugin {
   checkDeadline(ms, `timeout(${ms})`);
@@ -102,9 +103,10 @@ export function timeout(ms: number, options: TimeoutOptions = {}): Plugin {
       }
       const controller = new AbortController();
       const outer = ctx.init.signal;
-      const forward = () => controller.abort(outer?.reason);
-      if (outer?.aborted) forward();
-      else outer?.addEventListener("abort", forward, { once: true });
+      // The caller's abort and our deadlines, as one signal.
+      const signal = outer
+        ? AbortSignal.any([outer, controller.signal])
+        : controller.signal;
 
       const total =
         deadline === Number.POSITIVE_INFINITY
@@ -128,7 +130,6 @@ export function timeout(ms: number, options: TimeoutOptions = {}): Plugin {
       const finish = () => {
         clearTimeout(total);
         clearTimeout(quiet);
-        outer?.removeEventListener("abort", forward);
       };
       stillAlive();
 
@@ -136,7 +137,7 @@ export function timeout(ms: number, options: TimeoutOptions = {}): Plugin {
       try {
         res = await next({
           ...ctx,
-          init: { ...ctx.init, signal: controller.signal },
+          init: { ...ctx.init, signal },
         });
       } catch (thrown) {
         finish();
@@ -149,7 +150,7 @@ export function timeout(ms: number, options: TimeoutOptions = {}): Plugin {
       stillAlive();
       return rebuildResponse(
         res,
-        guardBody(res.body, controller.signal, finish, stillAlive),
+        guardBody(res.body, signal, finish, stillAlive),
       );
     },
   };
