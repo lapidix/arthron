@@ -21,7 +21,7 @@ The dev toolchain needs Node 22+. Runtime support is Node 18+; CI proves it by r
 - **Tests first.** Every behaviour change starts with a failing test in the matching `*.test.ts`. Tests inject `fetch` through `ArthronConfig.fetch` (see `src/test-utils.ts`: `fakeFetch`, `jsonResponse`); never stub `globalThis.fetch`.
 - **No runtime dependencies.** `dependencies` stays empty. New dev tooling must work on Node 22+.
 - **Node 18 APIs only in `src/`.** No `AbortSignal.any`, `AbortSignal.timeout`, `Promise.withResolvers`, `Array.prototype.toSorted`, etc. If you need one, add the Node 18 fallback and a smoke check.
-- **Only two things become `ArthronError`:** `!response.ok` and fetch rejecting. Cancellation and plugin exceptions propagate untouched and skip error interceptors. Do not widen this.
+- **Only two things become `ArthronError`:** `!response.ok` and fetch rejecting. Cancellation and plugin exceptions propagate untouched and skip error interceptors. Do not widen this. `throwOn` may only *narrow* which non-ok responses reject (an ok response never does); by default opaque responses and the 3xx of `redirect: "manual"` are returned, not thrown.
 - **Interceptors transform, middleware controls flow.** Do not add a way for an interceptor to retry, skip, or swallow. Flow-control features are middleware (see `src/plugins/retry.ts`, `timeout.ts`).
 - **Clients are immutable.** `use`/`extend` return new instances; never mutate `resolved` after construction.
 - **Return native `Response`.** Do not introduce a response wrapper type. Body helpers live on `ArthronPromise` (`src/promise.ts`).

@@ -78,6 +78,15 @@ function assertSendable(url: string, method: string): void {
 }
 
 /**
+ * Non-ok responses the caller asked for are not failures: an opaque one
+ * (`mode: "no-cors"`) and the 3xx of `redirect: "manual"`.
+ */
+function failedByDefault(res: Response, init: RequestContext["init"]): boolean {
+  if (res.type === "opaque" || res.type === "opaqueredirect") return false;
+  return !(init.redirect === "manual" && res.status >= 300 && res.status < 400);
+}
+
+/**
  * Build a client from config. The result is immutable — `use` and `extend`
  * return new clients and never touch the one they were called on.
  */
@@ -85,7 +94,10 @@ export function arthron(config: ArthronConfig = {}): Arthron {
   const resolved = resolveConfig(config);
 
   /** The one place a failure becomes an ArthronError. Cancellation passes through. */
-  const send = async (ctx: RequestContext): Promise<Response> => {
+  const send = async (
+    ctx: RequestContext,
+    throwOn: ((res: Response) => boolean) | undefined,
+  ): Promise<Response> => {
     // Resolved per call, not per client: a global patched after the client was
     // created (msw's `server.listen()`, for one) must still be honoured.
     const fetchImpl = resolved.fetch ?? globalThis.fetch;
@@ -103,7 +115,9 @@ export function arthron(config: ArthronConfig = {}): Arthron {
       if (isCancellation(thrown, signal)) throw thrown;
       throw networkError(thrown, ctx);
     }
+    // Only a non-ok response can become an ArthronError; throwOn narrows which.
     if (res.ok) return res;
+    if (!(throwOn ? throwOn(res) : failedByDefault(res, ctx.init))) return res;
     const error = await responseError(res, ctx, resolved.errorMessage);
     // Aborted while the error body was being read (timeout, caller): that is
     // a cancellation, not this status.
@@ -115,7 +129,13 @@ export function arthron(config: ArthronConfig = {}): Arthron {
     path: string,
     method: string,
     rawBody: unknown,
-    { params, headers: callHeaders, meta, ...init }: RequestOptions,
+    {
+      params,
+      headers: callHeaders,
+      meta,
+      throwOn = resolved.throwOn,
+      ...init
+    }: RequestOptions,
   ): ArthronPromise => {
     try {
       if (rawBody !== undefined && BODYLESS_METHODS.has(method.toUpperCase())) {
@@ -157,7 +177,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
         runPipeline(
           resolved.use,
           { url, init: requestInit, meta: { ...meta } },
-          send,
+          (ctx) => send(ctx, throwOn),
         ),
       );
     } catch (thrown) {

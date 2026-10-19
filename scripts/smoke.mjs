@@ -141,6 +141,14 @@ try {
   const uploaded = await api.post("/upload", upload).json();
   assert(uploaded.size === 3, "a ReadableStream body uploads with real fetch");
 
+  const manual = await arthron({ baseURL }).get("/redirect", {
+    redirect: "manual",
+  });
+  assert(
+    manual.status === 302 && manual.headers.get("location") === "/echo",
+    'redirect: "manual" returns the 3xx instead of rejecting',
+  );
+
   const redirected = await api.get("/redirect");
   assert(
     redirected.redirected && redirected.url === `${baseURL}/echo`,

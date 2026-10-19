@@ -465,3 +465,57 @@ describe("arthron — plugins by name", () => {
     expect(log).toEqual(["x2", "y"]);
   });
 });
+
+describe("arthron — which responses reject", () => {
+  it('returns the 3xx of redirect: "manual" instead of rejecting', async () => {
+    const { api } = make(
+      fakeFetch(
+        new Response(null, { status: 302, headers: { location: "/next" } }),
+      ),
+    );
+    const res = await api.get("/u", { redirect: "manual" });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/next");
+  });
+  it("returns an opaque response (mode: \"no-cors\") instead of a status-0 'network' error", async () => {
+    const opaque = Object.defineProperties(new Response(null), {
+      status: { value: 0 },
+      ok: { value: false },
+      type: { value: "opaque" },
+    });
+    const fetch = fakeFetch(opaque);
+    const api = arthron({
+      baseURL: "https://a/v1",
+      fetch,
+      use: [retry({ sleep: async () => {} })],
+    });
+    expect((await api.get("/u", { mode: "no-cors" })).type).toBe("opaque");
+    expect(fetch.calls).toHaveLength(1);
+  });
+  it("throwOn picks which non-ok responses reject", async () => {
+    const { api } = make(
+      fakeFetch(
+        jsonResponse({}, { status: 404 }),
+        jsonResponse({}, { status: 500 }),
+      ),
+      { throwOn: (res) => res.status >= 500 },
+    );
+    expect((await api.get("/missing")).status).toBe(404);
+    await expect(api.get("/broken")).rejects.toMatchObject({ status: 500 });
+  });
+  it("a per-call throwOn wins over the client's", async () => {
+    const { api } = make(fakeFetch(jsonResponse({}, { status: 404 })));
+    const res = await api.get("/maybe", { throwOn: () => false });
+    expect(res.status).toBe(404);
+  });
+  it("an ok response never rejects, whatever throwOn says", async () => {
+    const { api } = make(fakeFetch(jsonResponse({ ok: 1 })), {
+      throwOn: () => true,
+    });
+    expect(await api.get("/u").json()).toEqual({ ok: 1 });
+  });
+  it("by default a 404 still rejects", async () => {
+    const { api } = make(fakeFetch(jsonResponse({}, { status: 404 })));
+    await expect(api.get("/u")).rejects.toMatchObject({ status: 404 });
+  });
+});
