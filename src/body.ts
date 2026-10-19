@@ -23,6 +23,26 @@ export function isReadableStream(value: unknown): value is ReadableStream {
   return tagOf(value) === "ReadableStream";
 }
 
+/**
+ * What JSON.stringify would turn into `{}`, `undefined` or internal state
+ * instead of the data — with the fix, so it reads as an error message.
+ */
+function mangledByJson(body: unknown): string | undefined {
+  if (typeof body === "function" || typeof body === "symbol") {
+    return `a ${typeof body}, which JSON cannot carry — send its data instead`;
+  }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return undefined;
+  }
+  if (Symbol.asyncIterator in body) {
+    return "an async iterable (a Node stream?) — pass a ReadableStream (Readable.toWeb(stream)) or collect it first";
+  }
+  if (Symbol.iterator in body) {
+    return "an iterable such as a Map, Set or generator — convert it to an array or plain object first";
+  }
+  return undefined;
+}
+
 /** Bodies fetch already knows how to send. Content-Type is left to the caller / runtime. */
 function isRawBody(body: unknown): body is BodyInit {
   if (typeof body === "string") return true;
@@ -48,6 +68,16 @@ export function serializeBody(
     return { body: body as FormData, headers: rest };
   }
   if (isRawBody(body)) return { body, headers };
+  const mangled = mangledByJson(body);
+  if (mangled) {
+    throw new TypeError(`arthron: the body is ${mangled}`);
+  }
+  const type = headers["content-type"];
+  if (type !== undefined && !/\bjson\b/i.test(type)) {
+    throw new TypeError(
+      `arthron: a ${typeof body} body is sent as JSON, but content-type is "${type}" — pass a string, URLSearchParams or FormData for that content type, or drop the header`,
+    );
+  }
   const withType =
     "content-type" in headers
       ? headers

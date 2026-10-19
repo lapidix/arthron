@@ -1,7 +1,12 @@
-export type QueryParams = Record<
-  string,
-  string | number | boolean | null | undefined
->;
+type QueryValue = string | number | boolean | null | undefined;
+
+/**
+ * Query parameters. `null`/`undefined` values are skipped, an array becomes
+ * repeated keys (`ids=1&ids=2`), and a `URLSearchParams` is used as is.
+ */
+export type QueryParams =
+  | Record<string, QueryValue | readonly QueryValue[]>
+  | URLSearchParams;
 
 const ABSOLUTE_URL = /^[a-z][a-z0-9+.-]*:\/\//i;
 const HTTP_URL = /^https?:\/\//i;
@@ -45,10 +50,22 @@ export function leavesBase(baseURL: string | undefined, path: string): boolean {
 
 function toQueryString(params: QueryParams | undefined): string {
   if (!params) return "";
+  if (Object.prototype.toString.call(params) === "[object URLSearchParams]") {
+    return params.toString();
+  }
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value === null || value === undefined) continue;
-    search.append(key, String(value));
+    for (const item of Array.isArray(value) ? value : [value]) {
+      if (item === null || item === undefined) continue;
+      // `String({})` is "[object Object]" and a Date prints in local time —
+      // neither is what a server expects.
+      if (typeof item === "object" || typeof item === "function") {
+        throw new TypeError(
+          `arthron: params.${key} is not a string, number or boolean — pass one of those or an array of them (dates: date.toISOString())`,
+        );
+      }
+      search.append(key, String(item));
+    }
   }
   return search.toString();
 }

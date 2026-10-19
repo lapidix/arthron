@@ -85,4 +85,22 @@ describe("resolveUrl", () => {
     expect(resolveUrl("https://a", "/u", {})).toBe("https://a/u");
     expect(resolveUrl("https://a", "/u", { a: null })).toBe("https://a/u");
   });
+  it("takes a URLSearchParams as is, repeated keys included", () => {
+    expect(resolveUrl("https://a", "/u", new URLSearchParams("a=1&a=2"))).toBe(
+      "https://a/u?a=1&a=2",
+    );
+  });
+  it("sends an array value as repeated keys, skipping nullish entries", () => {
+    expect(resolveUrl("https://a", "/u", { ids: [1, null, 2], q: "x" })).toBe(
+      "https://a/u?ids=1&ids=2&q=x",
+    );
+  });
+  it("rejects object values (Date included) instead of sending [object Object]", () => {
+    expect(() =>
+      resolveUrl("https://a", "/u", { f: { a: 1 } } as never),
+    ).toThrow(/params\.f/);
+    expect(() =>
+      resolveUrl("https://a", "/u", { at: new Date(0) } as never),
+    ).toThrow(/toISOString/);
+  });
 });

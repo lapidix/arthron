@@ -25,13 +25,13 @@ const api = arthron({
 api.get(path, init?) | api.delete(path, init?) | api.head(path, init?)
 api.post(path, body?, init?) | api.put(path, body?, init?) | api.patch(path, body?, init?) | api.query(path, body?, init?)   // QUERY = RFC 10008
 api.request(path, { method, body?, ...init })      // method is required here
-// init = RequestInit minus method/body, plus params?: Record<string, string|number|boolean|null|undefined>; headers values may be null to drop a default; meta?: ArthronMeta (plugin settings, not sent)
+// init = RequestInit minus method/body, plus params?: Record<string, scalar | scalar[] | null | undefined> | URLSearchParams (arrays → repeated keys; object values → TypeError); headers values may be null to drop a default; meta?: ArthronMeta (plugin settings, not sent)
 ```
 
 Every method returns `Promise<Response>` plus helpers:
 `.json<T>()` `.text()` `.blob()` `.arrayBuffer()` `.formData()` `.sse({ maxLineLength?, maxEventSize? }?): AsyncIterable<{event?,data,id?,retry?}>` `.ndjson<T>({ maxLineLength? }?): AsyncIterable<T>` — limits default to 8 Mi characters; exceeding one rejects with RangeError and cancels the body
 
-- Body: string/FormData/Blob/ArrayBuffer/URLSearchParams/ReadableStream sent as-is (matched by type tag, so polyfill/cross-realm instances count; streams get `duplex: "half"`; FormData is sent without content-type so the runtime sets the boundary). Any other value (incl. null) → JSON + `content-type: application/json` unless you set one. GET/HEAD with body → TypeError.
+- Body: string/FormData/Blob/ArrayBuffer/URLSearchParams/ReadableStream sent as-is (matched by type tag, so polyfill/cross-realm instances count; streams get `duplex: "half"`; FormData is sent without content-type so the runtime sets the boundary). Any other value (incl. null) → JSON + `content-type: application/json`; a content type you set must be JSON-ish (else TypeError). Map/Set/iterables/async iterables (Node streams)/functions → TypeError. GET/HEAD with body → TypeError.
 - URL: `baseURL` + path by string concatenation (`"https://a/v1" + "/u"` → `https://a/v1/u`). An absolute path must be http(s) and, when baseURL is set, on baseURL's origin — else TypeError, unless `allowAbsoluteUrls: true`; config headers are never sent to another origin. On cross-origin redirects fetch drops Authorization but keeps custom headers (x-api-key) — use `redirect: "error"` where that matters. `params` appended with `&` if a query exists, placed before `#fragment`.
 - Argument errors (no baseURL, URL the global fetch cannot parse, BigInt body, missing method) reject the promise with TypeError before fetch; they do not throw synchronously and are never retried. URLs are pre-checked only for the global fetch; an injected `fetch` decides its own URL rules (relative URLs are fine if it accepts them).
 - `.sse()`/`.ndjson()`: leaving the loop early cancels the body. `.sse()` drops an event the stream ends inside (spec).

@@ -25,6 +25,15 @@ describe("arthron — requests", () => {
       init: { method: "GET" },
     });
   });
+  it("sends array params as repeated keys and takes URLSearchParams", async () => {
+    const { api, fetch } = make();
+    await api.get("/u", { params: { ids: [1, 2] } });
+    await api.get("/u", { params: new URLSearchParams("a=1&a=2") });
+    expect(fetch.calls.map((c) => c.url)).toEqual([
+      "https://a/v1/u?ids=1&ids=2",
+      "https://a/v1/u?a=1&a=2",
+    ]);
+  });
   it(".json<T>() works on the client promise", async () => {
     const { api } = make();
     expect(await api.get("/u").json<{ ok: number }>()).toEqual({ ok: 1 });

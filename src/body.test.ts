@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { serializeBody } from "./body";
@@ -55,5 +56,37 @@ describe("serializeBody", () => {
   });
   it("serializes null as JSON null", () => {
     expect(serializeBody(null, {}).body).toBe("null");
+  });
+  it("rejects an object body when content-type is not JSON", () => {
+    expect(() =>
+      serializeBody(
+        { a: 1 },
+        { "content-type": "application/x-www-form-urlencoded" },
+      ),
+    ).toThrow(/URLSearchParams/);
+  });
+  it("accepts any JSON flavour of content-type", () => {
+    for (const type of [
+      "application/json; charset=utf-8",
+      "application/merge-patch+json",
+    ]) {
+      expect(serializeBody({ a: 1 }, { "content-type": type }).body).toBe(
+        '{"a":1}',
+      );
+    }
+  });
+  it("rejects bodies JSON would silently mangle", () => {
+    async function* gen() {
+      yield 1;
+    }
+    for (const body of [
+      new Map([["a", 1]]),
+      new Set([1]),
+      gen(),
+      Readable.from(["x"]),
+      () => 1,
+    ]) {
+      expect(() => serializeBody(body, {})).toThrow(TypeError);
+    }
   });
 });
