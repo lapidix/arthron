@@ -89,6 +89,8 @@ export type RequestOptions = Omit<
   params?: QueryParams;
   /** Settings for plugins on this call only (see `ArthronMeta`). Not sent. */
   meta?: ArthronMeta;
+  /** Which non-ok responses reject on this call; overrides the client's `throwOn`. */
+  throwOn?: (res: Response) => boolean;
 };
 
 export type RequestInitWithBody = RequestOptions & {
@@ -115,6 +117,13 @@ export type ArthronConfig = {
   use?: Plugin[];
   /** How to pick a message out of an error body. */
   errorMessage?: ErrorMessageResolver;
+  /**
+   * Which non-ok responses reject with an ArthronError — return `false` to
+   * get the Response instead (a 404 that is data, say). An ok response never
+   * rejects. Default: every non-ok response except an opaque one
+   * (`mode: "no-cors"`) and the 3xx of `redirect: "manual"`.
+   */
+  throwOn?: (res: Response) => boolean;
 };
 
 export type ArthronPromise = Promise<Response> & {
