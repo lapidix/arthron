@@ -458,6 +458,68 @@ describe("arthron — errors", () => {
     await expect(api.get("/u", { signal: ac.signal })).rejects.toBe(reason);
     expect(seen).not.toHaveBeenCalled();
   });
+
+  describe("with a fetch that drops the abort reason, as WebKit's does", () => {
+    const dropped = () =>
+      new DOMException("The operation was aborted.", "AbortError");
+    // Waits for its signal, then rejects — or errors a half-sent body — with
+    // a generic AbortError instead of signal.reason.
+    const webkitFetch = (body?: string) =>
+      (async (_url: RequestInfo | URL, init: RequestInit = {}) => {
+        if (body === undefined) {
+          return new Promise<Response>((_, reject) => {
+            init.signal?.addEventListener("abort", () => reject(dropped()));
+          });
+        }
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(body));
+            init.signal?.addEventListener("abort", () =>
+              controller.error(dropped()),
+            );
+          },
+        });
+        return new Response(stream, {
+          headers: { "content-type": "application/json" },
+        });
+      }) as typeof fetch;
+    const client = (fetch: typeof globalThis.fetch, extra = {}) =>
+      arthron({ baseURL: "https://a/v1", fetch, ...extra });
+
+    it("rejects the request with the caller's reason", async () => {
+      const reason = new Error("navigated away");
+      const ac = new AbortController();
+      const pending = client(webkitFetch()).get("/u", { signal: ac.signal });
+      ac.abort(reason);
+      await expect(pending).rejects.toBe(reason);
+    });
+    it("rejects a timeout with its TimeoutError", async () => {
+      const api = client(webkitFetch(), { use: [timeout(10)] });
+      await expect(api.get("/u")).rejects.toMatchObject({
+        name: "TimeoutError",
+      });
+    });
+    it("rejects a body read with the caller's reason", async () => {
+      const reason = new Error("navigated away");
+      const ac = new AbortController();
+      const pending = client(webkitFetch('{"a":'))
+        .get("/u", { signal: ac.signal })
+        .json();
+      setTimeout(() => ac.abort(reason), 5);
+      await expect(pending).rejects.toBe(reason);
+    });
+    it("ends an event stream with the caller's reason", async () => {
+      const reason = new Error("navigated away");
+      const ac = new AbortController();
+      const events = client(webkitFetch("data: one\n\n"))
+        .get("/u", { signal: ac.signal })
+        .sse();
+      const read = (async () => {
+        for await (const _ of events) ac.abort(reason);
+      })();
+      await expect(read).rejects.toBe(reason);
+    });
+  });
   it("error interceptors see the ArthronError", async () => {
     const seen = vi.fn((e: ArthronError) => e);
     const { api } = make(fakeFetch(jsonResponse({}, { status: 500 })), {

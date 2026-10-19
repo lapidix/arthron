@@ -17,6 +17,7 @@ A deprecated API keeps working, is marked `@deprecated` with what to use instead
 ### Fixed
 
 - Types check in a Node project typed with `@types/node` and no DOM lib. `HeadersOption` named `HeadersInit`, which only the DOM lib declares: such a project got `Cannot find name 'HeadersInit'`, or, with `skipLibCheck`, headers typed as `any`.
+- In Safari and other WebKit browsers, an aborted call rejects with its abort reason as documented — the `TimeoutError` of `timeout()`, or the reason passed to `abort(reason)` — for the request and for body reads (`.json()`, `.sse()`, …). WebKit's fetch rejects with a generic `AbortError` instead, which arthron passed on.
 
 ### Documentation
 
