@@ -18,8 +18,8 @@ describe("logging", () => {
       jsonResponse({}, { status: 201 }),
     );
     expect(logger.log.mock.calls).toEqual([
-      ["[ferrule] → POST https://a/u"],
-      ["[ferrule] ← POST https://a/u 201 12ms"],
+      ["[arthron] → POST https://a/u"],
+      ["[arthron] ← POST https://a/u 201 12ms"],
     ]);
     expect(logger.error).not.toHaveBeenCalled();
   });
@@ -31,10 +31,10 @@ describe("logging", () => {
       }),
     ).rejects.toMatchObject({ status: 0 });
     expect(logger.error).toHaveBeenCalledWith(
-      "[ferrule] ✕ POST https://a/u 0 12ms",
+      "[arthron] ✕ POST https://a/u 0 12ms",
     );
   });
-  it("logs non-FerruleError failures with '-' for status", async () => {
+  it("logs non-ArthronError failures with '-' for status", async () => {
     const logger = spyLogger();
     await expect(
       runPipeline([logging({ logger, ...clock() })], ctx, async () => {
@@ -42,7 +42,7 @@ describe("logging", () => {
       }),
     ).rejects.toBeInstanceOf(RangeError);
     expect(logger.error).toHaveBeenCalledWith(
-      "[ferrule] ✕ POST https://a/u - 12ms",
+      "[arthron] ✕ POST https://a/u - 12ms",
     );
   });
   it("does not log cancellations", async () => {
@@ -69,6 +69,6 @@ describe("logging", () => {
       { url: "https://a/u", init: {} },
       async () => jsonResponse({}),
     );
-    expect(logger.log.mock.calls[0]?.[0]).toBe("[ferrule] → GET https://a/u");
+    expect(logger.log.mock.calls[0]?.[0]).toBe("[arthron] → GET https://a/u");
   });
 });

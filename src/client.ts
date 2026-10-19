@@ -2,11 +2,11 @@ import { serializeBody } from "./body";
 import { isCancellation, networkError, responseError } from "./error";
 import { mergeHeaders, toHeaderRecord } from "./headers";
 import { runPipeline } from "./pipeline";
-import { toFerrulePromise } from "./promise";
+import { toArthronPromise } from "./promise";
 import type {
-  Ferrule,
-  FerruleConfig,
-  FerrulePromise,
+  Arthron,
+  ArthronConfig,
+  ArthronPromise,
   Plugin,
   RequestContext,
   RequestInitWithBody,
@@ -14,13 +14,13 @@ import type {
 } from "./types";
 import { resolveUrl } from "./url";
 
-type Resolved = Omit<FerruleConfig, "headers" | "use"> & {
+type Resolved = Omit<ArthronConfig, "headers" | "use"> & {
   headers: Record<string, string>;
   use: readonly Plugin[];
 };
 
 /** Normalize once so `extend` can merge headers and append plugins cheaply. */
-function resolveConfig(config: FerruleConfig): Resolved {
+function resolveConfig(config: ArthronConfig): Resolved {
   const { headers, use, ...rest } = config;
   return { ...rest, headers: toHeaderRecord(headers), use: use ?? [] };
 }
@@ -29,11 +29,11 @@ function resolveConfig(config: FerruleConfig): Resolved {
  * Build a client from config. The result is immutable — `use` and `extend`
  * return new clients and never touch the one they were called on.
  */
-export function ferrule(config: FerruleConfig = {}): Ferrule {
+export function arthron(config: ArthronConfig = {}): Arthron {
   const resolved = resolveConfig(config);
   const fetchImpl = resolved.fetch ?? globalThis.fetch;
 
-  /** The one place a failure becomes an FerruleError. Cancellation passes through. */
+  /** The one place a failure becomes an ArthronError. Cancellation passes through. */
   const send = async (ctx: RequestContext): Promise<Response> => {
     let res: Response;
     try {
@@ -51,7 +51,7 @@ export function ferrule(config: FerruleConfig = {}): Ferrule {
     method: string,
     rawBody: unknown,
     { params, headers: callHeaders, ...init }: RequestOptions,
-  ): FerrulePromise => {
+  ): ArthronPromise => {
     try {
       const url = resolveUrl(resolved.baseURL, path, params);
       const { body, headers } = serializeBody(
@@ -68,23 +68,23 @@ export function ferrule(config: FerruleConfig = {}): Ferrule {
         headers,
       };
       if (body !== undefined) requestInit.body = body;
-      return toFerrulePromise(
+      return toArthronPromise(
         runPipeline(resolved.use, { url, init: requestInit }, send),
       );
     } catch (thrown) {
       // Argument errors (no baseURL, unserializable body) reject like everything else.
-      return toFerrulePromise(Promise.reject(thrown));
+      return toArthronPromise(Promise.reject(thrown));
     }
   };
 
-  const derive = (next: Partial<FerruleConfig>): Ferrule => {
-    const merged: FerruleConfig = {
+  const derive = (next: Partial<ArthronConfig>): Arthron => {
+    const merged: ArthronConfig = {
       ...resolved,
       ...next,
       headers: mergeHeaders(resolved.headers, next.headers),
       use: [...resolved.use, ...(next.use ?? [])],
     };
-    return ferrule(merged);
+    return arthron(merged);
   };
 
   return {
@@ -97,9 +97,9 @@ export function ferrule(config: FerruleConfig = {}): Ferrule {
     request: (path, init: RequestInitWithBody) => {
       const { method, body, ...rest } = init;
       if (!method) {
-        return toFerrulePromise(
+        return toArthronPromise(
           Promise.reject(
-            new TypeError("ferrule: request() requires init.method"),
+            new TypeError("arthron: request() requires init.method"),
           ),
         );
       }

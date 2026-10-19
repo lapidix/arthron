@@ -1,23 +1,23 @@
-# ferrule
+# arthron
 
-**Middleware owns the flow — it can call `next` again to retry the whole request. Interceptors only transform values and can never change the flow. ferrule keeps the two apart at the type level.**
+**Middleware owns the flow — it can call `next` again to retry the whole request. Interceptors only transform values and can never change the flow. arthron keeps the two apart at the type level.**
 
 A composable `fetch` client. Create one from config, plug in interceptors and middleware, get a plain `Response` back. Zero dependencies, TypeScript first, Node 18+ and browsers.
 
-> *ferrule* — the metal ring that caps the end of a pipe or cable and joins it to the next piece.
+> *arthron* (ἄρθρον) — Greek for "joint": the place where two parts meet and work as one.
 
 ## Install
 
 ```sh
-npm i ferrule
+npm i arthron
 ```
 
 ## Quick start
 
 ```ts
-import { ferrule, logging, retry } from "ferrule";
+import { arthron, logging, retry } from "arthron";
 
-const base = ferrule({
+const base = arthron({
   baseURL: "https://api.example.com",
   use: [logging(), retry({ retries: 3 })],
 });
@@ -46,7 +46,7 @@ middleware[0] (
 ```
 
 - **Middleware** wraps the whole call, outermost first in registration order. `next(ctx)` runs everything beneath it; calling `next` again re-runs the whole attempt — that is how retry, auth refresh and timeouts are built.
-- **Interceptors** run inside each attempt. They receive a value (`RequestContext`, `Response`, or `FerruleError`) and return one. They cannot skip, retry, or swallow — an error interceptor's return value is always thrown.
+- **Interceptors** run inside each attempt. They receive a value (`RequestContext`, `Response`, or `ArthronError`) and return one. They cannot skip, retry, or swallow — an error interceptor's return value is always thrown.
 - Every attempt starts from a **copy** of the context, so headers an interceptor set on attempt one do not leak into attempt two.
 
 A plugin is just an object bundling any of the four:
@@ -57,16 +57,16 @@ type Plugin = {
   middleware?: (ctx, next) => Promise<Response>;
   request?:    (ctx) => RequestContext | Promise<RequestContext>;
   response?:   (res, ctx) => Response | Promise<Response>;
-  error?:      (err, ctx) => FerruleError | Promise<FerruleError>;
+  error?:      (err, ctx) => ArthronError | Promise<ArthronError>;
 };
 ```
 
 ## API
 
-### `ferrule(config?)`
+### `arthron(config?)`
 
 ```ts
-type FerruleConfig = {
+type ArthronConfig = {
   baseURL?: string;                 // prefix for relative paths; without it only absolute URLs are accepted
   headers?: HeadersInit;            // defaults; per-call headers win, compared case-insensitively
   credentials?: RequestCredentials; // forwarded as-is; NOT set unless you set it
@@ -95,7 +95,7 @@ Clients are **immutable**. `use` and `extend` return new clients; the receiver �
 
 **URL rules.** `baseURL` and `path` are joined by string concatenation — `"https://a/v1" + "/users"` → `https://a/v1/users`. The prefix survives a leading slash (unlike `new URL()`). Absolute paths skip `baseURL`.
 
-### Return value — `FerrulePromise`
+### Return value — `ArthronPromise`
 
 Every method returns `Promise<Response>` with convenience helpers:
 
@@ -107,10 +107,10 @@ const body = await api.get("/me").json<User>();    // (await res).json() — T i
 
 A `204`/empty body makes `.json()` reject, exactly like `Response.json()` would.
 
-### Errors — `FerruleError`
+### Errors — `ArthronError`
 
 ```ts
-class FerruleError extends Error {
+class ArthronError extends Error {
   status: number;        // HTTP status; 0 for network failures
   statusText: string;
   headers: Headers;
@@ -121,15 +121,15 @@ class FerruleError extends Error {
 }
 ```
 
-Only two things become an `FerruleError`: a response with `ok === false`, and `fetch` itself rejecting (network failure, `status: 0`). **Everything else is rethrown untouched and skips the error interceptors** — `AbortError`, `TimeoutError`, and anything a plugin throws. A bug in an interceptor is a bug, not a 500.
+Only two things become an `ArthronError`: a response with `ok === false`, and `fetch` itself rejecting (network failure, `status: 0`). **Everything else is rethrown untouched and skips the error interceptors** — `AbortError`, `TimeoutError`, and anything a plugin throws. A bug in an interceptor is a bug, not a 500.
 
 The message is picked from the body by `message` → `error` (string) → `error.message` → `detail`, falling back to `Request failed with status N`. Override with `errorMessage` in the config.
 
 ```ts
-import { isFerruleError } from "ferrule";
+import { isArthronError } from "arthron";
 
 try { await api.get("/me"); }
-catch (e) { if (isFerruleError(e) && e.status === 404) { /* … */ } else throw e; }
+catch (e) { if (isArthronError(e) && e.status === 404) { /* … */ } else throw e; }
 ```
 
 ## Built-in plugins
@@ -140,13 +140,13 @@ One line when a request starts, one when it settles. The query string is dropped
 
 | option | default | |
 |---|---|---|
-| `enabled` | `true` | ferrule never reads `NODE_ENV` — pass `isDev` yourself |
+| `enabled` | `true` | arthron never reads `NODE_ENV` — pass `isDev` yourself |
 | `logger` | `console` | needs `log` and `error` |
 
 ```
-[ferrule] → GET /users
-[ferrule] ← GET /users 200 42ms
-[ferrule] ✕ GET /users 503 1203ms
+[arthron] → GET /users
+[arthron] ← GET /users 200 42ms
+[arthron] ✕ GET /users 503 1203ms
 ```
 
 ### `retry(options?)`
@@ -172,7 +172,7 @@ Retries by calling `next` again, so request interceptors (fresh auth header, fre
 This is the case the middleware/interceptor split exists for. The refresh and the retry are *flow*, so they live in middleware. Attaching the header is a *value change*, so it is a request interceptor — and because every `next` re-runs the interceptors, the retried request automatically picks up the new token.
 
 ```ts
-import { definePlugin, isFerruleError } from "ferrule";
+import { definePlugin, isArthronError } from "arthron";
 
 export const auth = ({ getToken, refresh }: {
   getToken: () => string | null;
@@ -189,7 +189,7 @@ export const auth = ({ getToken, refresh }: {
       try {
         return await next(ctx);
       } catch (e) {
-        if (!isFerruleError(e) || e.status !== 401) throw e;
+        if (!isArthronError(e) || e.status !== 401) throw e;
         await refresh();          // throws → propagates; caller decides to log out
         return next(ctx);         // whole attempt again, request interceptor adds the new token
       }
@@ -202,7 +202,7 @@ export const auth = ({ getToken, refresh }: {
 An error interceptor can only *look* and *return*; it cannot swallow. That makes it the right home for side effects like navigation.
 
 ```ts
-import { defineInterceptor } from "ferrule";
+import { defineInterceptor } from "arthron";
 
 export const errorRedirect = (navigate: (to: string) => void) =>
   defineInterceptor.error((err, ctx) => {
@@ -220,7 +220,7 @@ api.use({ error: errorRedirect(router.push) });
 `AbortSignal.any` needs Node 20.3+ or a current browser; on Node 18 combine the signals with an `AbortController` by hand.
 
 ```ts
-import { defineMiddleware } from "ferrule";
+import { defineMiddleware } from "arthron";
 
 export const timeout = (ms: number) =>
   defineMiddleware((ctx, next) =>
@@ -228,14 +228,14 @@ export const timeout = (ms: number) =>
   );
 ```
 
-The resulting `TimeoutError` is rethrown untouched — it is not an `FerruleError`, so `retry` will not retry it.
+The resulting `TimeoutError` is rethrown untouched — it is not an `ArthronError`, so `retry` will not retry it.
 
 ## Gotchas
 
 - **`Response` bodies are single-use.** A response interceptor that wants to peek must `res.clone()` first; one that wants to change the body returns a new `Response`.
-- **`credentials` is not set by default.** Cookie-based sessions need `credentials: "include"` in the config (cross-origin) — ferrule will not guess.
+- **`credentials` is not set by default.** Cookie-based sessions need `credentials: "include"` in the config (cross-origin) — arthron will not guess.
 - **`baseURL` joining is string concatenation.** `"…/v1"` + `"/users"` keeps `/v1`. Pass an absolute URL to escape the base.
-- **Only `!ok` and network failures become `FerruleError`.** Cancellations and plugin exceptions propagate as-is and do not reach error interceptors or `retry`.
+- **Only `!ok` and network failures become `ArthronError`.** Cancellations and plugin exceptions propagate as-is and do not reach error interceptors or `retry`.
 - **`.json<T>()` is a cast.** Validate with your schema library if you need to.
 
 ## License

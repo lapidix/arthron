@@ -1,4 +1,4 @@
-import { isCancellation, isFerruleError } from "../error";
+import { isArthronError, isCancellation } from "../error";
 import type { Plugin } from "../types";
 
 export type LoggingOptions = {
@@ -29,15 +29,15 @@ export function logging(options: LoggingOptions = {}): Plugin {
       const started = now();
       const elapsed = () => `${Math.round(now() - started)}ms`;
 
-      logger.log(`[ferrule] → ${method} ${path}`);
+      logger.log(`[arthron] → ${method} ${path}`);
       try {
         const res = await next(ctx);
-        logger.log(`[ferrule] ← ${method} ${path} ${res.status} ${elapsed()}`);
+        logger.log(`[arthron] ← ${method} ${path} ${res.status} ${elapsed()}`);
         return res;
       } catch (thrown) {
         if (!isCancellation(thrown)) {
-          const status = isFerruleError(thrown) ? thrown.status : "-";
-          logger.error(`[ferrule] ✕ ${method} ${path} ${status} ${elapsed()}`);
+          const status = isArthronError(thrown) ? thrown.status : "-";
+          logger.error(`[arthron] ✕ ${method} ${path} ${status} ${elapsed()}`);
         }
         throw thrown;
       }

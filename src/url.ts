@@ -35,7 +35,7 @@ export function resolveUrl(
   } else {
     if (baseURL === undefined) {
       throw new TypeError(
-        `ferrule: relative path "${path}" requires a baseURL`,
+        `arthron: relative path "${path}" requires a baseURL`,
       );
     }
     url = `${baseURL.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;

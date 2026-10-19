@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ferrule } from "../client";
+import { arthron } from "../client";
 import { fakeFetch, jsonResponse } from "../test-utils";
 import { type RetryOptions, retry } from "./retry";
 
@@ -8,7 +8,7 @@ const noSleep = { sleep: sleepSpy() };
 const err = (status: number, headers?: Record<string, string>) =>
   jsonResponse({}, { status, ...(headers ? { headers } : {}) });
 const make = (fetch: ReturnType<typeof fakeFetch>, opts: RetryOptions = {}) =>
-  ferrule({
+  arthron({
     baseURL: "https://a",
     fetch,
     use: [retry({ ...noSleep, ...opts })],
@@ -55,7 +55,7 @@ describe("retry", () => {
   it("does not retry interceptor bugs or cancellations", async () => {
     const bug = new RangeError("bug");
     const fetch = fakeFetch(jsonResponse({}));
-    const api = ferrule({
+    const api = arthron({
       baseURL: "https://a",
       fetch,
       use: [

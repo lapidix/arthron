@@ -5,7 +5,7 @@ export type ErrorMessageResolver = (
   response: Response,
 ) => string | undefined;
 
-type FerruleErrorInit = {
+type ArthronErrorInit = {
   message: string;
   status: number;
   statusText: string;
@@ -17,12 +17,12 @@ type FerruleErrorInit = {
 };
 
 /**
- * The only error ferrule itself produces. Two sources: a response with
+ * The only error arthron itself produces. Two sources: a response with
  * `ok === false`, or fetch rejecting outright (network failure, `status` 0).
  * Everything else — cancellation, interceptor bugs — is rethrown untouched.
  */
-export class FerruleError extends Error {
-  override readonly name = "FerruleError";
+export class ArthronError extends Error {
+  override readonly name = "ArthronError";
   readonly status: number;
   readonly statusText: string;
   readonly headers: Headers;
@@ -31,7 +31,7 @@ export class FerruleError extends Error {
   readonly response: Response | undefined;
   override readonly cause: unknown;
 
-  constructor(init: FerruleErrorInit) {
+  constructor(init: ArthronErrorInit) {
     super(init.message);
     this.status = init.status;
     this.statusText = init.statusText;
@@ -43,8 +43,8 @@ export class FerruleError extends Error {
   }
 }
 
-export function isFerruleError(error: unknown): error is FerruleError {
-  return error instanceof FerruleError;
+export function isArthronError(error: unknown): error is ArthronError {
+  return error instanceof ArthronError;
 }
 
 /** Cancellation is not an HTTP failure. Matched by name so it works across realms. */
@@ -83,9 +83,9 @@ export async function responseError(
   response: Response,
   request: RequestContext,
   resolve: ErrorMessageResolver = defaultErrorMessage,
-): Promise<FerruleError> {
+): Promise<ArthronError> {
   const data = await readBody(response);
-  return new FerruleError({
+  return new ArthronError({
     message:
       resolve(data, response) ??
       `Request failed with status ${response.status}`,
@@ -101,8 +101,8 @@ export async function responseError(
 export function networkError(
   cause: unknown,
   request: RequestContext,
-): FerruleError {
-  return new FerruleError({
+): ArthronError {
+  return new ArthronError({
     message: cause instanceof Error ? cause.message : "Network error",
     status: 0,
     statusText: "",

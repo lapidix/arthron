@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { FerruleError, isFerruleError, networkError } from "./error";
+import { ArthronError, isArthronError, networkError } from "./error";
 import { runPipeline } from "./pipeline";
 import { jsonResponse } from "./test-utils";
 import type { Plugin, RequestContext } from "./types";
@@ -121,11 +121,11 @@ describe("runPipeline", () => {
     expect(await res.text()).toBe("swapped");
   });
 
-  it("passes FerruleError through error interceptors and always throws the result", async () => {
+  it("passes ArthronError through error interceptors and always throws the result", async () => {
     const send = async (c: RequestContext) => {
       throw networkError(new Error("down"), c);
     };
-    const tagged = vi.fn((e: FerruleError) =>
+    const tagged = vi.fn((e: ArthronError) =>
       Object.assign(e, { tagged: true }),
     );
     await expect(
@@ -137,12 +137,12 @@ describe("runPipeline", () => {
     expect(tagged).toHaveBeenCalledTimes(1);
   });
 
-  it("lets an error interceptor swap in a different FerruleError", async () => {
+  it("lets an error interceptor swap in a different ArthronError", async () => {
     const send = async (c: RequestContext) => {
       throw networkError(new Error("down"), c);
     };
-    const swapped = (e: FerruleError) =>
-      new FerruleError({
+    const swapped = (e: ArthronError) =>
+      new ArthronError({
         message: "swapped",
         status: 599,
         statusText: "",
@@ -159,7 +159,7 @@ describe("runPipeline", () => {
   });
 
   it("rethrows AbortError/TimeoutError untouched without running error interceptors", async () => {
-    const error = vi.fn((e: FerruleError) => e);
+    const error = vi.fn((e: ArthronError) => e);
     for (const name of ["AbortError", "TimeoutError"]) {
       const ex = new DOMException("x", name);
       await expect(
@@ -172,7 +172,7 @@ describe("runPipeline", () => {
   });
 
   it("rethrows interceptor/middleware exceptions untouched (not wrapped, no error interceptors)", async () => {
-    const error = vi.fn((e: FerruleError) => e);
+    const error = vi.fn((e: ArthronError) => e);
     const bug = new RangeError("bug");
     await expect(
       runPipeline(
@@ -217,7 +217,7 @@ describe("runPipeline", () => {
       ),
     ).rejects.toBe(bug);
     expect(error).not.toHaveBeenCalled();
-    expect(isFerruleError(bug)).toBe(false);
+    expect(isArthronError(bug)).toBe(false);
   });
 
   it("works with zero plugins", async () => {

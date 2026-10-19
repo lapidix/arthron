@@ -1,4 +1,4 @@
-import { isFerruleError } from "./error";
+import { isArthronError } from "./error";
 import { toHeaderRecord } from "./headers";
 import type {
   ErrorInterceptor,
@@ -23,7 +23,7 @@ function cloneContext({ url, init }: RequestContext): RequestContext {
  *
  * Middleware wraps the whole call, outermost first in registration order.
  * Each attempt below it runs request interceptors → `send` → response
- * interceptors. Only an `FerruleError` reaches the error interceptors; whatever
+ * interceptors. Only an `ArthronError` reaches the error interceptors; whatever
  * they return is thrown. Anything else that is thrown — cancellation, a bug
  * in a plugin — propagates untouched.
  */
@@ -51,7 +51,7 @@ export async function runPipeline(
       for (const interceptor of response) res = await interceptor(res, current);
       return res;
     } catch (thrown) {
-      if (!isFerruleError(thrown)) throw thrown;
+      if (!isArthronError(thrown)) throw thrown;
       let err = thrown;
       for (const interceptor of error) err = await interceptor(err, current);
       throw err;

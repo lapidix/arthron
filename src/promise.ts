@@ -1,10 +1,10 @@
-import type { FerrulePromise } from "./types";
+import type { ArthronPromise } from "./types";
 
 /**
  * Sugar over `Promise<Response>`: `.json()` is `(await p).json()`. Awaiting
  * without a helper still yields the untouched `Response`.
  */
-export function toFerrulePromise(promise: Promise<Response>): FerrulePromise {
+export function toArthronPromise(promise: Promise<Response>): ArthronPromise {
   return Object.assign(promise, {
     json: <T = unknown>() => promise.then((res) => res.json() as Promise<T>),
     text: () => promise.then((res) => res.text()),

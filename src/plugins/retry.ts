@@ -1,4 +1,4 @@
-import { type FerruleError, isFerruleError } from "../error";
+import { type ArthronError, isArthronError } from "../error";
 import type { Plugin, RequestContext } from "../types";
 
 export type RetryOptions = {
@@ -9,7 +9,7 @@ export type RetryOptions = {
   /** Methods safe to repeat. Compared case-insensitively. */
   methods?: readonly string[];
   /** Backoff in ms for retry number `retry` (0-based). Default 300 · 2^retry. */
-  delay?: (retry: number, error: FerruleError) => number;
+  delay?: (retry: number, error: ArthronError) => number;
   /** Injectable for tests. Default `setTimeout`; rejects with the abort reason. */
   sleep?: (ms: number, signal?: AbortSignal | null) => Promise<void>;
   /**
@@ -40,7 +40,7 @@ function defaultSleep(ms: number, signal?: AbortSignal | null): Promise<void> {
 }
 
 /** `Retry-After` as ms — seconds or an HTTP-date. `undefined` when absent or unparsable. */
-function retryAfterMs(error: FerruleError): number | undefined {
+function retryAfterMs(error: ArthronError): number | undefined {
   const value = error.headers.get("retry-after")?.trim();
   if (!value) return undefined;
   const seconds = Number(value);
@@ -60,7 +60,7 @@ function isStreamBody(ctx: RequestContext): boolean {
 /**
  * Retry on network errors and the configured statuses by calling `next`
  * again — the whole attempt (request interceptors included) is re-run.
- * Only `FerruleError` is considered; cancellation and plugin bugs pass through.
+ * Only `ArthronError` is considered; cancellation and plugin bugs pass through.
  */
 export function retry(options: RetryOptions = {}): Plugin {
   const {
@@ -84,7 +84,7 @@ export function retry(options: RetryOptions = {}): Plugin {
           return await next(ctx);
         } catch (thrown) {
           if (!eligible || attempt >= retries) throw thrown;
-          if (!isFerruleError(thrown)) throw thrown;
+          if (!isArthronError(thrown)) throw thrown;
           if (thrown.status !== 0 && !retryOn.includes(thrown.status)) {
             throw thrown;
           }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  ArthronError,
   defaultErrorMessage,
-  FerruleError,
+  isArthronError,
   isCancellation,
-  isFerruleError,
   networkError,
   responseError,
 } from "./error";
@@ -33,7 +33,7 @@ describe("responseError", () => {
       jsonResponse({ message: "nope" }, { status: 400, statusText: "Bad" }),
       req,
     );
-    expect(err).toBeInstanceOf(FerruleError);
+    expect(err).toBeInstanceOf(ArthronError);
     expect(err.message).toBe("nope");
     expect(err.status).toBe(400);
     expect(err.statusText).toBe("Bad");
@@ -82,9 +82,9 @@ describe("networkError", () => {
 });
 
 describe("guards", () => {
-  it("isFerruleError", () => {
-    expect(isFerruleError(networkError(new Error("x"), req))).toBe(true);
-    expect(isFerruleError(new Error("x"))).toBe(false);
+  it("isArthronError", () => {
+    expect(isArthronError(networkError(new Error("x"), req))).toBe(true);
+    expect(isArthronError(new Error("x"))).toBe(false);
   });
   it("isCancellation matches AbortError and TimeoutError by name", () => {
     expect(isCancellation(new DOMException("a", "AbortError"))).toBe(true);

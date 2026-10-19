@@ -1,23 +1,23 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type { Middleware, Plugin } from "./index";
-import * as ferruleModule from "./index";
+import * as arthronModule from "./index";
 import {
+  arthron,
   defineInterceptor,
   defineMiddleware,
   definePlugin,
-  ferrule,
 } from "./index";
 
 describe("public surface", () => {
   it("exports exactly the documented values", () => {
-    expect(Object.keys(ferruleModule).sort()).toEqual(
+    expect(Object.keys(arthronModule).sort()).toEqual(
       [
-        "FerruleError",
+        "ArthronError",
         "defineInterceptor",
         "defineMiddleware",
         "definePlugin",
-        "ferrule",
-        "isFerruleError",
+        "arthron",
+        "isArthronError",
         "logging",
         "retry",
       ].sort(),
@@ -31,7 +31,7 @@ describe("public surface", () => {
     const r = defineInterceptor.request((c) => c);
     expectTypeOf(r).parameter(0).toHaveProperty("url");
   });
-  it("ferrule() accepts no config", () => {
-    expect(() => ferrule()).not.toThrow();
+  it("arthron() accepts no config", () => {
+    expect(() => arthron()).not.toThrow();
   });
 });

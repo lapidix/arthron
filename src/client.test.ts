@@ -1,18 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
-import { ferrule } from "./client";
-import { FerruleError } from "./error";
+import { arthron } from "./client";
+import { ArthronError } from "./error";
 import { fakeFetch, jsonResponse } from "./test-utils";
-import type { FerruleConfig, Plugin } from "./types";
+import type { ArthronConfig, Plugin } from "./types";
 
 const make = (
   fetch = fakeFetch(jsonResponse({ ok: 1 })),
-  extra: Partial<FerruleConfig> = {},
-) => ({ fetch, api: ferrule({ baseURL: "https://a/v1", fetch, ...extra }) });
+  extra: Partial<ArthronConfig> = {},
+) => ({ fetch, api: arthron({ baseURL: "https://a/v1", fetch, ...extra }) });
 
 const headersOf = (init: RequestInit | undefined) =>
   init?.headers as Record<string, string>;
 
-describe("ferrule — requests", () => {
+describe("arthron — requests", () => {
   it("get sends GET to baseURL + path with params and returns the Response", async () => {
     const { api, fetch } = make();
     const res = await api.get("/u", { params: { q: 1 } });
@@ -68,10 +68,10 @@ describe("ferrule — requests", () => {
   });
 });
 
-describe("ferrule — argument errors reject instead of throwing synchronously", () => {
+describe("arthron — argument errors reject instead of throwing synchronously", () => {
   it("relative path without baseURL rejects with TypeError", async () => {
     const fetch = fakeFetch(jsonResponse({}));
-    await expect(ferrule({ fetch }).get("rel")).rejects.toBeInstanceOf(
+    await expect(arthron({ fetch }).get("rel")).rejects.toBeInstanceOf(
       TypeError,
     );
     expect(fetch.calls).toHaveLength(0);
@@ -83,7 +83,7 @@ describe("ferrule — argument errors reject instead of throwing synchronously",
   });
 });
 
-describe("ferrule — config", () => {
+describe("arthron — config", () => {
   it("merges default headers under per-call headers, case-insensitively", async () => {
     const { api, fetch } = make(undefined, {
       headers: { "X-A": "base", "X-B": "base" },
@@ -113,7 +113,7 @@ describe("ferrule — config", () => {
     const spy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse({}));
-    await ferrule({ baseURL: "https://a" }).get("/u");
+    await arthron({ baseURL: "https://a" }).get("/u");
     expect(spy).toHaveBeenCalledOnce();
     spy.mockRestore();
   });
@@ -128,8 +128,8 @@ describe("ferrule — config", () => {
   });
 });
 
-describe("ferrule — errors", () => {
-  it("throws FerruleError on !ok with parsed body and custom errorMessage", async () => {
+describe("arthron — errors", () => {
+  it("throws ArthronError on !ok with parsed body and custom errorMessage", async () => {
     const { api } = make(
       fakeFetch(jsonResponse({ msg: "bad" }, { status: 422 })),
       {
@@ -137,13 +137,13 @@ describe("ferrule — errors", () => {
       },
     );
     await expect(api.get("/u")).rejects.toMatchObject({
-      name: "FerruleError",
+      name: "ArthronError",
       status: 422,
       message: "bad",
       data: { msg: "bad" },
     });
   });
-  it("throws FerruleError status 0 when fetch rejects", async () => {
+  it("throws ArthronError status 0 when fetch rejects", async () => {
     const { api } = make(fakeFetch(new TypeError("fetch failed")));
     await expect(api.get("/u")).rejects.toMatchObject({
       status: 0,
@@ -155,17 +155,17 @@ describe("ferrule — errors", () => {
     const { api } = make(fakeFetch(abort));
     await expect(api.get("/u")).rejects.toBe(abort);
   });
-  it("error interceptors see the FerruleError", async () => {
-    const seen = vi.fn((e: FerruleError) => e);
+  it("error interceptors see the ArthronError", async () => {
+    const seen = vi.fn((e: ArthronError) => e);
     const { api } = make(fakeFetch(jsonResponse({}, { status: 500 })), {
       use: [{ error: seen }],
     });
-    await expect(api.get("/u")).rejects.toBeInstanceOf(FerruleError);
+    await expect(api.get("/u")).rejects.toBeInstanceOf(ArthronError);
     expect(seen).toHaveBeenCalledOnce();
   });
 });
 
-describe("ferrule — immutability", () => {
+describe("arthron — immutability", () => {
   const tag = (v: string): Plugin => ({
     request: (c) => ({
       ...c,
@@ -178,7 +178,7 @@ describe("ferrule — immutability", () => {
 
   it("use() returns a new client and leaves the parent untouched", async () => {
     const fetch = fakeFetch(jsonResponse({}));
-    const parent = ferrule({ baseURL: "https://a", fetch });
+    const parent = arthron({ baseURL: "https://a", fetch });
     const child = parent.use(tag("child"));
     expect(child).not.toBe(parent);
     await parent.get("/u");
@@ -190,7 +190,7 @@ describe("ferrule — immutability", () => {
   });
   it("extend() appends plugins, merges headers (child wins), keeps parent config otherwise", async () => {
     const fetch = fakeFetch(jsonResponse({}));
-    const parent = ferrule({
+    const parent = arthron({
       baseURL: "https://a/v1",
       fetch,
       headers: { "X-A": "p", "X-B": "p" },
@@ -207,7 +207,7 @@ describe("ferrule — immutability", () => {
   });
   it("adding to the parent after extend does not affect the child", async () => {
     const fetch = fakeFetch(jsonResponse({}));
-    const parent = ferrule({ baseURL: "https://a", fetch });
+    const parent = arthron({ baseURL: "https://a", fetch });
     const child = parent.extend({});
     parent.use(tag("late"));
     await child.get("/u");

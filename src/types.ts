@@ -1,4 +1,4 @@
-import type { ErrorMessageResolver, FerruleError } from "./error";
+import type { ArthronError, ErrorMessageResolver } from "./error";
 import type { QueryParams } from "./url";
 
 export type { ErrorMessageResolver } from "./error";
@@ -19,14 +19,14 @@ export type ResponseInterceptor = (
 
 /** Runs after a failed attempt. Returns the error to throw; it is always thrown. */
 export type ErrorInterceptor = (
-  err: FerruleError,
+  err: ArthronError,
   ctx: RequestContext,
-) => FerruleError | Promise<FerruleError>;
+) => ArthronError | Promise<ArthronError>;
 
 /**
  * Wraps the whole call. `next` runs everything below it (request interceptors →
  * fetch → response/error interceptors) and may be called again to retry.
- * `next` rejects with an `FerruleError`, or with the untouched original when the
+ * `next` rejects with an `ArthronError`, or with the untouched original when the
  * failure was a cancellation or a bug in a plugin.
  */
 export type Middleware = (
@@ -52,7 +52,7 @@ export type RequestInitWithBody = RequestOptions & {
   body?: unknown;
 };
 
-export type FerruleConfig = {
+export type ArthronConfig = {
   /** Prefix for relative paths. Without it only absolute URLs are accepted. */
   baseURL?: string;
   /** Default headers. Per-call headers win, compared case-insensitively. */
@@ -66,7 +66,7 @@ export type FerruleConfig = {
   errorMessage?: ErrorMessageResolver;
 };
 
-export type FerrulePromise = Promise<Response> & {
+export type ArthronPromise = Promise<Response> & {
   json<T = unknown>(): Promise<T>;
   text(): Promise<string>;
   blob(): Promise<Blob>;
@@ -74,16 +74,16 @@ export type FerrulePromise = Promise<Response> & {
   formData(): Promise<FormData>;
 };
 
-export type Ferrule = {
-  get(path: string, init?: RequestOptions): FerrulePromise;
-  delete(path: string, init?: RequestOptions): FerrulePromise;
-  head(path: string, init?: RequestOptions): FerrulePromise;
-  post(path: string, body?: unknown, init?: RequestOptions): FerrulePromise;
-  put(path: string, body?: unknown, init?: RequestOptions): FerrulePromise;
-  patch(path: string, body?: unknown, init?: RequestOptions): FerrulePromise;
-  request(path: string, init: RequestInitWithBody): FerrulePromise;
+export type Arthron = {
+  get(path: string, init?: RequestOptions): ArthronPromise;
+  delete(path: string, init?: RequestOptions): ArthronPromise;
+  head(path: string, init?: RequestOptions): ArthronPromise;
+  post(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
+  put(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
+  patch(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
+  request(path: string, init: RequestInitWithBody): ArthronPromise;
   /** New client with these plugins appended. The receiver is untouched. */
-  use(...plugins: Plugin[]): Ferrule;
+  use(...plugins: Plugin[]): Arthron;
   /** New client with config shallow-merged, headers merged, plugins appended. */
-  extend(config: Partial<FerruleConfig>): Ferrule;
+  extend(config: Partial<ArthronConfig>): Arthron;
 };
