@@ -58,6 +58,23 @@ describe("toArthronPromise", () => {
       rows.push(r);
     expect(rows).toEqual([{ a: 1 }, { a: 2 }]);
   });
+  it(".sse() created now and iterated later leaves no unhandled rejection", async () => {
+    const unhandled: unknown[] = [];
+    const record = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", record);
+    try {
+      const boom = new Error("boom");
+      const events = toArthronPromise(Promise.reject(boom)).sse();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(unhandled).toEqual([]);
+      const iterate = async () => {
+        for await (const _ of events);
+      };
+      await expect(iterate()).rejects.toBe(boom);
+    } finally {
+      process.off("unhandledRejection", record);
+    }
+  });
   it("rejection propagates through the chain", async () => {
     await expect(
       toArthronPromise(Promise.reject(new Error("x"))).json(),

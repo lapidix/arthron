@@ -29,9 +29,10 @@ api.request(path, { method, body?, ...init })      // method is required here
 Every method returns `Promise<Response>` plus helpers:
 `.json<T>()` `.text()` `.blob()` `.arrayBuffer()` `.formData()` `.sse(): AsyncIterable<{event?,data,id?,retry?}>` `.ndjson<T>(): AsyncIterable<T>`
 
-- Body: string/FormData/Blob/ArrayBuffer/URLSearchParams/ReadableStream sent as-is. Any other value (incl. null) → JSON + `content-type: application/json` unless you set one. GET/HEAD with body → TypeError.
+- Body: string/FormData/Blob/ArrayBuffer/URLSearchParams/ReadableStream sent as-is (matched by type tag, so polyfill/cross-realm instances count; streams get `duplex: "half"`). Any other value (incl. null) → JSON + `content-type: application/json` unless you set one. GET/HEAD with body → TypeError.
 - URL: `baseURL` + path by string concatenation (`"https://a/v1" + "/u"` → `https://a/v1/u`). Absolute path bypasses baseURL. `params` appended with `&` if a query exists, placed before `#fragment`.
-- Argument errors (no baseURL, BigInt body, missing method) reject the promise; they do not throw synchronously.
+- Argument errors (no baseURL, URL fetch cannot parse, BigInt body, missing method) reject the promise with TypeError before fetch; they do not throw synchronously and are never retried.
+- `.sse()`/`.ndjson()`: leaving the loop early cancels the body. `.sse()` drops an event the stream ends inside (spec).
 
 ## Errors
 
@@ -48,7 +49,7 @@ class ArthronError extends Error {
 isArthronError(e): e is ArthronError
 ```
 
-- Only `!response.ok` and fetch rejection become ArthronError. `AbortError`/`TimeoutError` and exceptions thrown by plugins propagate untouched and skip error interceptors.
+- Only `!response.ok` and fetch rejection become ArthronError. Aborts (`AbortError`/`TimeoutError` or any custom `abort(reason)`, including during the error-body read) and exceptions thrown by plugins propagate untouched and skip error interceptors.
 - Default message: body `message` → `error` (string) → `error.message` → `detail` → `"Request failed with status N"`. Override with `errorMessage`.
 
 ## Plugins
@@ -64,7 +65,7 @@ type Plugin = {
 type RequestContext = { url: string; init: RequestInit };
 ```
 
-Order: `middleware[0]( middleware[1]( attempt: request interceptors → fetch → response | error interceptors ) )`. Each attempt gets a fresh copy of ctx.
+Order: `middleware[0]( middleware[1]( attempt: request interceptors → fetch → response | error interceptors ) )`. Each attempt gets a fresh copy of ctx (headers, and a FormData/URLSearchParams body).
 
 `api.use(...plugins)` and `api.extend(config)` return NEW clients; the original is unchanged.
 
@@ -72,8 +73,8 @@ Helpers (identity, for typing): `definePlugin(p)`, `defineMiddleware(m)`, `defin
 
 ## Built-in plugins
 
-- `retry({ retries=2, retryOn=[408,429,500,502,503,504], methods=[GET,HEAD,OPTIONS,PUT,DELETE], delay=(n)=>300*2**n, maxRetryAfter=60000 })` — re-runs the whole attempt (request interceptors included). Honours Retry-After (seconds or HTTP-date). Never retries ReadableStream bodies, aborted requests, non-ArthronErrors.
-- `timeout(ms)` — deadline from attempt start until the body is fully read. Rejects with TimeoutError (not ArthronError; retry ignores it). Place after `retry` for per-attempt, before it for total.
+- `retry({ retries=2, retryOn=[408,429,500,502,503,504], methods=[GET,HEAD,OPTIONS,PUT,DELETE], delay=(n)=>300*2**n, maxRetryAfter=60000 })` — re-runs the whole attempt (request interceptors included). Honours Retry-After (seconds or HTTP-date). Never retries ReadableStream bodies, aborted requests, non-ArthronErrors. `retries` must be a whole number ≥ 0 (TypeError otherwise); waits are capped at 2^31-1 ms.
+- `timeout(ms)` — deadline from attempt start until the body is fully read. Rejects with TimeoutError (not ArthronError; retry ignores it). Place after `retry` for per-attempt, before it for total. `Infinity` = no deadline; NaN/negative/>2^31-1 → TypeError. Keeps `res.url`/`redirected`/`type`; timer is unref'd.
 - `logging({ enabled=true, logger=console, onEvent?, now? })` — start/success/error lines or structured events `{ phase, method, path, status?, ms?, error? }`. Never prints query strings or userinfo. Does not log cancellations.
 
 ## Recipes

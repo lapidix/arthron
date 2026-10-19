@@ -3,22 +3,31 @@ type Serialized = {
   headers: Record<string, string>;
 };
 
-const RAW_CTORS = [
+const RAW_TAGS = new Set([
   "FormData",
   "Blob",
+  "File",
   "ArrayBuffer",
   "URLSearchParams",
   "ReadableStream",
-] as const;
+]);
+
+/**
+ * `Symbol.toStringTag`, not `instanceof`: a body from another realm or a
+ * polyfill (formdata-node, fetch-blob) must not be JSON-encoded into `{}`.
+ */
+const tagOf = (value: unknown): string =>
+  Object.prototype.toString.call(value).slice(8, -1);
+
+export function isReadableStream(value: unknown): value is ReadableStream {
+  return tagOf(value) === "ReadableStream";
+}
 
 /** Bodies fetch already knows how to send. Content-Type is left to the caller / runtime. */
 function isRawBody(body: unknown): body is BodyInit {
   if (typeof body === "string") return true;
   if (ArrayBuffer.isView(body)) return true;
-  return RAW_CTORS.some((name) => {
-    const ctor = (globalThis as Record<string, unknown>)[name];
-    return typeof ctor === "function" && body instanceof ctor;
-  });
+  return RAW_TAGS.has(tagOf(body));
 }
 
 /**

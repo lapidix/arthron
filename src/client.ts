@@ -1,4 +1,4 @@
-import { serializeBody } from "./body";
+import { isReadableStream, serializeBody } from "./body";
 import { isCancellation, networkError, responseError } from "./error";
 import { mergeHeaders, toHeaderRecord } from "./headers";
 import { runPipeline } from "./pipeline";
@@ -28,6 +28,23 @@ function resolveConfig(config: ArthronConfig): Resolved {
 }
 
 /**
+ * fetch rejects a malformed URL or method with a TypeError that looks just
+ * like a network failure (status 0, retried). A bodiless `Request` runs the
+ * same checks up front, so those become argument errors instead.
+ */
+function assertSendable(url: string, method: string): void {
+  if (typeof Request !== "function") return;
+  try {
+    new Request(url, { method });
+  } catch (cause) {
+    throw new TypeError(
+      `arthron: cannot send ${method} ${url} — use an absolute URL or a baseURL with a scheme (https://…), and a valid HTTP method`,
+      { cause },
+    );
+  }
+}
+
+/**
  * Build a client from config. The result is immutable — `use` and `extend`
  * return new clients and never touch the one they were called on.
  */
@@ -39,15 +56,20 @@ export function arthron(config: ArthronConfig = {}): Arthron {
     // Resolved per call, not per client: a global patched after the client was
     // created (msw's `server.listen()`, for one) must still be honoured.
     const fetchImpl = resolved.fetch ?? globalThis.fetch;
+    const { signal } = ctx.init;
     let res: Response;
     try {
       res = await fetchImpl(ctx.url, ctx.init);
     } catch (thrown) {
-      if (isCancellation(thrown)) throw thrown;
+      if (isCancellation(thrown, signal)) throw thrown;
       throw networkError(thrown, ctx);
     }
-    if (!res.ok) throw await responseError(res, ctx, resolved.errorMessage);
-    return res;
+    if (res.ok) return res;
+    const error = await responseError(res, ctx, resolved.errorMessage);
+    // Aborted while the error body was being read (timeout, caller): that is
+    // a cancellation, not this status.
+    if (signal?.aborted) throw signal.reason;
+    throw error;
   };
 
   const dispatch = (
@@ -64,6 +86,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
         );
       }
       const url = resolveUrl(resolved.baseURL, path, params);
+      assertSendable(url, method);
       const { body, headers } = serializeBody(
         rawBody,
         mergeHeaders(resolved.headers, callHeaders),
@@ -78,6 +101,9 @@ export function arthron(config: ArthronConfig = {}): Arthron {
         headers,
       };
       if (body !== undefined) requestInit.body = body;
+      // Without half-duplex, fetch rejects a streaming upload (Node, Chromium).
+      if (isReadableStream(body))
+        Object.assign(requestInit, { duplex: "half" });
       return toArthronPromise(
         runPipeline(resolved.use, { url, init: requestInit }, send),
       );

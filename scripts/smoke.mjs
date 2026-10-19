@@ -25,8 +25,30 @@ assert(
 );
 
 let hits = 0;
+let endlessClosed = false;
 const server = createServer((req, res) => {
   hits += 1;
+  if (req.url === "/upload") {
+    let size = 0;
+    req.on("data", (chunk) => {
+      size += chunk.length;
+    });
+    req.on("end", () => res.end(JSON.stringify({ size })));
+    return;
+  }
+  if (req.url === "/redirect") {
+    res.writeHead(302, { location: "/echo" }).end();
+    return;
+  }
+  if (req.url === "/endless") {
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    const tick = setInterval(() => res.write("data: tick\n\n"), 5);
+    res.on("close", () => {
+      clearInterval(tick);
+      endlessClosed = true;
+    });
+    return;
+  }
   if (req.url === "/flaky" && hits === 1) {
     res.writeHead(503, { "retry-after": "0" }).end();
     return;
@@ -81,7 +103,36 @@ try {
     slow?.name === "TimeoutError" && !isArthronError(slow),
     "timeout rejects with TimeoutError",
   );
+
+  const upload = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode("abc"));
+      controller.close();
+    },
+  });
+  const uploaded = await api.post("/upload", upload).json();
+  assert(uploaded.size === 3, "a ReadableStream body uploads with real fetch");
+
+  const redirected = await api.get("/redirect");
+  assert(
+    redirected.redirected && redirected.url === `${baseURL}/echo`,
+    "timeout keeps res.url and res.redirected",
+  );
+  await redirected.text();
+
+  for await (const _ of arthron({ baseURL }).get("/endless").sse()) break;
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert(endlessClosed, "leaving .sse() early closes the connection");
+
+  const bad = await arthron({ baseURL: "api.example.com" })
+    .get("/x")
+    .catch((e) => e);
+  assert(
+    bad instanceof TypeError && !isArthronError(bad),
+    "a baseURL without a scheme rejects with TypeError, not status 0",
+  );
 } finally {
+  server.closeAllConnections?.();
   server.close();
 }
 console.log(`smoke OK on node ${process.version}`);

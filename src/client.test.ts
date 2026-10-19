@@ -41,9 +41,24 @@ describe("arthron — requests", () => {
   it("post passes FormData through without content-type", async () => {
     const { api, fetch } = make();
     const fd = new FormData();
+    fd.append("k", "v");
     await api.post("/u", fd);
-    expect(fetch.calls[0]?.init.body).toBe(fd);
+    // Each attempt gets its own copy, so interceptors never edit the caller's.
+    const sent = fetch.calls[0]?.init.body as FormData;
+    expect(sent).toBeInstanceOf(FormData);
+    expect([...sent]).toEqual([["k", "v"]]);
     expect(headersOf(fetch.calls[0]?.init)["content-type"]).toBeUndefined();
+  });
+  it("sends a ReadableStream body in a form real fetch accepts", async () => {
+    // `new Request` runs the same init checks as fetch, without a network.
+    const strict = (async (url: string, init: RequestInit) => {
+      new Request(url, init);
+      return jsonResponse({});
+    }) as unknown as typeof fetch;
+    const api = arthron({ baseURL: "https://a", fetch: strict });
+    await expect(api.post("/u", new ReadableStream())).resolves.toBeInstanceOf(
+      Response,
+    );
   });
   it("delete and head send without body", async () => {
     const { api, fetch } = make();
@@ -86,6 +101,12 @@ describe("arthron — argument errors reject instead of throwing synchronously",
       expect(fetch.calls).toHaveLength(0);
     },
   );
+  it("a baseURL without a scheme rejects with TypeError before fetch", async () => {
+    const fetch = fakeFetch(jsonResponse({}));
+    const api = arthron({ baseURL: "api.example.com", fetch });
+    await expect(api.get("/x")).rejects.toBeInstanceOf(TypeError);
+    expect(fetch.calls).toHaveLength(0);
+  });
   it("unserializable body rejects", async () => {
     const { api, fetch } = make();
     await expect(api.post("/u", { n: 1n })).rejects.toBeInstanceOf(TypeError);
@@ -175,6 +196,15 @@ describe("arthron — errors", () => {
     const abort = new DOMException("aborted", "AbortError");
     const { api } = make(fakeFetch(abort));
     await expect(api.get("/u")).rejects.toBe(abort);
+  });
+  it("rethrows a custom abort reason raw and skips error interceptors", async () => {
+    const reason = new Error("navigated away");
+    const ac = new AbortController();
+    ac.abort(reason);
+    const seen = vi.fn((e: ArthronError) => e);
+    const { api } = make(fakeFetch(reason), { use: [{ error: seen }] });
+    await expect(api.get("/u", { signal: ac.signal })).rejects.toBe(reason);
+    expect(seen).not.toHaveBeenCalled();
   });
   it("error interceptors see the ArthronError", async () => {
     const seen = vi.fn((e: ArthronError) => e);

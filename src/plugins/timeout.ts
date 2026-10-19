@@ -1,5 +1,7 @@
 import type { Plugin } from "../types";
 
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
 /**
  * Wrap `body` so the deadline keeps running until it is fully read, and so an
  * abort while reading surfaces as a stream error instead of a silent stall.
@@ -48,6 +50,15 @@ function guardBody(
  * `AbortSignal.timeout` so it runs on Node 18.
  */
 export function timeout(ms: number): Plugin {
+  if (ms === Number.POSITIVE_INFINITY) {
+    return { name: "timeout", middleware: (ctx, next) => next(ctx) };
+  }
+  // setTimeout fires at once for NaN, negatives and anything past 2^31-1.
+  if (!(ms >= 0 && ms <= MAX_TIMER_MS)) {
+    throw new TypeError(
+      `arthron: timeout(${ms}) needs 0–${MAX_TIMER_MS} ms — pass Infinity for no deadline`,
+    );
+  }
   return {
     name: "timeout",
     middleware: async (ctx, next) => {
@@ -67,6 +78,8 @@ export function timeout(ms: number): Plugin {
           ),
         ms,
       );
+      // Only this request waits on it; an unread body must not keep Node alive.
+      (timer as { unref?: () => unknown }).unref?.();
       const finish = () => {
         clearTimeout(timer);
         outer?.removeEventListener("abort", forward);
@@ -86,10 +99,19 @@ export function timeout(ms: number): Plugin {
         finish();
         return res;
       }
-      return new Response(guardBody(res.body, controller.signal, finish), {
-        status: res.status,
-        statusText: res.statusText,
-        headers: res.headers,
+      const guarded = new Response(
+        guardBody(res.body, controller.signal, finish),
+        {
+          status: res.status,
+          statusText: res.statusText,
+          headers: res.headers,
+        },
+      );
+      // A rebuilt Response starts with url "" and redirected false; keep what fetch reported.
+      return Object.defineProperties(guarded, {
+        url: { value: res.url },
+        redirected: { value: res.redirected },
+        type: { value: res.type },
       });
     },
   };

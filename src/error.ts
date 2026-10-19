@@ -54,8 +54,16 @@ export function isArthronError(error: unknown): error is ArthronError {
   return error instanceof ArthronError;
 }
 
-/** Cancellation is not an HTTP failure. Matched by name so it works across realms. */
-export function isCancellation(error: unknown): boolean {
+/**
+ * Cancellation is not an HTTP failure. Matched by name so it works across
+ * realms — or by the request's own `signal`, since `abort(reason)` rejects
+ * with whatever reason the caller chose.
+ */
+export function isCancellation(
+  error: unknown,
+  signal?: AbortSignal | null,
+): boolean {
+  if (signal?.aborted) return true;
   const name = (error as { name?: unknown } | null | undefined)?.name;
   return name === "AbortError" || name === "TimeoutError";
 }

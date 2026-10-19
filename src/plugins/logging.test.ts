@@ -55,6 +55,34 @@ describe("logging", () => {
     ).rejects.toBe(abort);
     expect(logger.error).not.toHaveBeenCalled();
   });
+  it("does not log an abort with a custom reason", async () => {
+    const logger = spyLogger();
+    const reason = new Error("navigated away");
+    const ac = new AbortController();
+    ac.abort(reason);
+    await expect(
+      runPipeline(
+        [logging({ logger })],
+        { url: "https://a/u", init: { signal: ac.signal } },
+        async () => {
+          throw reason;
+        },
+      ),
+    ).rejects.toBe(reason);
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+  it("a sink that throws on success does not also report the request as failed", async () => {
+    const phases: string[] = [];
+    const sinkBug = new Error("sink down");
+    const onEvent = (e: LogEvent) => {
+      phases.push(e.phase);
+      if (e.phase === "success") throw sinkBug;
+    };
+    await expect(
+      runPipeline([logging({ onEvent })], ctx, async () => jsonResponse({})),
+    ).rejects.toBe(sinkBug);
+    expect(phases).toEqual(["start", "success"]);
+  });
   it("is a no-op when disabled", async () => {
     const logger = spyLogger();
     await runPipeline([logging({ logger, enabled: false })], ctx, async () =>

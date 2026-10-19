@@ -78,7 +78,7 @@ for await (const { event, data } of api.post("/v1/chat/completions", body).sse()
 for await (const row of api.get("/logs").ndjson<LogRow>()) console.log(row);
 ```
 
-`.sse()` follows the EventSource spec (multi-line `data:` joined with `\n`, comments ignored, dispatch on blank line). Both helpers honour `signal` and `timeout` while the body is being read.
+`.sse()` follows the EventSource spec (multi-line `data:` joined with `\n`, comments ignored, dispatch on blank line, an event the stream ends inside is dropped). Both helpers honour `signal` and `timeout` while the body is being read, and leaving the loop early (`break`, `return`, a throw) closes the connection.
 
 ### Handle errors
 
@@ -97,7 +97,7 @@ try {
 }
 ```
 
-A request that is aborted or times out rejects with the browser's `AbortError` / `TimeoutError`, not an `ArthronError`.
+A request that is aborted or times out rejects with the abort reason — `AbortError` / `TimeoutError`, or whatever you passed to `abort(reason)` — not an `ArthronError`.
 
 ### Derive clients
 
@@ -154,7 +154,7 @@ Re-runs the attempt on network failure or a retryable status. Because it re-runs
 
 | option | default | |
 |---|---|---|
-| `retries` | `2` | retries after the first attempt (3 requests total) |
+| `retries` | `2` | retries after the first attempt (3 requests total); a whole number ≥ 0 |
 | `retryOn` | `[408, 429, 500, 502, 503, 504]` | network failures (`status: 0`) are always retried |
 | `methods` | `GET HEAD OPTIONS PUT DELETE` | case-insensitive |
 | `delay` | `(retry) => 300 * 2 ** retry` | ms; `retry` counts from 0 |
@@ -164,7 +164,7 @@ Honours `Retry-After` (seconds or HTTP date). Never retries a `ReadableStream` b
 
 #### `timeout(ms)`
 
-Aborts the attempt after `ms`, counted until the body has been fully read — a server that sends headers and then stalls still trips it. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore. Combines with a `signal` you pass yourself.
+Aborts the attempt after `ms`, counted until the body has been fully read — a server that sends headers and then stalls still trips it. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore. Combines with a `signal` you pass yourself. `Infinity` means no deadline. The timer never keeps a Node process alive on its own.
 
 ```ts
 arthron({ use: [retry(), timeout(5_000)] }); // 5 s per attempt
@@ -282,10 +282,10 @@ class ArthronError extends Error {
 ### Rules worth knowing
 
 - **URLs are joined by string concatenation.** `baseURL: "https://a/v1"` + `"/users"` → `https://a/v1/users`. The `/v1` survives, unlike with `new URL()`. Absolute URLs bypass `baseURL`.
-- **Bodies.** `string`, `FormData`, `Blob`, `ArrayBuffer`/views, `URLSearchParams` and `ReadableStream` go through untouched. Anything else — including `null` — becomes JSON with `content-type: application/json` unless you set a content type. `GET`/`HEAD` with a body is rejected with a `TypeError`.
+- **Bodies.** `string`, `FormData`, `Blob`, `ArrayBuffer`/views, `URLSearchParams` and `ReadableStream` go through untouched — recognised by type tag, so polyfill and cross-realm instances count too. A `ReadableStream` is sent with `duplex: "half"`, which fetch requires. Anything else — including `null` — becomes JSON with `content-type: application/json` unless you set a content type. `GET`/`HEAD` with a body is rejected with a `TypeError`.
 - **`credentials` is not set unless you set it.** Cross-origin cookies need `credentials: "include"`.
 - **Response bodies are single-use.** A response interceptor that wants to inspect the body must `res.clone()`; one that changes it returns a new `Response`.
-- **Argument errors reject, they don't throw.** No `baseURL` with a relative path, a `BigInt` in a JSON body, a missing `method` in `request` — all surface as a rejected promise.
+- **Argument errors reject, they don't throw.** No `baseURL` with a relative path, a URL fetch cannot parse (`baseURL: "api.example.com"` without `https://`), a `BigInt` in a JSON body, a missing `method` in `request` — all surface as a rejected `TypeError` before anything is sent, never as a retried `status: 0`.
 
 ## For tooling and agents
 
