@@ -1,5 +1,4 @@
-/** Temporary home — moves to types.ts once the pipeline lands. */
-export type RequestContext = { url: string; init: RequestInit };
+import type { RequestContext } from "./types";
 
 export type ErrorMessageResolver = (
   data: unknown,
