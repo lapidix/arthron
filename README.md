@@ -317,7 +317,9 @@ extend(config) → new client
 without(...names) → new client without those plugins
 ```
 
-All arguments after `path` are optional, except `method` in `request`.
+All arguments after `path` are optional, except `method` in `request`. `request` is the way to any other verb; its `method` autocompletes the standard ones, and those go out uppercased whatever case you write them in (fetch itself leaves `"patch"` lowercase, which servers answer with 405). Other method names are sent as written.
+
+The public object types — `ArthronConfig`, `RequestOptions`, `RequestContext`, `ArthronMeta`, `Plugin`, `ArthronPromise`, `Arthron` — are interfaces, so a plugin package can add its own options with `declare module "arthron" { interface RequestOptions { … } }`.
 
 ### `ArthronError`
 
