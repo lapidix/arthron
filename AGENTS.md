@@ -12,6 +12,7 @@ pnpm lint            # biome check .   (pnpm lint:fix to apply)
 pnpm build           # tsdown → dist/index.{mjs,cjs,d.mts,d.cts}
 pnpm check:types-pkg # attw --pack . — package types must be green for node10/node16/bundler
 pnpm check:types-consumer  # after build and `pnpm install --dir test/types-consumer`: the packed types on TS 5.0–7.0
+pnpm check:browsers  # after build, `pnpm install --dir test/browser` and `pnpm --dir test/browser exec playwright install`: the package in Chromium, Firefox and WebKit
 node scripts/smoke.mjs  # runs dist/ against a real local HTTP server
 ```
 

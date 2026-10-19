@@ -18,10 +18,16 @@ A deprecated API keeps working, is marked `@deprecated` with what to use instead
 
 - Types check in a Node project typed with `@types/node` and no DOM lib. `HeadersOption` named `HeadersInit`, which only the DOM lib declares: such a project got `Cannot find name 'HeadersInit'`, or, with `skipLibCheck`, headers typed as `any`.
 - In Safari and other WebKit browsers, an aborted call rejects with its abort reason as documented — the `TimeoutError` of `timeout()`, or the reason passed to `abort(reason)` — for the request and for body reads (`.json()`, `.sse()`, …). WebKit's fetch rejects with a generic `AbortError` instead, which arthron passed on.
+- In a browser that cannot stream a request body (Firefox), a `ReadableStream` body rejects with a `TypeError` before anything is sent. Firefox sent the text `"[object ReadableStream]"` instead.
+
+### Changed
+
+- The `ArthronError` for a failed `ReadableStream` upload says that browsers stream a request body only over HTTP/2, and to send a `Blob` or `ArrayBuffer` to an HTTP/1.1 server. Before, it was a bare `Failed to fetch`.
 
 ### Documentation
 
 - The minimum supported TypeScript version is 5.0. CI type-checks the published types the way a user's compiler sees them, on every version from 5.0 to 7.0, with bundler and NodeNext resolution, ESM and CJS, and with or without the DOM lib.
+- The README describes what differs in browsers: CORS preflights, `Retry-After` behind CORS, opaque redirects, streaming bodies. CI runs the built package in Chromium, Firefox and WebKit against a server on another origin.
 
 ## [1.0.0] — 2026-10-19
 
