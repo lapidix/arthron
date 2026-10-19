@@ -1,6 +1,6 @@
 {
   "name": "arthron",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Composable fetch client — create from config, plug in interceptors and middleware",
   "license": "MIT",
   "author": "lapidix",
@@ -20,6 +20,7 @@
   "engines": {
     "node": ">=18"
   },
+  "packageManager": "pnpm@10.34.5",
   "files": [
     "dist"
   ],

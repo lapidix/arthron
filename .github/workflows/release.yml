@@ -1,0 +1,33 @@
+name: Release
+
+# Publishes to npm when a `vX.Y.Z` tag is pushed, via npm Trusted Publishing
+# (OIDC) — no token in secrets. One-time setup on npmjs.com:
+#   package arthron → Settings → Trusted Publisher → GitHub Actions
+#   owner: lapidix · repository: arthron · workflow: release.yml
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # Trusted Publishing needs npm >= 11.5.1; Node 22 ships an older npm.
+      - run: npm install -g npm@latest
+      - run: pnpm install --frozen-lockfile
+      - name: Tag must match package.json version
+        run: |
+          pkg=$(node -p "require('./package.json').version")
+          tag="${GITHUB_REF_NAME#v}"
+          [ "$pkg" = "$tag" ] || { echo "package.json is $pkg but tag is $tag"; exit 1; }
+      - run: npm publish --provenance --access public

@@ -13,11 +13,11 @@ npm i arthron
 ## Quick start
 
 ```ts
-import { arthron, logging, retry } from "arthron";
+import { arthron, logging, retry, timeout } from "arthron";
 
 const base = arthron({
   baseURL: "https://api.example.com",
-  use: [logging(), retry({ retries: 3 })],
+  use: [logging(), timeout(10_000), retry({ retries: 3 })],
 });
 
 const api = base.extend({
@@ -89,7 +89,7 @@ api.extend(config)    // new client: config shallow-merged, headers merged, plug
 
 Clients are **immutable**. `use` and `extend` return new clients; the receiver — and anything previously derived from it — is untouched.
 
-**Body rules.** `string`, `FormData`, `Blob`, `ArrayBuffer`/views, `URLSearchParams`, `ReadableStream` are sent as-is with no `Content-Type` added. Anything else is `JSON.stringify`-ed with `content-type: application/json`, unless you already set a content type.
+**Body rules.** `string`, `FormData`, `Blob`, `ArrayBuffer`/views, `URLSearchParams`, `ReadableStream` are sent as-is with no `Content-Type` added. Anything else — including `null` — is `JSON.stringify`-ed with `content-type: application/json`, unless you already set a content type. `GET`/`HEAD` with a body is rejected up front with a `TypeError`.
 
 **URL rules.** `baseURL` and `path` are joined by string concatenation — `"https://a/v1" + "/users"` → `https://a/v1/users`. The prefix survives a leading slash (unlike `new URL()`). Absolute paths skip `baseURL`.
 
@@ -161,6 +161,17 @@ Retries by calling `next` again, so request interceptors (fresh auth header, fre
 
 `Retry-After` (seconds or HTTP-date) wins over `delay` when present and within `maxRetryAfter`; beyond it the error is thrown without retrying. `ReadableStream` bodies are never retried (they can only be read once). Respects `signal` — an aborted request stops retrying immediately.
 
+### `timeout(ms)`
+
+Aborts the attempt after `ms` and rejects with a `TimeoutError` (a `DOMException`, the same thing `AbortSignal.timeout()` produces). It is **not** an `ArthronError`, so error interceptors and `retry` leave it alone. Combines with a `signal` you pass yourself; built on `AbortController` so it runs on Node 18.
+
+Order matters: put `timeout` *inside* `retry` (register it after) so each attempt gets its own deadline, or *outside* for one deadline across all attempts.
+
+```ts
+arthron({ use: [retry(), timeout(5_000)] }); // 5 s per attempt
+arthron({ use: [timeout(5_000), retry()] }); // 5 s total
+```
+
 ## Writing your own plugin
 
 `defineMiddleware`, `defineInterceptor.{request,response,error}` and `definePlugin` are identity functions that give you contextual typing. Use them or annotate — same result.
@@ -212,21 +223,6 @@ export const errorRedirect = (navigate: (to: string) => void) =>
 
 api.use({ error: errorRedirect(router.push) });
 ```
-
-### `timeout` — a four-line middleware
-
-`AbortSignal.any` needs Node 20.3+ or a current browser; on Node 18 combine the signals with an `AbortController` by hand.
-
-```ts
-import { defineMiddleware } from "arthron";
-
-export const timeout = (ms: number) =>
-  defineMiddleware((ctx, next) =>
-    next({ ...ctx, init: { ...ctx.init, signal: AbortSignal.any([ctx.init.signal, AbortSignal.timeout(ms)].filter(Boolean) as AbortSignal[]) } }),
-  );
-```
-
-The resulting `TimeoutError` is rethrown untouched — it is not an `ArthronError`, so `retry` will not retry it.
 
 ## Gotchas
 
