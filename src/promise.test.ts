@@ -50,7 +50,10 @@ describe("toArthronPromise", () => {
       body("data: a\n\ndata: b\n\n"),
     ).sse())
       sse.push(e);
-    expect(sse).toEqual([{ data: "a" }, { data: "b" }]);
+    expect(sse).toEqual([
+      { data: "a", lastEventId: "" },
+      { data: "b", lastEventId: "" },
+    ]);
     const rows: unknown[] = [];
     for await (const r of toArthronPromise(body('{"a":1}\n{"a":2}\n')).ndjson<{
       a: number;

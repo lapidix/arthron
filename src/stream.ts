@@ -4,9 +4,15 @@ export type SseEvent = {
   event?: string;
   /** All `data:` lines of the block, joined with `\n`. */
   data: string;
-  /** The `id:` field, when present. */
+  /** The `id:` field of this event's own block, when it had one. */
   id?: string;
-  /** The `retry:` field in ms, when present and numeric. */
+  /**
+   * The last event ID so far, as EventSource's `lastEventId`: it persists
+   * across events (a block with only `id:` updates it too) and is "" until
+   * the server sends one. Send it as `Last-Event-ID` to resume a stream.
+   */
+  lastEventId: string;
+  /** The reconnection time in ms the server last set with `retry:`; carried on every event after it. */
   retry?: number;
 };
 
@@ -97,20 +103,19 @@ export async function* parseSse(
   let size = 0;
   let event: string | undefined;
   let id: string | undefined;
+  // Stream state, not block state: neither resets when an event dispatches.
+  let lastEventId = "";
   let retry: number | undefined;
 
   const flush = (): SseEvent | undefined => {
-    if (data.length === 0) {
-      event = id = retry = undefined;
-      return undefined;
-    }
-    const out: SseEvent = { data: data.join("\n") };
-    if (event !== undefined) out.event = event;
-    if (id !== undefined) out.id = id;
-    if (retry !== undefined) out.retry = retry;
+    const out: SseEvent | undefined =
+      data.length === 0 ? undefined : { data: data.join("\n"), lastEventId };
+    if (out && event !== undefined) out.event = event;
+    if (out && id !== undefined) out.id = id;
+    if (out && retry !== undefined) out.retry = retry;
     data = [];
     size = 0;
-    event = id = retry = undefined;
+    event = id = undefined;
     return out;
   };
 
@@ -139,13 +144,11 @@ export async function* parseSse(
         event = value;
         break;
       case "id":
-        id = value;
+        if (!value.includes("\u0000")) id = lastEventId = value;
         break;
-      case "retry": {
-        const ms = Number(value);
-        if (Number.isInteger(ms) && ms >= 0) retry = ms;
+      case "retry":
+        if (/^\d+$/.test(value)) retry = Number(value);
         break;
-      }
       default:
         break; // unknown fields are ignored, per spec
     }
