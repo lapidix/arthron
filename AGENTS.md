@@ -1,6 +1,6 @@
 # Working in this repo
 
-arthron is a zero-dependency fetch client. Read `README.md` for what it does and `llms.txt` for the compressed API reference. Design decisions and their reasons are in `docs/superpowers/specs/`.
+arthron is a zero-dependency fetch client. Read `README.md` for what it does and `llms.txt` for the compressed API reference. Design notes live locally in `docs/superpowers/` (git-ignored).
 
 ## Commands
 

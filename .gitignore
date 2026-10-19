@@ -3,6 +3,6 @@ dist
 coverage
 .superpowers
 .omc
-superpowers
+docs/superpowers
 .vitest
 .claude/worktrees
