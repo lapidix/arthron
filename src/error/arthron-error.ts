@@ -1,5 +1,5 @@
 import { redactUrl } from "../request/url";
-import type { RequestContext } from "../types/context.types";
+import type { RequestContext } from "../types/request.types";
 
 type ArthronErrorInit = {
   message: string;

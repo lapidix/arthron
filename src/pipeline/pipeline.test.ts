@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { ArthronError, isArthronError } from "../error/arthron-error";
 import { networkError } from "../error/error";
 import { jsonResponse } from "../testkit/fetch.testkit";
-import type { RequestContext } from "../types/context.types";
 import type { Plugin } from "../types/plugin.types";
+import type { RequestContext } from "../types/request.types";
 import { runPipeline } from "./pipeline";
 
-declare module "../types/context.types" {
+declare module "../types/request.types" {
   interface ArthronMeta {
     skipAuth?: boolean;
   }

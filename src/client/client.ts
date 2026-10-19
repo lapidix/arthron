@@ -3,8 +3,8 @@ import { isReadableStream, serializeBody } from "../request/body";
 import { mergeHeaders } from "../request/headers";
 import { fillPath, leavesBase, resolveUrl } from "../request/url";
 import { toArthronPromise } from "../response/promise";
-import type { RequestContext } from "../types/context.types";
-import type { ArthronPromise } from "../types/promise.types";
+import type { RequestContext } from "../types/request.types";
+import type { ArthronPromise } from "../types/response.types";
 import type {
   Arthron,
   ArthronConfig,

@@ -42,7 +42,8 @@ src/
   response/     promise.ts (ArthronPromise helpers), stream.ts (SSE / NDJSON), schema.ts, rebuild-response.ts
   error/        arthron-error.ts (ArthronError, isArthronError), error.ts (responseError, networkError …)
   plugins/      retry, timeout, logging
-  types/        types used by two or more folders
+  types/        types used by two or more folders: request.types (RequestContext, ArthronMeta, …),
+                plugin.types (Plugin, Middleware, interceptors), response.types (ArthronPromise, SSE, schema, …)
   testkit/      fakeFetch, jsonResponse — for tests only
 ```
 
@@ -51,7 +52,7 @@ src/
 - Used by one folder → that folder's `{subject}.types.ts` (`client/client.types.ts`, `plugins/timeout.types.ts`).
 - Used by two or more folders, or by a type in `types/` → `types/{subject}.types.ts`.
 - `types/` imports nothing outside `types/`, except the `ArthronError` class in `plugin.types.ts`. A folder's `*.types.ts` may import from `types/`.
-- No import cycles. `RetryOptions` sits in `types/context.types.ts` because `RequestContext → ArthronMeta → RetryOptions → RequestContext` is one cycle of types; augmenting `ArthronMeta` from another file does not survive the bundled `.d.ts`.
+- No import cycles. `RetryOptions` sits in `types/request.types.ts` because `RequestContext → ArthronMeta → RetryOptions → RequestContext` is one cycle of types; augmenting `ArthronMeta` from another file does not survive the bundled `.d.ts`.
 
 ## Commits
 

@@ -1,6 +1,9 @@
-import type { ArthronPromise } from "../types/promise.types";
-import type { StandardSchemaV1 } from "../types/schema.types";
-import type { NdjsonOptions, SseOptions } from "../types/stream.types";
+import type {
+  ArthronPromise,
+  NdjsonOptions,
+  SseOptions,
+  StandardSchemaV1,
+} from "../types/response.types";
 import { validate } from "./schema";
 import { parseNdjson, parseSse } from "./stream";
 

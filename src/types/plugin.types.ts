@@ -1,6 +1,6 @@
 // The one import from outside types/: ArthronError is a class, so it cannot live here.
 import type { ArthronError } from "../error/arthron-error";
-import type { RequestContext } from "./context.types";
+import type { RequestContext } from "./request.types";
 
 /** Runs before each attempt. Returns the context to send (may be a new object). */
 export type RequestInterceptor = (

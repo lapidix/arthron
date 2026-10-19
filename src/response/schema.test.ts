@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { isArthronError } from "../error/arthron-error";
 import { jsonResponse } from "../testkit/fetch.testkit";
-import type { StandardSchemaV1 } from "../types/schema.types";
+import type { StandardSchemaV1 } from "../types/response.types";
 import { toArthronPromise } from "./promise";
 import { SchemaError } from "./schema";
 

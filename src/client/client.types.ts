@@ -1,8 +1,13 @@
-import type { ArthronMeta } from "../types/context.types";
-import type { ErrorMessageResolver } from "../types/error.types";
 import type { Plugin } from "../types/plugin.types";
-import type { ArthronPromise } from "../types/promise.types";
-import type { HeadersOption, QueryParams } from "../types/request.types";
+import type {
+  ArthronMeta,
+  HeadersOption,
+  QueryParams,
+} from "../types/request.types";
+import type {
+  ArthronPromise,
+  ErrorMessageResolver,
+} from "../types/response.types";
 
 /**
  * The methods arthron knows by name; any other string is sent as written.

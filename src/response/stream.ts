@@ -2,7 +2,7 @@ import type {
   NdjsonOptions,
   SseEvent,
   SseOptions,
-} from "../types/stream.types";
+} from "../types/response.types";
 
 const DEFAULT_LIMIT = 8 * 1024 * 1024;
 

@@ -2,7 +2,7 @@ import type {
   InferOutput,
   SchemaIssue,
   StandardSchemaV1,
-} from "../types/schema.types";
+} from "../types/response.types";
 
 const pathOf = (issue: SchemaIssue): string =>
   (issue.path ?? [])

@@ -1,6 +1,6 @@
 import { rebuildResponse } from "../response/rebuild-response";
-import type { RequestContext } from "../types/context.types";
-import type { ErrorMessageResolver } from "../types/error.types";
+import type { RequestContext } from "../types/request.types";
+import type { ErrorMessageResolver } from "../types/response.types";
 import { ArthronError } from "./arthron-error";
 
 /**
