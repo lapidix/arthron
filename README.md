@@ -365,6 +365,10 @@ class ArthronError extends Error {
 - `examples/` holds type-checked, runnable recipes: LLM streaming, auth refresh, an error page, upload/download. `examples/recipes.test.ts` keeps the auth and error-page recipes honest.
 - Error messages state the fix (`… — pass baseURL in arthron({ baseURL }) or use an absolute URL`).
 
+## Security
+
+Report vulnerabilities privately through GitHub — see [SECURITY.md](SECURITY.md) for supported versions, response times and disclosure.
+
 ## License
 
 MIT
