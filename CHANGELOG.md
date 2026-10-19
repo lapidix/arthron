@@ -18,6 +18,10 @@ A deprecated API keeps working, is marked `@deprecated` with what to use instead
 
 - Types check in a Node project typed with `@types/node` and no DOM lib. `HeadersOption` named `HeadersInit`, which only the DOM lib declares: such a project got `Cannot find name 'HeadersInit'`, or, with `skipLibCheck`, headers typed as `any`.
 
+### Documentation
+
+- The minimum supported TypeScript version is 5.0. CI type-checks the published types the way a user's compiler sees them, on every version from 5.0 to 7.0, with bundler and NodeNext resolution, ESM and CJS, and with or without the DOM lib.
+
 ## [1.0.0] — 2026-10-19
 
 First stable release. Compared with 0.1.0:
