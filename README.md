@@ -14,7 +14,7 @@ const user = await api.get("/me").json<User>();
 ```
 
 - **Plain `Response` in, plain `Response` out.** No wrapper type to learn. `.json<T>()` and friends are there when you want the body.
-- **Two kinds of plugin, kept apart by the types.** Middleware wraps the request and controls the flow — it can call `next` again to retry. Interceptors transform one value and return it; they cannot retry, skip, or swallow. Auth refresh, retry and timeouts are middleware. Headers, logging and error mapping are interceptors.
+- **Two kinds of plugin, kept apart by the types.** Middleware wraps the request and controls the flow — it can call `next` again to retry. Interceptors transform one value and return it; they cannot retry, skip, or swallow. Auth refresh, retry, timeouts, logging, and anything that reacts to how a call ended (error pages, domain errors) are middleware. Headers, trace ids and per-attempt error details are interceptors.
 - **One error type, two causes.** `ArthronError` means the server said no (`!response.ok`) or the network failed (`status: 0`). Everything else — cancellation, a bug in a plugin — is rethrown as-is.
 - Zero dependencies. ESM and CJS. TypeScript types included. Node 18+ and browsers.
 
@@ -154,7 +154,7 @@ middleware 1
 | Gets | `ctx` and `next` | A value: context, `Response`, or `ArthronError` |
 | Can | Call `next` again (retry), skip it, add a deadline | Return a changed value |
 | Cannot | — | Retry, skip, or stop the error from being thrown |
-| Examples | `retry`, `timeout`, auth refresh | auth header, tracing id, error mapping |
+| Examples | `retry`, `timeout`, `logging`, auth refresh, error pages | auth header, tracing id, per-attempt error details |
 
 Every attempt starts from a fresh copy of the context, so a header set by an interceptor on attempt one does not leak into attempt two. `ctx.init.headers` is always a plain record with lowercased names, restored to that shape after every request interceptor, so `{ ...ctx.init.headers, name: value }` is safe.
 
@@ -179,7 +179,7 @@ Honours `Retry-After` (seconds or HTTP date). Never retries a `ReadableStream` b
 Aborts the attempt after `ms`, counted until the body has been fully read — a server that sends headers and then stalls still trips it. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore. Combines with a `signal` you pass yourself. `Infinity` means no deadline. The timer never keeps a Node process alive on its own. Per call, `meta: { timeout: 120_000 }` replaces the deadline (`Infinity` lifts it).
 
 ```ts
-arthron({ use: [retry(), timeout(5_000)] }); // 5 s per attempt
+arthron({ use: [retry(), timeout(5_000)] }); // 5 s per attempt — a timed-out attempt is not retried
 arthron({ use: [timeout(5_000), retry()] }); // 5 s for all attempts together
 ```
 
@@ -216,46 +216,63 @@ api.use({ request: (ctx) => (ctx.meta.skipAuth ? ctx : withToken(ctx)) });
 api.get("/health", { meta: { skipAuth: true } });
 ```
 
-**Refresh a session on 401, then redo the request.** The refresh is flow, so it is middleware. The header is a value, so it is a request interceptor — and because `next` re-runs the interceptors, the retried request carries the new token without extra code.
+**Refresh a session on 401, then redo the request.** The refresh is flow, so it is middleware. The header is a value, so it is a request interceptor — and because `next` re-runs the interceptors, the retried request carries the new token without extra code. Two details matter in production: concurrent 401s must share one refresh (with refresh-token rotation, parallel refreshes revoke each other), and the token must only go to your API's origin. Tested in [`examples/auth-refresh.ts`](examples/auth-refresh.ts).
 
 ```ts
 import { definePlugin, isArthronError } from "arthron";
 
-export const auth = (store: { token: () => string | null; refresh: () => Promise<void> }) =>
-  definePlugin({
+export const auth = (store: { token: () => string | null; refresh: () => Promise<void> }, origin: string) => {
+  let refreshing: Promise<void> | undefined;
+  const bearer = () => (store.token() ? `Bearer ${store.token()}` : undefined);
+  return definePlugin({
     name: "auth",
     request: (ctx) => {
-      const token = store.token();
-      if (!token) return ctx;
-      return { ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, authorization: `Bearer ${token}` } } };
+      const value = bearer();
+      if (!value || new URL(ctx.url).origin !== origin) return ctx;
+      return { ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, authorization: value } } };
     },
     middleware: async (ctx, next) => {
       try {
         return await next(ctx);
       } catch (e) {
         if (!isArthronError(e) || e.status !== 401) throw e;
-        await store.refresh(); // if this throws, the caller sees it
+        // Refresh only if the failed token is still current — else another call already did.
+        if (e.request.init.headers.authorization === bearer()) {
+          refreshing ??= store.refresh().finally(() => (refreshing = undefined));
+          await refreshing; // a failed refresh rejects here: the caller sees it
+        }
         return next(ctx);
       }
     },
   });
+};
 ```
 
-**Send users to an error page.** Error interceptors can look and act, but the error is thrown regardless — which is what you want for a side effect like navigation.
+**Send users to an error page.** This reacts to how the *call* ended, so it is middleware placed before `retry()`: it sees only the final result. An error interceptor would run on every failed attempt and navigate away even when the next retry succeeds. Error interceptors are for enriching the error of one attempt. Tested in [`examples/error-page.ts`](examples/error-page.ts).
 
 ```ts
-import { defineInterceptor } from "arthron";
+import { definePlugin, isArthronError } from "arthron";
 
 export const errorRedirect = (navigate: (to: string) => void) =>
-  defineInterceptor.error((err, ctx) => {
-    if ((ctx.init.method ?? "GET") !== "GET") return err;
-    if (err.status === 404) navigate("/not-found");
-    if (err.status >= 500) navigate("/error");
-    return err;
+  definePlugin({
+    name: "errorRedirect",
+    middleware: async (ctx, next) => {
+      try {
+        return await next(ctx);
+      } catch (error) {
+        if (isArthronError(error) && (ctx.init.method ?? "GET") === "GET") {
+          if (error.status === 404) navigate("/not-found");
+          else if (error.status >= 500) navigate("/error");
+        }
+        throw error;
+      }
+    },
   });
 
-api.use({ error: errorRedirect(router.push) });
+const api = arthron({ baseURL: API, use: [errorRedirect(router.push), retry()] }); // first: wraps retry
 ```
+
+The same shape maps errors to your own types: `catch (e) { throw toDomainError(e); }` in an outermost middleware runs once per call, after retries.
 
 **Attach a trace id.** A one-line request interceptor.
 
@@ -284,6 +301,7 @@ type ArthronConfig = {
 ```ts
 get(path, init) · delete(path, init) · head(path, init)
 post(path, body, init) · put(path, body, init) · patch(path, body, init)
+query(path, body, init) // RFC 10008 QUERY
 request(path, { method, body, ...init })
 use(...plugins) → new client (same-name plugins replaced in place)
 extend(config) → new client
@@ -321,7 +339,7 @@ class ArthronError extends Error {
 ## For tooling and agents
 
 - `llms.txt` ships in the package — a compressed API reference meant to be read by LLM-based tools (`node_modules/arthron/llms.txt`).
-- `examples/` holds type-checked, runnable recipes: LLM streaming, auth refresh, upload/download.
+- `examples/` holds type-checked, runnable recipes: LLM streaming, auth refresh, an error page, upload/download. `src/recipes.test.ts` keeps the auth and error-page recipes honest.
 - Error messages state the fix (`… — pass baseURL in arthron({ baseURL }) or use an absolute URL`).
 
 ## License
