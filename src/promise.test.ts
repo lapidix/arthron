@@ -43,6 +43,21 @@ describe("toArthronPromise", () => {
       ).json(),
     ).rejects.toThrow();
   });
+  it(".sse() and .ndjson() stream the body", async () => {
+    const body = (text: string) => Promise.resolve(new Response(text));
+    const sse: unknown[] = [];
+    for await (const e of toArthronPromise(
+      body("data: a\n\ndata: b\n\n"),
+    ).sse())
+      sse.push(e);
+    expect(sse).toEqual([{ data: "a" }, { data: "b" }]);
+    const rows: unknown[] = [];
+    for await (const r of toArthronPromise(body('{"a":1}\n{"a":2}\n')).ndjson<{
+      a: number;
+    }>())
+      rows.push(r);
+    expect(rows).toEqual([{ a: 1 }, { a: 2 }]);
+  });
   it("rejection propagates through the chain", async () => {
     await expect(
       toArthronPromise(Promise.reject(new Error("x"))).json(),

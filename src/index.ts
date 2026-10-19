@@ -21,4 +21,5 @@ export type {
   RequestInterceptor,
   RequestOptions,
   ResponseInterceptor,
+  SseEvent,
 } from "./types";

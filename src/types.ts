@@ -1,7 +1,9 @@
 import type { ArthronError, ErrorMessageResolver } from "./error";
+import type { SseEvent } from "./stream";
 import type { QueryParams } from "./url";
 
 export type { ErrorMessageResolver } from "./error";
+export type { SseEvent } from "./stream";
 export type { QueryParams } from "./url";
 
 export type RequestContext = { url: string; init: RequestInit };
@@ -72,6 +74,10 @@ export type ArthronPromise = Promise<Response> & {
   blob(): Promise<Blob>;
   arrayBuffer(): Promise<ArrayBuffer>;
   formData(): Promise<FormData>;
+  /** Iterate a `text/event-stream` body as events. */
+  sse(): AsyncIterable<SseEvent>;
+  /** Iterate a newline-delimited JSON body, one parsed value per line. */
+  ndjson<T = unknown>(): AsyncIterable<T>;
 };
 
 export type Arthron = {

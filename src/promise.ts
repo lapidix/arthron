@@ -1,4 +1,17 @@
+import { parseNdjson, parseSse } from "./stream";
 import type { ArthronPromise } from "./types";
+
+/** Defer the Response until iteration starts, so the helper itself never rejects. */
+function iterate<T>(
+  promise: Promise<Response>,
+  parse: (res: Response) => AsyncGenerator<T>,
+): AsyncIterable<T> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield* parse(await promise);
+    },
+  };
+}
 
 /**
  * Sugar over `Promise<Response>`: `.json()` is `(await p).json()`. Awaiting
@@ -11,5 +24,7 @@ export function toArthronPromise(promise: Promise<Response>): ArthronPromise {
     blob: () => promise.then((res) => res.blob()),
     arrayBuffer: () => promise.then((res) => res.arrayBuffer()),
     formData: () => promise.then((res) => res.formData()),
+    sse: () => iterate(promise, parseSse),
+    ndjson: <T = unknown>() => iterate(promise, parseNdjson<T>),
   });
 }
