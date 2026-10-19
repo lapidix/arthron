@@ -171,10 +171,14 @@ Re-runs the attempt on network failure or a retryable status. Because it re-runs
 | `retries` | `2` | retries after the first attempt (3 requests total); a whole number ≥ 0 |
 | `retryOn` | `[408, 429, 500, 502, 503, 504]` | network failures (`status: 0`) are always retried |
 | `methods` | `GET HEAD OPTIONS QUERY PUT DELETE` | case-insensitive |
-| `delay` | `(retry) => 300 * 2 ** retry` | ms; `retry` counts from 0 |
+| `delay` | `(retry) => Math.random() * 300 * 2 ** retry` | ms; `retry` counts from 0. Full jitter, so clients that failed together don't retry together |
 | `maxRetryAfter` | `60_000` | a `Retry-After` longer than this means "don't retry" |
+| `shouldRetry` | — | `(error, attempt, ctx) => boolean \| undefined`: `true` retries, `false` stops, `undefined` uses the rules above. Sees every error, an inner `TimeoutError` included |
+| `onRetry` | — | `(error, attempt, waitMs) => void`, before each wait |
 
-Honours `Retry-After` (seconds or HTTP date). Never retries a `ReadableStream` body or an aborted request. Per call, `meta: { retry: false }` turns it off and `meta: { retry: { retries: 5 } }` overrides any option but `sleep`.
+Honours `Retry-After` (seconds or HTTP date). Never retries a `ReadableStream` body or an aborted request, and never more than `retries` times — `shouldRetry` cannot lift those.
+
+Opting a non-idempotent method in (`methods: ["POST"]`) means a network failure is retried too, and a dropped connection may already have reached the server. Where a duplicate would hurt — a payment, an LLM completion you pay for — keep retries to statuses: `shouldRetry: (e) => (isArthronError(e) && e.status === 0 ? false : undefined)`. Per call, `meta: { retry: false }` turns it off and `meta: { retry: { retries: 5 } }` overrides any option but `sleep`.
 
 #### `timeout(ms)`
 

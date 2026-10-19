@@ -2,7 +2,7 @@
 // OpenAI endpoint, OpenAI itself) and print tokens as they arrive.
 //
 // Run: npx tsx examples/llm-stream.ts
-import { arthron, retry, timeout } from "../src";
+import { arthron, isArthronError, retry, timeout } from "../src";
 
 const api = arthron({
   baseURL: process.env.LLM_BASE_URL ?? "http://localhost:8000/v1",
@@ -12,7 +12,17 @@ const api = arthron({
   // retry only covers the connection and the first bytes; once tokens flow a
   // retry would duplicate output, so keep it outside and let timeout bound
   // the whole stream.
-  use: [retry({ methods: ["POST"], retryOn: [429, 503] }), timeout(120_000)],
+  use: [
+    retry({
+      methods: ["POST"],
+      retryOn: [429, 503],
+      // A dropped connection may already have reached the model: resending
+      // would answer — and bill — twice. Retry the statuses above only.
+      shouldRetry: (e) =>
+        isArthronError(e) && e.status === 0 ? false : undefined,
+    }),
+    timeout(120_000),
+  ],
 });
 
 type Chunk = { choices: { delta: { content?: string } }[] };
