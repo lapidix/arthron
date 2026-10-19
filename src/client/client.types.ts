@@ -96,3 +96,9 @@ export interface Arthron {
   /** New client without the plugins of these names. The receiver is untouched. */
   without(...names: string[]): Arthron;
 }
+
+/** `ArthronConfig` after `resolveConfig`: headers as one record, plugins de-duplicated by name. Internal. */
+export type Resolved = Omit<ArthronConfig, "headers" | "use"> & {
+  headers: Record<string, string>;
+  use: readonly Plugin[];
+};
