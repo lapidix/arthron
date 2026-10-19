@@ -4,9 +4,30 @@ export type QueryParams = Record<
 >;
 
 const ABSOLUTE_URL = /^[a-z][a-z0-9+.-]*:\/\//i;
+const HTTP_URL = /^https?:\/\//i;
 
 export function isAbsoluteUrl(path: string): boolean {
   return ABSOLUTE_URL.test(path);
+}
+
+/**
+ * `undefined` when `url` has no origin of its own. A relative baseURL takes
+ * the page's origin in a browser and has none elsewhere.
+ */
+function originOf(url: string): string | undefined {
+  const page = (globalThis as { location?: { href?: string } }).location?.href;
+  try {
+    return new URL(url, page).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+/** `path` is absolute and points away from `baseURL`'s origin. */
+export function leavesBase(baseURL: string | undefined, path: string): boolean {
+  if (baseURL === undefined || !isAbsoluteUrl(path)) return false;
+  const base = originOf(baseURL);
+  return base === undefined || originOf(path) !== base;
 }
 
 function toQueryString(params: QueryParams | undefined): string {
@@ -22,15 +43,30 @@ function toQueryString(params: QueryParams | undefined): string {
 /**
  * Join `baseURL` and `path` by plain string concatenation so a path prefix in
  * the base (`/v1`) survives a leading slash in the path. WHATWG `new URL()`
- * would drop it. Absolute paths skip the base entirely.
+ * would drop it. An absolute path replaces the base only when it stays on the
+ * base's origin, or when `allowAbsoluteUrls` says other origins are fine — a
+ * path built from user input or an API response must not carry the client's
+ * credentials somewhere else.
  */
 export function resolveUrl(
   baseURL: string | undefined,
   path: string,
   params?: QueryParams,
+  allowAbsoluteUrls = false,
 ): string {
   let url: string;
   if (isAbsoluteUrl(path)) {
+    if (!HTTP_URL.test(path)) {
+      const scheme = path.slice(0, path.indexOf(":") + 1);
+      throw new TypeError(
+        `arthron: only http(s) URLs can be requested, got a "${scheme}" URL — use an http:// or https:// URL`,
+      );
+    }
+    if (!allowAbsoluteUrls && leavesBase(baseURL, path)) {
+      throw new TypeError(
+        `arthron: ${originOf(path)} is outside baseURL ${(baseURL && originOf(baseURL)) ?? baseURL} — pass a path relative to baseURL, or set arthron({ allowAbsoluteUrls: true }) to allow other origins (config headers are not sent to them)`,
+      );
+    }
     url = path;
   } else {
     if (baseURL === undefined) {

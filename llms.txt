@@ -9,6 +9,7 @@ Import: `import { arthron, retry, timeout, logging, isArthronError, definePlugin
 ```ts
 const api = arthron({
   baseURL?: string,              // prefix for relative paths; required unless you pass absolute URLs
+  allowAbsoluteUrls?: boolean,   // default false: an absolute URL must stay on baseURL's origin
   headers?: HeadersInit,         // defaults, per-call headers win (case-insensitive)
   credentials?: RequestCredentials, // NOT set unless you set it
   fetch?: typeof fetch,          // injection for tests/polyfills, resolved per request
@@ -30,7 +31,7 @@ Every method returns `Promise<Response>` plus helpers:
 `.json<T>()` `.text()` `.blob()` `.arrayBuffer()` `.formData()` `.sse(): AsyncIterable<{event?,data,id?,retry?}>` `.ndjson<T>(): AsyncIterable<T>`
 
 - Body: string/FormData/Blob/ArrayBuffer/URLSearchParams/ReadableStream sent as-is (matched by type tag, so polyfill/cross-realm instances count; streams get `duplex: "half"`). Any other value (incl. null) → JSON + `content-type: application/json` unless you set one. GET/HEAD with body → TypeError.
-- URL: `baseURL` + path by string concatenation (`"https://a/v1" + "/u"` → `https://a/v1/u`). Absolute path bypasses baseURL. `params` appended with `&` if a query exists, placed before `#fragment`.
+- URL: `baseURL` + path by string concatenation (`"https://a/v1" + "/u"` → `https://a/v1/u`). An absolute path must be http(s) and, when baseURL is set, on baseURL's origin — else TypeError, unless `allowAbsoluteUrls: true`; config headers are never sent to another origin. On cross-origin redirects fetch drops Authorization but keeps custom headers (x-api-key) — use `redirect: "error"` where that matters. `params` appended with `&` if a query exists, placed before `#fragment`.
 - Argument errors (no baseURL, URL the global fetch cannot parse, BigInt body, missing method) reject the promise with TypeError before fetch; they do not throw synchronously and are never retried. URLs are pre-checked only for the global fetch; an injected `fetch` decides its own URL rules (relative URLs are fine if it accepts them).
 - `.sse()`/`.ndjson()`: leaving the loop early cancels the body. `.sse()` drops an event the stream ends inside (spec).
 

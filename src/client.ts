@@ -12,7 +12,7 @@ import type {
   RequestInitWithBody,
   RequestOptions,
 } from "./types";
-import { resolveUrl } from "./url";
+import { leavesBase, resolveUrl } from "./url";
 
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
 
@@ -94,10 +94,21 @@ export function arthron(config: ArthronConfig = {}): Arthron {
           `arthron: ${method.toUpperCase()} requests cannot carry a body — send it as params (query) or switch to POST`,
         );
       }
-      const url = resolveUrl(resolved.baseURL, path, params);
+      const url = resolveUrl(
+        resolved.baseURL,
+        path,
+        params,
+        resolved.allowAbsoluteUrls,
+      );
+      // Config headers (credentials, typically) belong to baseURL's origin.
+      // Another origin, reachable only with allowAbsoluteUrls, gets per-call
+      // headers alone.
+      const defaults = leavesBase(resolved.baseURL, path)
+        ? undefined
+        : resolved.headers;
       const { body, headers } = serializeBody(
         rawBody,
-        mergeHeaders(resolved.headers, callHeaders),
+        mergeHeaders(defaults, callHeaders),
       );
       // Config credentials sit underneath so a per-call value wins, like every other option.
       const requestInit: RequestInit = {
