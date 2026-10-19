@@ -37,7 +37,7 @@ const api = arthron({
 });
 ```
 
-Every field is optional. Without `baseURL`, only absolute URLs are accepted.
+Every field is optional. Without `baseURL`, only absolute URLs are accepted. With one, an absolute URL must stay on `baseURL`'s origin unless you set `allowAbsoluteUrls: true` — and even then config `headers` are only sent to that origin.
 
 ### Make requests
 
@@ -248,6 +248,7 @@ api.use({ request: (ctx) => ({ ...ctx, init: { ...ctx.init, headers: { ...ctx.in
 ```ts
 type ArthronConfig = {
   baseURL?: string;
+  allowAbsoluteUrls?: boolean; // let absolute URLs leave baseURL's origin (without config headers)
   headers?: HeadersInit;
   credentials?: RequestCredentials;
   fetch?: typeof fetch; // inject for tests or a polyfill; resolved per request
@@ -284,7 +285,9 @@ class ArthronError extends Error {
 
 ### Rules worth knowing
 
-- **URLs are joined by string concatenation.** `baseURL: "https://a/v1"` + `"/users"` → `https://a/v1/users`. The `/v1` survives, unlike with `new URL()`. Absolute URLs bypass `baseURL`.
+- **URLs are joined by string concatenation.** `baseURL: "https://a/v1"` + `"/users"` → `https://a/v1/users`. The `/v1` survives, unlike with `new URL()`.
+- **Absolute URLs stay on `baseURL`'s origin.** `api.get("https://other.example/x")` on a client with a `baseURL` rejects with a `TypeError`, because a path built from user input or an API response must not carry your credentials elsewhere. Same-origin absolute URLs work. `allowAbsoluteUrls: true` lets other origins through, with per-call headers only. Only `http(s)` URLs are accepted.
+- **Redirects follow fetch's rules.** On a redirect to another origin, fetch drops `Authorization` but keeps other headers such as `x-api-key`. Pass `redirect: "error"` (or `"manual"`) for calls that carry such keys if the server could redirect off-origin.
 - **Bodies.** `string`, `FormData`, `Blob`, `ArrayBuffer`/views, `URLSearchParams` and `ReadableStream` go through untouched — recognised by type tag, so polyfill and cross-realm instances count too. A `ReadableStream` is sent with `duplex: "half"`, which fetch requires. Anything else — including `null` — becomes JSON with `content-type: application/json` unless you set a content type. `GET`/`HEAD` with a body is rejected with a `TypeError`.
 - **`credentials` is not set unless you set it.** Cross-origin cookies need `credentials: "include"`.
 - **Response bodies are single-use.** A response interceptor that wants to inspect the body must `res.clone()`; one that changes it returns a new `Response`.

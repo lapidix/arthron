@@ -135,6 +135,14 @@ describe("arthron — argument errors reject instead of throwing synchronously",
     expect(err).not.toBeInstanceOf(ArthronError);
     expect(attempts).toBe(1);
   });
+  it("an absolute URL on another origin rejects before fetch", async () => {
+    const fetch = fakeFetch(jsonResponse({}));
+    const api = arthron({ baseURL: "https://api.test/v1", fetch });
+    await expect(api.get("https://elsewhere.test/x")).rejects.toBeInstanceOf(
+      TypeError,
+    );
+    expect(fetch.calls).toHaveLength(0);
+  });
   it("unserializable body rejects", async () => {
     const { api, fetch } = make();
     await expect(api.post("/u", { n: 1n })).rejects.toBeInstanceOf(TypeError);
@@ -152,6 +160,22 @@ describe("arthron — config", () => {
       "x-a": "call",
       "x-b": "base",
     });
+  });
+  it("sends config headers to baseURL's origin, absolute or not", async () => {
+    const { api, fetch } = make(undefined, {
+      headers: { authorization: "Bearer t" },
+    });
+    await api.get("https://a/elsewhere");
+    expect(headersOf(fetch.calls[0]?.init).authorization).toBe("Bearer t");
+  });
+  it("with allowAbsoluteUrls, another origin gets per-call headers but never config headers", async () => {
+    const { api, fetch } = make(undefined, {
+      headers: { authorization: "Bearer t" },
+      allowAbsoluteUrls: true,
+    });
+    await api.get("https://b/x", { headers: { "x-call": "1" } });
+    expect(fetch.calls[0]?.url).toBe("https://b/x");
+    expect(fetch.calls[0]?.init.headers).toEqual({ "x-call": "1" });
   });
   it("does not set credentials unless configured", async () => {
     const { api, fetch } = make();

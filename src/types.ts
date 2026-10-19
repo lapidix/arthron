@@ -57,6 +57,13 @@ export type RequestInitWithBody = RequestOptions & {
 export type ArthronConfig = {
   /** Prefix for relative paths. Without it only absolute URLs are accepted. */
   baseURL?: string;
+  /**
+   * Let an absolute URL on another origin than `baseURL` through. Off by
+   * default, so a path from user input or an API response cannot send the
+   * client's headers elsewhere; config `headers` are never sent to another
+   * origin even when this is on.
+   */
+  allowAbsoluteUrls?: boolean;
   /** Default headers. Per-call headers win, compared case-insensitively. */
   headers?: HeadersInit;
   /** Forwarded to fetch as-is. Not set unless you set it. */
