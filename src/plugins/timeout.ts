@@ -1,3 +1,4 @@
+import { rebuildResponse } from "../response";
 import type { Plugin } from "../types";
 
 const MAX_TIMER_MS = 2 ** 31 - 1;
@@ -99,20 +100,10 @@ export function timeout(ms: number): Plugin {
         finish();
         return res;
       }
-      const guarded = new Response(
+      return rebuildResponse(
+        res,
         guardBody(res.body, controller.signal, finish),
-        {
-          status: res.status,
-          statusText: res.statusText,
-          headers: res.headers,
-        },
       );
-      // A rebuilt Response starts with url "" and redirected false; keep what fetch reported.
-      return Object.defineProperties(guarded, {
-        url: { value: res.url },
-        redirected: { value: res.redirected },
-        type: { value: res.type },
-      });
     },
   };
 }

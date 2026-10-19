@@ -42,7 +42,7 @@ describe("responseError", () => {
     expect(err.response?.status).toBe(400);
     expect(err.request).toBe(req);
   });
-  it("keeps the original response readable (body is read from a clone)", async () => {
+  it("leaves error.response readable", async () => {
     const err = await responseError(
       jsonResponse({ message: "nope" }, { status: 400 }),
       req,
@@ -142,5 +142,51 @@ describe("ArthronError keeps request secrets out of serialization", () => {
     });
     expect(err.headers.get("x-session")).toBe("R-SECRET");
     expect(err.response?.status).toBe(401);
+  });
+});
+
+describe("responseError reads at most 64 KiB of the body", () => {
+  const LIMIT = 64 * 1024;
+  /** A body of `total` bytes of "a", produced lazily; records how much was pulled and whether it was cancelled. */
+  const source = (total: number) => {
+    const seen = { pulled: 0, cancelled: false };
+    const chunk = new Uint8Array(16 * 1024).fill(97);
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        // Yield like a real socket would, so timers (and test timeouts) still run.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (seen.pulled >= total) return controller.close();
+        seen.pulled += chunk.byteLength;
+        controller.enqueue(chunk);
+      },
+      cancel() {
+        seen.cancelled = true;
+      },
+    });
+    return { seen, response: new Response(body, { status: 500 }) };
+  };
+  it("keeps the first 64 KiB as text, cancels the rest unread", async () => {
+    const { seen, response } = source(10 * 1024 * 1024);
+    const err = await responseError(response, req);
+    expect(typeof err.data).toBe("string");
+    expect((err.data as string).length).toBe(LIMIT);
+    expect(seen.cancelled).toBe(true);
+    expect(seen.pulled).toBeLessThanOrEqual(LIMIT + 16 * 1024);
+  });
+  it("settles on a body that never ends", { timeout: 2000 }, async () => {
+    const { seen, response } = source(Number.POSITIVE_INFINITY);
+    const err = await responseError(response, req);
+    expect(err.status).toBe(500);
+    expect(seen.cancelled).toBe(true);
+  });
+  it("leaves error.response readable with what was read, keeping url and redirected", async () => {
+    const original = Object.defineProperties(
+      jsonResponse({ message: "nope" }, { status: 404 }),
+      { url: { value: "https://a/x" }, redirected: { value: true } },
+    );
+    const err = await responseError(original, req);
+    expect(err.response?.url).toBe("https://a/x");
+    expect(err.response?.redirected).toBe(true);
+    expect(await err.response?.json()).toEqual({ message: "nope" });
   });
 });

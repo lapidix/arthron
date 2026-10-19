@@ -95,7 +95,7 @@ try {
     e.status; // 404, or 0 when the network failed
     e.data; // parsed body: JSON, else text, else undefined
     e.message; // from the body (`message` → `error` → `error.message` → `detail`), else "Request failed with status 404"
-    e.response; // the original Response, still readable
+    e.response; // the failed Response, still readable (up to 64 KiB of its body)
     e.request; // what was sent (url, init) — read it directly; it is left out of logs
   }
 }
@@ -291,6 +291,7 @@ class ArthronError extends Error {
 
 - **URLs are joined by string concatenation.** `baseURL: "https://a/v1"` + `"/users"` → `https://a/v1/users`. The `/v1` survives, unlike with `new URL()`.
 - **Absolute URLs stay on `baseURL`'s origin.** `api.get("https://other.example/x")` on a client with a `baseURL` rejects with a `TypeError`, because a path built from user input or an API response must not carry your credentials elsewhere. Same-origin absolute URLs work. `allowAbsoluteUrls: true` lets other origins through, with per-call headers only. Only `http(s)` URLs are accepted.
+- **Error bodies are read up to 64 KiB.** That is enough for any error message and keeps a huge or endless error body from filling memory. Past the limit `data` is the raw text and the rest of the body is cancelled.
 - **Redirects follow fetch's rules.** On a redirect to another origin, fetch drops `Authorization` but keeps other headers such as `x-api-key`. Pass `redirect: "error"` (or `"manual"`) for calls that carry such keys if the server could redirect off-origin.
 - **Bodies.** `string`, `FormData`, `Blob`, `ArrayBuffer`/views, `URLSearchParams` and `ReadableStream` go through untouched — recognised by type tag, so polyfill and cross-realm instances count too. A `ReadableStream` is sent with `duplex: "half"`, which fetch requires. Anything else — including `null` — becomes JSON with `content-type: application/json` unless you set a content type. `GET`/`HEAD` with a body is rejected with a `TypeError`.
 - **`credentials` is not set unless you set it.** Cross-origin cookies need `credentials: "include"`.

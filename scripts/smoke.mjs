@@ -49,6 +49,11 @@ const server = createServer((req, res) => {
     });
     return;
   }
+  if (req.url === "/huge-error") {
+    res.writeHead(500, { "content-type": "text/plain" });
+    res.end("x".repeat(1024 * 1024));
+    return;
+  }
   if (req.url?.startsWith("/fail")) {
     res.writeHead(500, { "content-type": "application/json" }).end("{}");
     return;
@@ -163,6 +168,16 @@ try {
       !serialized.includes("SMOKE-QUERY") &&
       leaky.request.init.headers.authorization === "Bearer SMOKE-TOKEN",
     "ArthronError serializes without request secrets",
+  );
+
+  const huge = await arthron({ baseURL })
+    .get("/huge-error")
+    .catch((e) => e);
+  assert(
+    isArthronError(huge) &&
+      huge.data.length === 64 * 1024 &&
+      (await huge.response.text()).length === 64 * 1024,
+    "a 1 MB error body is read only up to 64 KiB",
   );
 } finally {
   server.closeAllConnections?.();
