@@ -58,6 +58,7 @@ Each call returns `Promise<Response>` with body helpers attached:
 ```ts
 const res = await api.get("/me"); // Response — status, headers, body untouched
 const user = await api.get("/me").json<User>(); // body parsed; T is a cast, not validation
+const safe = await api.get("/me").json(UserSchema); // validated by any Standard Schema (Zod, Valibot, ArkType); typed from it
 const text = await api.get("/robots.txt").text();
 const blob = await api.get("/export").blob();
 const stream = (await api.post("/chat", prompt)).body; // ReadableStream
@@ -106,6 +107,8 @@ try {
 `isArthronError(e)` and `e instanceof ArthronError` work across copies of the package — the ESM and CJS builds loaded side by side, a CJS dependency's client caught by your ESM code. `request`, `response` and `headers` are not enumerable, and `toJSON()` returns only name, message, status, method, a URL without query or userinfo, and `data`. So `JSON.stringify(e)`, `console.error(e)` and error trackers never print your tokens. `e.message` usually comes from the server's body: treat it as untrusted text, not HTML.
 
 Not every non-ok response is a failure. An opaque response (`mode: "no-cors"`) and the 3xx of `redirect: "manual"` come back as a `Response`, since you asked for them. `throwOn` picks which other non-ok responses reject, for the client or one call: `api.get("/maybe", { throwOn: (res) => res.status !== 404 })` returns the 404 to inspect. An ok response never rejects.
+
+`.json(schema)` takes any [Standard Schema](https://standardschema.dev) — Zod, Valibot, ArkType and others — validates the body with it, and resolves with the schema's output (transforms included). A body that does not match rejects with a `SchemaError` whose `issues` list each problem and its path. It is not an `ArthronError`: the request worked, the data did not. arthron stays dependency-free; the schema library is yours.
 
 A request that is aborted or times out rejects with the abort reason — `AbortError` / `TimeoutError`, or whatever you passed to `abort(reason)` — not an `ArthronError`.
 

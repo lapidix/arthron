@@ -8,6 +8,12 @@ export {
 } from "./plugins/logging";
 export { type RetryOptions, retry } from "./plugins/retry";
 export { type TimeoutOptions, timeout } from "./plugins/timeout";
+export {
+  type InferOutput,
+  SchemaError,
+  type SchemaIssue,
+  type StandardSchemaV1,
+} from "./schema";
 export type {
   Arthron,
   ArthronConfig,

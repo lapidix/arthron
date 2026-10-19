@@ -1,6 +1,7 @@
 import type { ArthronError, ErrorMessageResolver } from "./error";
 import type { HeadersOption } from "./headers";
 import type { RetryOptions } from "./plugins/retry";
+import type { InferOutput, StandardSchemaV1 } from "./schema";
 import type { NdjsonOptions, SseEvent, SseOptions } from "./stream";
 import type { QueryParams } from "./url";
 
@@ -152,7 +153,13 @@ export interface ArthronConfig {
 }
 
 export interface ArthronPromise extends Promise<Response> {
+  /** The body as JSON. `T` is a cast — nothing checks it. */
   json<T = unknown>(): Promise<T>;
+  /**
+   * The body as JSON, validated by a Standard Schema (Zod, Valibot, ArkType…)
+   * and typed by it. A mismatch rejects with a `SchemaError`.
+   */
+  json<S extends StandardSchemaV1>(schema: S): Promise<InferOutput<S>>;
   text(): Promise<string>;
   blob(): Promise<Blob>;
   arrayBuffer(): Promise<ArrayBuffer>;

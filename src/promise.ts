@@ -1,3 +1,4 @@
+import { type StandardSchemaV1, validate } from "./schema";
 import {
   type NdjsonOptions,
   parseNdjson,
@@ -27,7 +28,11 @@ function iterate<T>(
  */
 export function toArthronPromise(promise: Promise<Response>): ArthronPromise {
   return Object.assign(promise, {
-    json: <T = unknown>() => promise.then((res) => res.json() as Promise<T>),
+    json: ((schema?: StandardSchemaV1) =>
+      promise.then(async (res) => {
+        const data: unknown = await res.json();
+        return schema ? validate(schema, data) : data;
+      })) as ArthronPromise["json"],
     text: () => promise.then((res) => res.text()),
     blob: () => promise.then((res) => res.blob()),
     arrayBuffer: () => promise.then((res) => res.arrayBuffer()),

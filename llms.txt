@@ -2,7 +2,7 @@
 
 > A fetch client assembled from plugins. Returns native `Response`; middleware controls flow (can retry via `next`), interceptors transform values. Zero dependencies, ESM + CJS, Node 18+ and browsers.
 
-Import: `import { arthron, retry, timeout, logging, isArthronError, definePlugin } from "arthron";`
+Import: `import { arthron, retry, timeout, logging, isArthronError, SchemaError, definePlugin } from "arthron";`
 
 ## Create
 
@@ -29,7 +29,7 @@ api.request(path, { method, body?, ...init })      // method: HttpMethod (GET…
 ```
 
 Every method returns `Promise<Response>` plus helpers:
-`.json<T>()` `.text()` `.blob()` `.arrayBuffer()` `.formData()` `.sse({ maxLineLength?, maxEventSize? }?): AsyncIterable<{event?,data,id?,lastEventId,retry?}> (lastEventId and retry persist across events, per spec; no reconnection)` `.ndjson<T>({ maxLineLength? }?): AsyncIterable<T>` — limits default to 8 Mi characters; exceeding one rejects with RangeError and cancels the body
+`.json<T>()` (cast) / `.json(schema)` (any Standard Schema — Zod, Valibot, ArkType; typed from it; mismatch → SchemaError with .issues, not an ArthronError) `.text()` `.blob()` `.arrayBuffer()` `.formData()` `.sse({ maxLineLength?, maxEventSize? }?): AsyncIterable<{event?,data,id?,lastEventId,retry?}> (lastEventId and retry persist across events, per spec; no reconnection)` `.ndjson<T>({ maxLineLength? }?): AsyncIterable<T>` — limits default to 8 Mi characters; exceeding one rejects with RangeError and cancels the body
 
 - Body: string/FormData/Blob/ArrayBuffer/URLSearchParams/ReadableStream sent as-is (matched by type tag, so polyfill/cross-realm instances count; streams get `duplex: "half"`; FormData is sent without content-type so the runtime sets the boundary). Any other value (incl. null) → JSON + `content-type: application/json`; a content type you set must be JSON-ish (else TypeError). Map/Set/iterables/async iterables (Node streams)/functions → TypeError. GET/HEAD with body → TypeError.
 - URL: `baseURL` + path by string concatenation (`"https://a/v1" + "/u"` → `https://a/v1/u`). An absolute path must be http(s) and, when baseURL is set, on baseURL's origin — else TypeError, unless `allowAbsoluteUrls: true`; config headers are never sent to another origin. On cross-origin redirects fetch drops Authorization but keeps custom headers (x-api-key) — use `redirect: "error"` where that matters. `params` appended with `&` if a query exists, placed before `#fragment`.
