@@ -47,6 +47,7 @@ await api.post("/users", { name: "kim" }); // object body → JSON
 await api.post("/upload", formData); // FormData/Blob/string/stream → sent as-is
 await api.put("/users/1", { name: "lee" });
 await api.patch("/users/1", { name: "lee" });
+await api.query("/search", { filter: { tag: "x" } }); // RFC 10008 QUERY: GET semantics, body carries the query
 await api.delete("/users/1");
 await api.head("/users/1");
 await api.request("/users", { method: "OPTIONS" });
@@ -64,6 +65,8 @@ for await (const e of api.post("/chat", prompt).sse()) {} // see "Stream respons
 ```
 
 `init` accepts everything `fetch` does (`signal`, `cache`, `headers`, …) plus `params`, a query object whose `null`/`undefined` values are dropped.
+
+`query` sends the [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008) QUERY method: safe and idempotent like GET, so `retry()` repeats it by default, but the query travels in the body. Any `fetch` sends it; the server has to understand it (Node's own `http` server does from v20).
 
 ### Stream responses
 
@@ -156,7 +159,7 @@ Re-runs the attempt on network failure or a retryable status. Because it re-runs
 |---|---|---|
 | `retries` | `2` | retries after the first attempt (3 requests total); a whole number ≥ 0 |
 | `retryOn` | `[408, 429, 500, 502, 503, 504]` | network failures (`status: 0`) are always retried |
-| `methods` | `GET HEAD OPTIONS PUT DELETE` | case-insensitive |
+| `methods` | `GET HEAD OPTIONS QUERY PUT DELETE` | case-insensitive |
 | `delay` | `(retry) => 300 * 2 ** retry` | ms; `retry` counts from 0 |
 | `maxRetryAfter` | `60_000` | a `Retry-After` longer than this means "don't retry" |
 

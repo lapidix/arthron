@@ -7,7 +7,7 @@ export type RetryOptions = {
   retries?: number;
   /** Statuses worth retrying. Network errors (status 0) always are. */
   retryOn?: readonly number[];
-  /** Methods safe to repeat. Compared case-insensitively. */
+  /** Methods safe to repeat (QUERY is, per RFC 10008). Compared case-insensitively. */
   methods?: readonly string[];
   /** Backoff in ms for retry number `retry` (0-based). Default 300 · 2^retry. */
   delay?: (retry: number, error: ArthronError) => number;
@@ -21,7 +21,14 @@ export type RetryOptions = {
 };
 
 const DEFAULT_RETRY_ON = [408, 429, 500, 502, 503, 504] as const;
-const DEFAULT_METHODS = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE"] as const;
+const DEFAULT_METHODS = [
+  "GET",
+  "HEAD",
+  "OPTIONS",
+  "QUERY",
+  "PUT",
+  "DELETE",
+] as const;
 const DEFAULT_MAX_RETRY_AFTER = 60_000;
 /** setTimeout fires at once past this, so every wait is capped to it. */
 const MAX_TIMER_MS = 2 ** 31 - 1;

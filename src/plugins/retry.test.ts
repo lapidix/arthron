@@ -45,6 +45,11 @@ describe("retry", () => {
     await make(f2, { methods: ["POST"] }).post("/u", {});
     expect(f2.calls).toHaveLength(2);
   });
+  it("retries QUERY by default — RFC 10008 defines it as safe and idempotent", async () => {
+    const fetch = fakeFetch(err(500), jsonResponse({}));
+    await make(fetch).query("/u", { q: "x" });
+    expect(fetch.calls).toHaveLength(2);
+  });
   it("does not retry a ReadableStream body", async () => {
     const fetch = fakeFetch(err(500), jsonResponse({}));
     await expect(

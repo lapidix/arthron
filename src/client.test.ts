@@ -26,7 +26,7 @@ describe("arthron — requests", () => {
     const { api } = make();
     expect(await api.get("/u").json<{ ok: number }>()).toEqual({ ok: 1 });
   });
-  it.each(["post", "put", "patch"] as const)(
+  it.each(["post", "put", "patch", "query"] as const)(
     "%s JSON-serializes object bodies",
     async (m) => {
       const { api, fetch } = make();

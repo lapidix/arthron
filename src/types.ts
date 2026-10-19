@@ -87,6 +87,8 @@ export type Arthron = {
   post(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
   put(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
   patch(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
+  /** RFC 10008 QUERY: safe and idempotent like GET, but the query travels in the body. */
+  query(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
   request(path: string, init: RequestInitWithBody): ArthronPromise;
   /** New client with these plugins appended. The receiver is untouched. */
   use(...plugins: Plugin[]): Arthron;

@@ -130,6 +130,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
     post: (path, body, init = {}) => dispatch(path, "POST", body, init),
     put: (path, body, init = {}) => dispatch(path, "PUT", body, init),
     patch: (path, body, init = {}) => dispatch(path, "PATCH", body, init),
+    query: (path, body, init = {}) => dispatch(path, "QUERY", body, init),
     request: (path, init: RequestInitWithBody) => {
       const { method, body, ...rest } = init;
       if (!method) {

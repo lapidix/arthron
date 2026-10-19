@@ -2,7 +2,7 @@
 // a consumer gets from `dist/`, so it doubles as the Node 18 compatibility
 // check in CI (the test suite itself needs a newer Node for vitest).
 
-import { createServer } from "node:http";
+import { createServer, METHODS } from "node:http";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -84,6 +84,20 @@ try {
 
   const res = await api.post("/echo", { a: 1 });
   assert(res instanceof Response && res.ok, "POST returns a native Response");
+
+  // fetch sends QUERY (RFC 10008) on every supported Node; the built-in http
+  // server only parses it from Node 20 (llhttp). On 18 it answers 400, which
+  // still proves the method string went over the wire.
+  if (METHODS.includes("QUERY")) {
+    const q = await api.query("/echo", { filter: 1 }).json();
+    assert(q.method === "QUERY", "QUERY reaches the server as a method");
+  } else {
+    const rejected = await api.query("/echo", { filter: 1 }).catch((e) => e);
+    assert(
+      isArthronError(rejected) && rejected.status === 400,
+      "QUERY is sent even where node:http cannot parse it",
+    );
+  }
 
   hits = 0;
   await api.get("/flaky");
