@@ -61,7 +61,7 @@ type Plugin = {
 
 ## API
 
-### `arthron(config?)`
+### `arthron(config)`
 
 ```ts
 type ArthronConfig = {
@@ -77,15 +77,15 @@ type ArthronConfig = {
 ### Instance
 
 ```ts
-api.get(path, init?)            api.delete(path, init?)        api.head(path, init?)
-api.post(path, body?, init?)    api.put(path, body?, init?)    api.patch(path, body?, init?)
-api.request(path, { method, body?, ...init })
+api.get(path, init)             api.delete(path, init)         api.head(path, init)
+api.post(path, body, init)      api.put(path, body, init)      api.patch(path, body, init)
+api.request(path, { method, body, ...init })
 
 api.use(...plugins)   // new client with plugins appended
 api.extend(config)    // new client: config shallow-merged, headers merged, plugins appended
 ```
 
-`init` is `RequestInit` minus `method`/`body`, plus `params` (query object; `null`/`undefined` skipped, appended with `&` if the path already has a query).
+Every argument except `path` (and `method` for `request`) is optional. `init` is `RequestInit` minus `method`/`body`, plus `params` (query object; `null`/`undefined` skipped, appended with `&` if the path already has a query).
 
 Clients are **immutable**. `use` and `extend` return new clients; the receiver — and anything previously derived from it — is untouched.
 
@@ -132,7 +132,7 @@ catch (e) { if (isArthronError(e) && e.status === 404) { /* … */ } else throw 
 
 ## Built-in plugins
 
-### `logging(options?)`
+### `logging(options)`
 
 One line when a request starts, one when it settles. The query string is dropped (it tends to carry tokens). Cancellations are not logged.
 
@@ -147,7 +147,7 @@ One line when a request starts, one when it settles. The query string is dropped
 [arthron] ✕ GET /users 503 1203ms
 ```
 
-### `retry(options?)`
+### `retry(options)`
 
 Retries by calling `next` again, so request interceptors (fresh auth header, fresh trace id) run on every attempt.
 
