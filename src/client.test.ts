@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { arthron } from "./client";
 import { ArthronError } from "./error";
+import { retry } from "./plugins/retry";
 import { fakeFetch, jsonResponse } from "./test-utils";
 import type { ArthronConfig, Plugin } from "./types";
 
@@ -101,11 +102,38 @@ describe("arthron — argument errors reject instead of throwing synchronously",
       expect(fetch.calls).toHaveLength(0);
     },
   );
-  it("a baseURL without a scheme rejects with TypeError before fetch", async () => {
-    const fetch = fakeFetch(jsonResponse({}));
-    const api = arthron({ baseURL: "api.example.com", fetch });
-    await expect(api.get("/x")).rejects.toBeInstanceOf(TypeError);
-    expect(fetch.calls).toHaveLength(0);
+  it("with the global fetch, a baseURL without a scheme rejects with TypeError, not status 0", async () => {
+    const err = await arthron({ baseURL: "api.example.com" })
+      .get("/x")
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TypeError);
+    expect(err).not.toBeInstanceOf(ArthronError);
+  });
+  it("leaves URL rules to an injected fetch — relative URLs reach one that accepts them", async () => {
+    // e.g. SvelteKit's server-side `event.fetch`
+    const fetch = fakeFetch(jsonResponse({ ok: 1 }));
+    const api = arthron({ baseURL: "/api", fetch });
+    expect(await api.get("/items").json()).toEqual({ ok: 1 });
+    expect(fetch.calls[0]?.url).toBe("/api/items");
+  });
+  it("checks the URL an interceptor produced, and does not retry it", async () => {
+    let attempts = 0;
+    const api = arthron({
+      baseURL: "https://a",
+      use: [
+        retry({ sleep: async () => {} }),
+        {
+          request: (ctx) => {
+            attempts += 1;
+            return { ...ctx, url: "::not-a-url" };
+          },
+        },
+      ],
+    });
+    const err = await api.get("/x").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TypeError);
+    expect(err).not.toBeInstanceOf(ArthronError);
+    expect(attempts).toBe(1);
   });
   it("unserializable body rejects", async () => {
     const { api, fetch } = make();

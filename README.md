@@ -288,7 +288,7 @@ class ArthronError extends Error {
 - **Bodies.** `string`, `FormData`, `Blob`, `ArrayBuffer`/views, `URLSearchParams` and `ReadableStream` go through untouched — recognised by type tag, so polyfill and cross-realm instances count too. A `ReadableStream` is sent with `duplex: "half"`, which fetch requires. Anything else — including `null` — becomes JSON with `content-type: application/json` unless you set a content type. `GET`/`HEAD` with a body is rejected with a `TypeError`.
 - **`credentials` is not set unless you set it.** Cross-origin cookies need `credentials: "include"`.
 - **Response bodies are single-use.** A response interceptor that wants to inspect the body must `res.clone()`; one that changes it returns a new `Response`.
-- **Argument errors reject, they don't throw.** No `baseURL` with a relative path, a URL fetch cannot parse (`baseURL: "api.example.com"` without `https://`), a `BigInt` in a JSON body, a missing `method` in `request` — all surface as a rejected `TypeError` before anything is sent, never as a retried `status: 0`.
+- **Argument errors reject, they don't throw.** No `baseURL` with a relative path, a URL the global fetch cannot parse (`baseURL: "api.example.com"` without `https://`), a `BigInt` in a JSON body, a missing `method` in `request` — all surface as a rejected `TypeError` before anything is sent, never as a retried `status: 0`. An injected `fetch` is the judge of its own URLs: arthron does not pre-check them, so one that accepts relative URLs (SvelteKit's server-side `fetch`) works with `baseURL: "/api"`.
 
 ## For tooling and agents
 

@@ -31,7 +31,7 @@ Every method returns `Promise<Response>` plus helpers:
 
 - Body: string/FormData/Blob/ArrayBuffer/URLSearchParams/ReadableStream sent as-is (matched by type tag, so polyfill/cross-realm instances count; streams get `duplex: "half"`). Any other value (incl. null) → JSON + `content-type: application/json` unless you set one. GET/HEAD with body → TypeError.
 - URL: `baseURL` + path by string concatenation (`"https://a/v1" + "/u"` → `https://a/v1/u`). Absolute path bypasses baseURL. `params` appended with `&` if a query exists, placed before `#fragment`.
-- Argument errors (no baseURL, URL fetch cannot parse, BigInt body, missing method) reject the promise with TypeError before fetch; they do not throw synchronously and are never retried.
+- Argument errors (no baseURL, URL the global fetch cannot parse, BigInt body, missing method) reject the promise with TypeError before fetch; they do not throw synchronously and are never retried. URLs are pre-checked only for the global fetch; an injected `fetch` decides its own URL rules (relative URLs are fine if it accepts them).
 - `.sse()`/`.ndjson()`: leaving the loop early cancels the body. `.sse()` drops an event the stream ends inside (spec).
 
 ## Errors
