@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { networkError, responseError } from "../error";
-import { runPipeline } from "../pipeline";
-import { jsonResponse } from "../test-utils";
+import { networkError, responseError } from "../error/error";
+import { runPipeline } from "../pipeline/pipeline";
+import { jsonResponse } from "../testkit/fetch.testkit";
 import { type LogEvent, logging } from "./logging";
 
 const ctx = {

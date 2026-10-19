@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { auth } from "../examples/auth-refresh";
 import { errorRedirect } from "../examples/error-page";
-import { arthron } from "./client";
+import { arthron } from "./client/client";
 import { retry } from "./plugins/retry";
-import { fakeFetch, jsonResponse } from "./test-utils";
+import { fakeFetch, jsonResponse } from "./testkit/fetch.testkit";
 
 // The README recipes live in examples/ so they are type-checked — and here,
 // so they are known to work.

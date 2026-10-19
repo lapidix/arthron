@@ -1,5 +1,5 @@
-import { isReadableStream } from "../body";
-import { type ArthronError, isArthronError } from "../error";
+import { type ArthronError, isArthronError } from "../error/error";
+import { isReadableStream } from "../request/body";
 import type { Plugin, RequestContext } from "../types";
 
 export type RetryOptions = {

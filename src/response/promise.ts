@@ -1,3 +1,4 @@
+import type { ArthronPromise } from "../types";
 import { type StandardSchemaV1, validate } from "./schema";
 import {
   type NdjsonOptions,
@@ -5,7 +6,6 @@ import {
   parseSse,
   type SseOptions,
 } from "./stream";
-import type { ArthronPromise } from "./types";
 
 /** Defer the Response until iteration starts, so the helper itself never rejects. */
 function iterate<T>(

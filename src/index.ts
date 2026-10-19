@@ -1,6 +1,10 @@
-export { arthron } from "./client";
-export { defineInterceptor, defineMiddleware, definePlugin } from "./define";
-export { ArthronError, isArthronError } from "./error";
+export { arthron } from "./client/client";
+export { ArthronError, isArthronError } from "./error/error";
+export {
+  defineInterceptor,
+  defineMiddleware,
+  definePlugin,
+} from "./pipeline/define";
 export {
   type LogEvent,
   type LoggingOptions,
@@ -13,7 +17,7 @@ export {
   SchemaError,
   type SchemaIssue,
   type StandardSchemaV1,
-} from "./schema";
+} from "./response/schema";
 export type {
   Arthron,
   ArthronConfig,

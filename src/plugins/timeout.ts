@@ -1,4 +1,4 @@
-import { rebuildResponse } from "../response";
+import { rebuildResponse } from "../response/rebuild-response";
 import type { Plugin } from "../types";
 
 const MAX_TIMER_MS = 2 ** 31 - 1;

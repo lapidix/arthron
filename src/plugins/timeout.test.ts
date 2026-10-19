@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { arthron } from "../client";
-import { isArthronError } from "../error";
-import { fakeFetch, jsonResponse } from "../test-utils";
+import { arthron } from "../client/client";
+import { isArthronError } from "../error/error";
+import { fakeFetch, jsonResponse } from "../testkit/fetch.testkit";
 import { retry } from "./retry";
 import { timeout } from "./timeout";
 

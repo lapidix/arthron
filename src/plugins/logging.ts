@@ -1,6 +1,6 @@
-import { isArthronError, isCancellation } from "../error";
+import { isArthronError, isCancellation } from "../error/error";
+import { redactUrl } from "../request/url";
 import type { Plugin } from "../types";
-import { redactUrl } from "../url";
 
 type LogEventBase = { method: string; path: string };
 export type LogEvent =

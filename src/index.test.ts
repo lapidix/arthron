@@ -1,12 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import type { Middleware, Plugin } from "./index";
-import * as arthronModule from "./index";
-import {
-  arthron,
-  defineInterceptor,
-  defineMiddleware,
-  definePlugin,
-} from "./index";
+import type { Middleware, Plugin } from "./";
+import * as arthronModule from "./";
+import { arthron, defineInterceptor, defineMiddleware, definePlugin } from "./";
 
 describe("public surface", () => {
   it("exports exactly the documented values", () => {

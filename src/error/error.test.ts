@@ -1,5 +1,6 @@
 import { inspect } from "node:util";
 import { describe, expect, it, vi } from "vitest";
+import { jsonResponse } from "../testkit/fetch.testkit";
 import {
   ArthronError,
   defaultErrorMessage,
@@ -8,7 +9,6 @@ import {
   networkError,
   responseError,
 } from "./error";
-import { jsonResponse } from "./test-utils";
 
 const req = {
   url: "https://a/x",

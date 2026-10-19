@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { jsonResponse } from "../testkit/fetch.testkit";
 import { toArthronPromise } from "./promise";
-import { jsonResponse } from "./test-utils";
 
 describe("toArthronPromise", () => {
   it("awaits to the raw Response", async () => {

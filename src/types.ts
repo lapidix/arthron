@@ -1,14 +1,14 @@
-import type { ArthronError, ErrorMessageResolver } from "./error";
-import type { HeadersOption } from "./headers";
+import type { ArthronError, ErrorMessageResolver } from "./error/error";
 import type { RetryOptions } from "./plugins/retry";
-import type { InferOutput, StandardSchemaV1 } from "./schema";
-import type { NdjsonOptions, SseEvent, SseOptions } from "./stream";
-import type { QueryParams } from "./url";
+import type { HeadersOption } from "./request/headers";
+import type { QueryParams } from "./request/url";
+import type { InferOutput, StandardSchemaV1 } from "./response/schema";
+import type { NdjsonOptions, SseEvent, SseOptions } from "./response/stream";
 
-export type { ErrorMessageResolver } from "./error";
-export type { HeadersOption } from "./headers";
-export type { NdjsonOptions, SseEvent, SseOptions } from "./stream";
-export type { QueryParams } from "./url";
+export type { ErrorMessageResolver } from "./error/error";
+export type { HeadersOption } from "./request/headers";
+export type { QueryParams } from "./request/url";
+export type { NdjsonOptions, SseEvent, SseOptions } from "./response/stream";
 
 /**
  * What plugins see and return. `init.headers` is always a plain record with

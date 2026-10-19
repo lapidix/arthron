@@ -1,8 +1,9 @@
-import { isReadableStream, serializeBody } from "./body";
-import { isCancellation, networkError, responseError } from "./error";
-import { mergeHeaders, toHeaderRecord } from "./headers";
-import { runPipeline } from "./pipeline";
-import { toArthronPromise } from "./promise";
+import { isCancellation, networkError, responseError } from "../error/error";
+import { runPipeline } from "../pipeline/pipeline";
+import { isReadableStream, serializeBody } from "../request/body";
+import { mergeHeaders, toHeaderRecord } from "../request/headers";
+import { fillPath, leavesBase, redactUrl, resolveUrl } from "../request/url";
+import { toArthronPromise } from "../response/promise";
 import type {
   Arthron,
   ArthronConfig,
@@ -11,8 +12,7 @@ import type {
   RequestContext,
   RequestInitWithBody,
   RequestOptions,
-} from "./types";
-import { fillPath, leavesBase, redactUrl, resolveUrl } from "./url";
+} from "../types";
 
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
 /** Sent uppercased whatever their case; fetch itself only normalizes six. */
