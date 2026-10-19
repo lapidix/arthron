@@ -26,9 +26,24 @@ function cloneBody(body: BodyInit): BodyInit {
  * starts from a fresh copy of the headers and of a FormData/URLSearchParams body.
  */
 function cloneContext({ url, init }: RequestContext): RequestContext {
-  const copy: RequestInit = { ...init, headers: toHeaderRecord(init.headers) };
+  const copy: RequestContext["init"] = {
+    ...init,
+    headers: toHeaderRecord(init.headers),
+  };
   if (init.body) copy.body = cloneBody(init.body);
   return { url, init: copy };
+}
+
+/**
+ * Put headers back into a plain lowercase record. A plugin written in JS (or
+ * with a cast) may hand back a `Headers` object, and the next plugin's
+ * `{ ...ctx.init.headers }` would otherwise drop every header.
+ */
+function normalize(ctx: RequestContext): RequestContext {
+  return {
+    ...ctx,
+    init: { ...ctx.init, headers: toHeaderRecord(ctx.init.headers) },
+  };
 }
 
 /**
@@ -59,7 +74,9 @@ export async function runPipeline(
   const attempt = async (input: RequestContext): Promise<Response> => {
     let current = cloneContext(input);
     try {
-      for (const interceptor of request) current = await interceptor(current);
+      for (const interceptor of request) {
+        current = normalize(await interceptor(current));
+      }
       let res = await send(current);
       for (const interceptor of response) res = await interceptor(res, current);
       return res;

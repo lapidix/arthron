@@ -115,7 +115,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
         mergeHeaders(defaults, callHeaders),
       );
       // Config credentials sit underneath so a per-call value wins, like every other option.
-      const requestInit: RequestInit = {
+      const requestInit: RequestContext["init"] = {
         ...(resolved.credentials !== undefined && {
           credentials: resolved.credentials,
         }),

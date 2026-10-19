@@ -41,6 +41,12 @@ export function serializeBody(
   headers: Record<string, string>,
 ): Serialized {
   if (body === undefined) return { body: undefined, headers };
+  if (tagOf(body) === "FormData") {
+    // The runtime must write `multipart/form-data; boundary=…` itself; any
+    // content-type set here (a JSON default, typically) breaks the upload.
+    const { "content-type": _dropped, ...rest } = headers;
+    return { body: body as FormData, headers: rest };
+  }
   if (isRawBody(body)) return { body, headers };
   const withType =
     "content-type" in headers

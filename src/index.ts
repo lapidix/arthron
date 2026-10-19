@@ -14,6 +14,7 @@ export type {
   ArthronPromise,
   ErrorInterceptor,
   ErrorMessageResolver,
+  HeadersOption,
   Middleware,
   NdjsonOptions,
   Plugin,
