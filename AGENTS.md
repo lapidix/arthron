@@ -11,6 +11,7 @@ pnpm typecheck       # tsc --noEmit (strict, exactOptionalPropertyTypes, noUnche
 pnpm lint            # biome check .   (pnpm lint:fix to apply)
 pnpm build           # tsdown → dist/index.{mjs,cjs,d.mts,d.cts}
 pnpm check:types-pkg # attw --pack . — package types must be green for node10/node16/bundler
+pnpm check:types-consumer  # after build and `pnpm install --dir test/types-consumer`: the packed types on TS 5.0–7.0
 node scripts/smoke.mjs  # runs dist/ against a real local HTTP server
 ```
 
@@ -20,6 +21,7 @@ Node 22+ for everything — the dev toolchain and the runtime (`engines`). CI ru
 
 - **Tests first.** Every behaviour change starts with a failing test in the matching `*.test.ts`. Tests inject `fetch` through `ArthronConfig.fetch` (see `src/testkit/fetch.testkit.ts`: `fakeFetch`, `jsonResponse`); never stub `globalThis.fetch`.
 - **No runtime dependencies.** `dependencies` stays empty. New dev tooling must work on Node 22+.
+- **TypeScript 5.0+ for users.** The published types must pass `pnpm check:types-consumer` on every version pinned in `test/types-consumer/package.json`, the lowest being the supported minimum. Raising it is a major change. A new TypeScript release gets a new pinned version there.
 - **Node 22 APIs only in `src/`** (and what browsers ship). `AbortSignal.any` is fine; anything newer than Node 22 needs a fallback and a smoke check.
 - **Only two things become `ArthronError`:** `!response.ok` and fetch rejecting. Cancellation and plugin exceptions propagate untouched and skip error interceptors. Do not widen this. `throwOn` may only *narrow* which non-ok responses reject (an ok response never does); by default opaque responses and the 3xx of `redirect: "manual"` are returned, not thrown.
 - **Interceptors transform, middleware controls flow.** Do not add a way for an interceptor to retry, skip, or swallow. Flow-control features are middleware (see `src/plugins/retry/`, `timeout/`).

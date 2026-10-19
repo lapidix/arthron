@@ -32,3 +32,24 @@ jobs:
       - run: pnpm build
       - run: pnpm check:types-pkg
       - run: node scripts/smoke.mjs
+
+  # The published types as a user's compiler sees them: every TypeScript
+  # version from the supported minimum up, bundler and NodeNext, ESM and CJS,
+  # with the DOM lib and with only @types/node. The versions live in
+  # test/types-consumer with their own lockfile, so only this job installs them.
+  consumer-types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            test/types-consumer/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm install --frozen-lockfile --dir test/types-consumer
+      - run: pnpm check:types-consumer

@@ -1,0 +1,20 @@
+{
+  "name": "arthron-types-consumer",
+  "private": true,
+  "description": "TypeScript versions that check.mjs type-checks the packed arthron with. The lowest one is the minimum supported version.",
+  "devDependencies": {
+    "@types/node": "22.10.10",
+    "typescript-5.0": "npm:typescript@5.0.4",
+    "typescript-5.1": "npm:typescript@5.1.6",
+    "typescript-5.2": "npm:typescript@5.2.2",
+    "typescript-5.3": "npm:typescript@5.3.3",
+    "typescript-5.4": "npm:typescript@5.4.5",
+    "typescript-5.5": "npm:typescript@5.5.4",
+    "typescript-5.6": "npm:typescript@5.6.3",
+    "typescript-5.7": "npm:typescript@5.7.3",
+    "typescript-5.8": "npm:typescript@5.8.3",
+    "typescript-5.9": "npm:typescript@5.9.3",
+    "typescript-6.0": "npm:typescript@6.0.3",
+    "typescript-7.0": "npm:typescript@7.0.2"
+  }
+}
