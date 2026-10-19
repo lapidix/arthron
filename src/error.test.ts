@@ -10,7 +10,7 @@ import {
 } from "./error";
 import { jsonResponse } from "./test-utils";
 
-const req = { url: "https://a/x", init: { method: "GET" } };
+const req = { url: "https://a/x", init: { method: "GET", headers: {} } };
 
 describe("defaultErrorMessage", () => {
   it.each([

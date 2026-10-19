@@ -127,7 +127,10 @@ describe("runPipeline", () => {
       };
       await runPipeline(
         [twice, addToken],
-        { url: "https://a/x", init: { method: "POST", body: make() } },
+        {
+          url: "https://a/x",
+          init: { method: "POST", body: make(), headers: {} },
+        },
         async (c) => {
           seen.push(
             (c.init.body as unknown as Appendable).getAll("csrf").length,
@@ -138,6 +141,39 @@ describe("runPipeline", () => {
       expect(seen).toEqual([1, 1]);
     },
   );
+
+  it("normalizes headers after every request interceptor, so the next one can spread them", async () => {
+    const send = vi.fn(async (_c: RequestContext) => jsonResponse({}));
+    const asHeaders: Plugin = {
+      request: (c) => {
+        const h = new Headers(c.init.headers);
+        h.set("X-Trace", "t1");
+        // A plugin written in JS (or with a cast) may hand back a Headers object.
+        return { ...c, init: { ...c.init, headers: h as never } };
+      },
+    };
+    const spreads: Plugin = {
+      request: (c) => ({
+        ...c,
+        init: { ...c.init, headers: { ...c.init.headers, authorization: "x" } },
+      }),
+    };
+    await runPipeline([asHeaders, spreads], ctx(), send);
+    expect(send.mock.calls[0]?.[0].init.headers).toEqual({
+      a: "1",
+      "x-trace": "t1",
+      authorization: "x",
+    });
+  });
+  it("types ctx.init.headers as a lowercase record plugins can read", async () => {
+    const seen: (string | undefined)[] = [];
+    await runPipeline(
+      [{ request: (c) => (seen.push(c.init.headers.a), c) }],
+      ctx(),
+      ok,
+    );
+    expect(seen).toEqual(["1"]);
+  });
 
   it("lets request interceptors replace the context", async () => {
     const send = vi.fn(async (_c: RequestContext) => jsonResponse({}));

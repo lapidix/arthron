@@ -27,3 +27,19 @@ describe("mergeHeaders", () => {
     });
   });
 });
+
+describe("mergeHeaders — deleting", () => {
+  it("removes a header whose override is null or undefined, case-insensitively", () => {
+    expect(
+      mergeHeaders(
+        { Authorization: "Bearer t", Accept: "a", "X-Keep": "1" },
+        { authorization: null, ACCEPT: undefined },
+      ),
+    ).toEqual({ "x-keep": "1" });
+  });
+  it("still validates the values it sets", () => {
+    expect(() => mergeHeaders({}, { "x-a": "bad\r\nvalue" })).toThrow(
+      TypeError,
+    );
+  });
+});

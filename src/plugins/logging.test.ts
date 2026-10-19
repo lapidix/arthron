@@ -4,7 +4,10 @@ import { runPipeline } from "../pipeline";
 import { jsonResponse } from "../test-utils";
 import { type LogEvent, logging } from "./logging";
 
-const ctx = { url: "https://a/u?secret=1", init: { method: "POST" } };
+const ctx = {
+  url: "https://a/u?secret=1",
+  init: { method: "POST", headers: {} },
+};
 const clock = () => {
   let t = 0;
   return { now: () => (t += 12) };
@@ -63,7 +66,7 @@ describe("logging", () => {
     await expect(
       runPipeline(
         [logging({ logger })],
-        { url: "https://a/u", init: { signal: ac.signal } },
+        { url: "https://a/u", init: { signal: ac.signal, headers: {} } },
         async () => {
           throw reason;
         },
@@ -111,7 +114,7 @@ describe("logging", () => {
     const logger = spyLogger();
     await runPipeline(
       [logging({ logger })],
-      { url: "https://user:secret@a/u?token=1", init: {} },
+      { url: "https://user:secret@a/u?token=1", init: { headers: {} } },
       async () => jsonResponse({}),
     );
     expect(logger.log.mock.calls[0]?.[0]).toBe("[arthron] → GET https://a/u");
@@ -175,7 +178,7 @@ describe("logging", () => {
     const logger = spyLogger();
     await runPipeline(
       [logging({ logger })],
-      { url: "https://a/u", init: {} },
+      { url: "https://a/u", init: { headers: {} } },
       async () => jsonResponse({}),
     );
     expect(logger.log.mock.calls[0]?.[0]).toBe("[arthron] → GET https://a/u");

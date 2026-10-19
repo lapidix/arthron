@@ -1,12 +1,22 @@
 import type { ArthronError, ErrorMessageResolver } from "./error";
+import type { HeadersOption } from "./headers";
 import type { NdjsonOptions, SseEvent, SseOptions } from "./stream";
 import type { QueryParams } from "./url";
 
 export type { ErrorMessageResolver } from "./error";
+export type { HeadersOption } from "./headers";
 export type { NdjsonOptions, SseEvent, SseOptions } from "./stream";
 export type { QueryParams } from "./url";
 
-export type RequestContext = { url: string; init: RequestInit };
+/**
+ * What plugins see and return. `init.headers` is always a plain record with
+ * lowercased names — spread it, read it, add to it — and the pipeline puts
+ * it back into that shape after every request interceptor.
+ */
+export type RequestContext = {
+  url: string;
+  init: Omit<RequestInit, "headers"> & { headers: Record<string, string> };
+};
 
 /** Runs before each attempt. Returns the context to send (may be a new object). */
 export type RequestInterceptor = (
@@ -45,7 +55,12 @@ export type Plugin = {
   error?: ErrorInterceptor;
 };
 
-export type RequestOptions = Omit<RequestInit, "body" | "method"> & {
+export type RequestOptions = Omit<
+  RequestInit,
+  "body" | "method" | "headers"
+> & {
+  /** Per-call headers; a `null`/`undefined` value drops a client default. */
+  headers?: HeadersOption;
   params?: QueryParams;
 };
 
@@ -64,8 +79,8 @@ export type ArthronConfig = {
    * origin even when this is on.
    */
   allowAbsoluteUrls?: boolean;
-  /** Default headers. Per-call headers win, compared case-insensitively. */
-  headers?: HeadersInit;
+  /** Default headers. Per-call headers win, compared case-insensitively; `extend` can drop one with `null`. */
+  headers?: HeadersOption;
   /** Forwarded to fetch as-is. Not set unless you set it. */
   credentials?: RequestCredentials;
   /** Injection point for tests and polyfills. Defaults to `globalThis.fetch`. */

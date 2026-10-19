@@ -184,6 +184,31 @@ describe("arthron — config", () => {
     expect(fetch.calls[0]?.url).toBe("https://b/x");
     expect(fetch.calls[0]?.init.headers).toEqual({ "x-call": "1" });
   });
+  it("drops a default header for one call with null or undefined", async () => {
+    const { api, fetch } = make(undefined, {
+      headers: { authorization: "Bearer t", "x-tenant": "a" },
+    });
+    await api.get("/public", {
+      headers: { authorization: null, "x-tenant": undefined },
+    });
+    expect(fetch.calls[0]?.init.headers).toEqual({});
+  });
+  it("extend() can drop an inherited header with null", async () => {
+    const { api, fetch } = make(undefined, {
+      headers: { authorization: "Bearer t", accept: "application/json" },
+    });
+    await api.extend({ headers: { authorization: null } }).get("/u");
+    expect(fetch.calls[0]?.init.headers).toEqual({
+      accept: "application/json",
+    });
+  });
+  it("leaves content-type to the runtime for FormData, even with a JSON default", async () => {
+    const { api, fetch } = make(undefined, {
+      headers: { "content-type": "application/json" },
+    });
+    await api.post("/upload", new FormData());
+    expect(headersOf(fetch.calls[0]?.init)["content-type"]).toBeUndefined();
+  });
   it("does not set credentials unless configured", async () => {
     const { api, fetch } = make();
     await api.get("/u");
