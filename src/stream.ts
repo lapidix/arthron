@@ -10,26 +10,66 @@ export type SseEvent = {
   retry?: number;
 };
 
-/** Yield the body line by line, reassembling lines split across chunks. */
-async function* lines(response: Response): AsyncGenerator<string> {
+export type NdjsonOptions = {
+  /**
+   * Longest line accepted, in characters. A longer one rejects the iteration
+   * with a RangeError and cancels the body. Default 8 Mi.
+   */
+  maxLineLength?: number;
+};
+
+export type SseOptions = NdjsonOptions & {
+  /**
+   * Most `data` one event may collect before its blank line, in characters.
+   * More rejects the iteration with a RangeError and cancels the body.
+   * Default 8 Mi.
+   */
+  maxEventSize?: number;
+};
+
+const DEFAULT_LIMIT = 8 * 1024 * 1024;
+
+/**
+ * Yield the body line by line, reassembling lines split across chunks. Only
+ * the newly arrived text is scanned, so a long line costs linear time; a line
+ * past `maxLineLength` stops the stream instead of growing without bound.
+ */
+async function* lines(
+  response: Response,
+  maxLineLength: number,
+): AsyncGenerator<string> {
   if (!response.body) return;
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = "";
+  const breaks = /\r\n|\r|\n/g;
+  let pending = "";
+  // The previous chunk ended in "\r": a "\n" opening this one belongs to it.
+  let afterCR = false;
   try {
     while (true) {
       const { value, done } = await reader.read();
-      buffer += decoder.decode(value, { stream: !done });
-      // A trailing "\r" may be the first half of a "\r\n" split across
-      // chunks; splitting on it now would invent an extra blank line.
-      const cut =
-        !done && buffer.endsWith("\r") ? buffer.length - 1 : buffer.length;
-      const parts = buffer.slice(0, cut).split(/\r\n|\r|\n/);
-      buffer = (parts.pop() ?? "") + buffer.slice(cut);
-      for (const line of parts) yield line;
+      let text = decoder.decode(value, { stream: !done });
+      if (afterCR && text.startsWith("\n")) {
+        text = text.slice(1);
+        afterCR = false;
+      }
+      if (text) afterCR = text.endsWith("\r");
+      let start = 0;
+      breaks.lastIndex = 0;
+      for (let m = breaks.exec(text); m; m = breaks.exec(text)) {
+        yield pending + text.slice(start, m.index);
+        pending = "";
+        start = breaks.lastIndex;
+      }
+      pending += text.slice(start);
+      if (pending.length > maxLineLength) {
+        throw new RangeError(
+          `arthron: a stream line is longer than ${maxLineLength} characters — pass a larger maxLineLength to .sse() / .ndjson() if that is expected`,
+        );
+      }
       if (done) break;
     }
-    if (buffer) yield buffer;
+    if (pending) yield pending;
   } finally {
     // Leaving early (break, return, a throw) must close the connection too —
     // releasing the lock alone leaves the body streaming.
@@ -46,8 +86,15 @@ async function* lines(response: Response): AsyncGenerator<string> {
  * Provider sentinels like
  * `[DONE]` are passed through untouched — they are not part of the spec.
  */
-export async function* parseSse(response: Response): AsyncGenerator<SseEvent> {
+export async function* parseSse(
+  response: Response,
+  {
+    maxLineLength = DEFAULT_LIMIT,
+    maxEventSize = DEFAULT_LIMIT,
+  }: SseOptions = {},
+): AsyncGenerator<SseEvent> {
   let data: string[] = [];
+  let size = 0;
   let event: string | undefined;
   let id: string | undefined;
   let retry: number | undefined;
@@ -62,11 +109,12 @@ export async function* parseSse(response: Response): AsyncGenerator<SseEvent> {
     if (id !== undefined) out.id = id;
     if (retry !== undefined) out.retry = retry;
     data = [];
+    size = 0;
     event = id = retry = undefined;
     return out;
   };
 
-  for await (const line of lines(response)) {
+  for await (const line of lines(response, maxLineLength)) {
     if (line === "") {
       const out = flush();
       if (out) yield out;
@@ -79,6 +127,12 @@ export async function* parseSse(response: Response): AsyncGenerator<SseEvent> {
     if (value.startsWith(" ")) value = value.slice(1);
     switch (field) {
       case "data":
+        size += value.length + 1;
+        if (size > maxEventSize + 1) {
+          throw new RangeError(
+            `arthron: an SSE event's data is longer than ${maxEventSize} characters — pass a larger maxEventSize to .sse() if that is expected`,
+          );
+        }
         data.push(value);
         break;
       case "event":
@@ -106,8 +160,9 @@ export async function* parseSse(response: Response): AsyncGenerator<SseEvent> {
  */
 export async function* parseNdjson<T = unknown>(
   response: Response,
+  { maxLineLength = DEFAULT_LIMIT }: NdjsonOptions = {},
 ): AsyncGenerator<T> {
-  for await (const line of lines(response)) {
+  for await (const line of lines(response, maxLineLength)) {
     if (line.trim() === "") continue;
     yield JSON.parse(line) as T;
   }

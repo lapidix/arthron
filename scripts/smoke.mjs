@@ -49,6 +49,11 @@ const server = createServer((req, res) => {
     });
     return;
   }
+  if (req.url === "/long-line") {
+    res.writeHead(200, { "content-type": "application/x-ndjson" });
+    res.end("x".repeat(256 * 1024));
+    return;
+  }
   if (req.url === "/huge-error") {
     res.writeHead(500, { "content-type": "text/plain" });
     res.end("x".repeat(1024 * 1024));
@@ -178,6 +183,17 @@ try {
       huge.data.length === 64 * 1024 &&
       (await huge.response.text()).length === 64 * 1024,
     "a 1 MB error body is read only up to 64 KiB",
+  );
+
+  const tooLong = await (async () => {
+    for await (const _ of arthron({ baseURL })
+      .get("/long-line")
+      .ndjson({ maxLineLength: 1024 })) {
+    }
+  })().catch((e) => e);
+  assert(
+    tooLong instanceof RangeError,
+    "a stream line past maxLineLength rejects with RangeError",
   );
 } finally {
   server.closeAllConnections?.();
