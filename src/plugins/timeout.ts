@@ -40,6 +40,15 @@ function guardBody(
   });
 }
 
+/** setTimeout fires at once for NaN, negatives and anything past 2^31-1. */
+function checkDeadline(ms: number, where: string): void {
+  if (ms === Number.POSITIVE_INFINITY || (ms >= 0 && ms <= MAX_TIMER_MS))
+    return;
+  throw new TypeError(
+    `arthron: ${where} needs 0–${MAX_TIMER_MS} ms — pass Infinity for no deadline`,
+  );
+}
+
 /**
  * Abort the request when it takes longer than `ms` — counted from the start
  * of the attempt until the body has been fully read, so a server that sends
@@ -47,22 +56,19 @@ function guardBody(
  * `DOMException`, like `AbortSignal.timeout()` would give); it is not an
  * `ArthronError`, so error interceptors and `retry` leave it alone.
  *
+ * A call can change the deadline with `meta.timeout`.
+ *
  * Built on `AbortController` + `setTimeout` rather than `AbortSignal.any` /
  * `AbortSignal.timeout` so it runs on Node 18.
  */
 export function timeout(ms: number): Plugin {
-  if (ms === Number.POSITIVE_INFINITY) {
-    return { name: "timeout", middleware: (ctx, next) => next(ctx) };
-  }
-  // setTimeout fires at once for NaN, negatives and anything past 2^31-1.
-  if (!(ms >= 0 && ms <= MAX_TIMER_MS)) {
-    throw new TypeError(
-      `arthron: timeout(${ms}) needs 0–${MAX_TIMER_MS} ms — pass Infinity for no deadline`,
-    );
-  }
+  checkDeadline(ms, `timeout(${ms})`);
   return {
     name: "timeout",
     middleware: async (ctx, next) => {
+      const deadline = ctx.meta?.timeout ?? ms;
+      if (deadline !== ms) checkDeadline(deadline, `meta.timeout: ${deadline}`);
+      if (deadline === Number.POSITIVE_INFINITY) return next(ctx);
       const controller = new AbortController();
       const outer = ctx.init.signal;
       const forward = () => controller.abort(outer?.reason);
@@ -73,11 +79,11 @@ export function timeout(ms: number): Plugin {
         () =>
           controller.abort(
             new DOMException(
-              `arthron: request timed out after ${ms}ms`,
+              `arthron: request timed out after ${deadline}ms`,
               "TimeoutError",
             ),
           ),
-        ms,
+        deadline,
       );
       // Only this request waits on it; an unread body must not keep Node alive.
       (timer as { unref?: () => unknown }).unref?.();

@@ -10,7 +10,11 @@ import {
 } from "./error";
 import { jsonResponse } from "./test-utils";
 
-const req = { url: "https://a/x", init: { method: "GET", headers: {} } };
+const req = {
+  url: "https://a/x",
+  init: { method: "GET", headers: {} },
+  meta: {},
+};
 
 describe("defaultErrorMessage", () => {
   it.each([
@@ -117,6 +121,7 @@ describe("ArthronError keeps request secrets out of serialization", () => {
           headers: { authorization: "Bearer H-SECRET" },
           body: '{"password":"B-SECRET"}',
         },
+        meta: {},
       },
     );
   it("JSON.stringify gives status, message, method and a redacted url — no secrets", async () => {

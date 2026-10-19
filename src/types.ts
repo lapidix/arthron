@@ -1,5 +1,6 @@
 import type { ArthronError, ErrorMessageResolver } from "./error";
 import type { HeadersOption } from "./headers";
+import type { RetryOptions } from "./plugins/retry";
 import type { NdjsonOptions, SseEvent, SseOptions } from "./stream";
 import type { QueryParams } from "./url";
 
@@ -16,7 +17,27 @@ export type { QueryParams } from "./url";
 export type RequestContext = {
   url: string;
   init: Omit<RequestInit, "headers"> & { headers: Record<string, string> };
+  /** Per-call settings for plugins (`RequestOptions.meta`); never sent. */
+  meta: ArthronMeta;
 };
+
+/**
+ * Per-call settings for plugins, passed as `api.get(path, { meta })` and
+ * carried next to `init` — never sent to fetch. The built-in plugins read
+ * `retry` and `timeout`; your own add keys by augmentation:
+ *
+ * ```ts
+ * declare module "arthron" {
+ *   interface ArthronMeta { skipAuth?: boolean }
+ * }
+ * ```
+ */
+export interface ArthronMeta {
+  /** `false` turns `retry()` off for this call; an object overrides its options. */
+  retry?: false | Omit<RetryOptions, "sleep">;
+  /** Deadline for this call in ms, overriding `timeout(ms)`. `Infinity` lifts it. */
+  timeout?: number;
+}
 
 /** Runs before each attempt. Returns the context to send (may be a new object). */
 export type RequestInterceptor = (
@@ -62,6 +83,8 @@ export type RequestOptions = Omit<
   /** Per-call headers; a `null`/`undefined` value drops a client default. */
   headers?: HeadersOption;
   params?: QueryParams;
+  /** Settings for plugins on this call only (see `ArthronMeta`). Not sent. */
+  meta?: ArthronMeta;
 };
 
 export type RequestInitWithBody = RequestOptions & {

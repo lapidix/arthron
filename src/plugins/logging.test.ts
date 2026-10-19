@@ -7,6 +7,7 @@ import { type LogEvent, logging } from "./logging";
 const ctx = {
   url: "https://a/u?secret=1",
   init: { method: "POST", headers: {} },
+  meta: {},
 };
 const clock = () => {
   let t = 0;
@@ -66,7 +67,11 @@ describe("logging", () => {
     await expect(
       runPipeline(
         [logging({ logger })],
-        { url: "https://a/u", init: { signal: ac.signal, headers: {} } },
+        {
+          url: "https://a/u",
+          init: { signal: ac.signal, headers: {} },
+          meta: {},
+        },
         async () => {
           throw reason;
         },
@@ -93,6 +98,7 @@ describe("logging", () => {
       {
         url: "https://a/u?token=s3cret",
         init: { headers: { authorization: "Bearer H-SECRET" } },
+        meta: {},
       },
       async (c) => {
         throw await responseError(new Response("x", { status: 500 }), c);
@@ -114,7 +120,11 @@ describe("logging", () => {
     const logger = spyLogger();
     await runPipeline(
       [logging({ logger })],
-      { url: "https://user:secret@a/u?token=1", init: { headers: {} } },
+      {
+        url: "https://user:secret@a/u?token=1",
+        init: { headers: {} },
+        meta: {},
+      },
       async () => jsonResponse({}),
     );
     expect(logger.log.mock.calls[0]?.[0]).toBe("[arthron] → GET https://a/u");
@@ -178,7 +188,7 @@ describe("logging", () => {
     const logger = spyLogger();
     await runPipeline(
       [logging({ logger })],
-      { url: "https://a/u", init: { headers: {} } },
+      { url: "https://a/u", init: { headers: {} }, meta: {} },
       async () => jsonResponse({}),
     );
     expect(logger.log.mock.calls[0]?.[0]).toBe("[arthron] → GET https://a/u");

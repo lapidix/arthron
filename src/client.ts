@@ -89,7 +89,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
     path: string,
     method: string,
     rawBody: unknown,
-    { params, headers: callHeaders, ...init }: RequestOptions,
+    { params, headers: callHeaders, meta, ...init }: RequestOptions,
   ): ArthronPromise => {
     try {
       if (rawBody !== undefined && BODYLESS_METHODS.has(method.toUpperCase())) {
@@ -128,7 +128,11 @@ export function arthron(config: ArthronConfig = {}): Arthron {
       if (isReadableStream(body))
         Object.assign(requestInit, { duplex: "half" });
       return toArthronPromise(
-        runPipeline(resolved.use, { url, init: requestInit }, send),
+        runPipeline(
+          resolved.use,
+          { url, init: requestInit, meta: { ...meta } },
+          send,
+        ),
       );
     } catch (thrown) {
       // Argument errors (no baseURL, unserializable body) reject like everything else.

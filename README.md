@@ -135,6 +135,7 @@ type Plugin = {
 type RequestContext = {
   url: string;
   init: Omit<RequestInit, "headers"> & { headers: Record<string, string> }; // lowercase names
+  meta: ArthronMeta; // per-call plugin settings, never sent
 };
 ```
 
@@ -171,11 +172,11 @@ Re-runs the attempt on network failure or a retryable status. Because it re-runs
 | `delay` | `(retry) => 300 * 2 ** retry` | ms; `retry` counts from 0 |
 | `maxRetryAfter` | `60_000` | a `Retry-After` longer than this means "don't retry" |
 
-Honours `Retry-After` (seconds or HTTP date). Never retries a `ReadableStream` body or an aborted request.
+Honours `Retry-After` (seconds or HTTP date). Never retries a `ReadableStream` body or an aborted request. Per call, `meta: { retry: false }` turns it off and `meta: { retry: { retries: 5 } }` overrides any option but `sleep`.
 
 #### `timeout(ms)`
 
-Aborts the attempt after `ms`, counted until the body has been fully read — a server that sends headers and then stalls still trips it. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore. Combines with a `signal` you pass yourself. `Infinity` means no deadline. The timer never keeps a Node process alive on its own.
+Aborts the attempt after `ms`, counted until the body has been fully read — a server that sends headers and then stalls still trips it. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore. Combines with a `signal` you pass yourself. `Infinity` means no deadline. The timer never keeps a Node process alive on its own. Per call, `meta: { timeout: 120_000 }` replaces the deadline (`Infinity` lifts it).
 
 ```ts
 arthron({ use: [retry(), timeout(5_000)] }); // 5 s per attempt
@@ -201,6 +202,19 @@ Query strings and `user:pass@` are never printed. Cancellations are not logged.
 ### Write your own
 
 `definePlugin`, `defineMiddleware` and `defineInterceptor.{request,response,error}` are identity functions that give you the parameter types without annotations.
+
+**Per-call settings.** `api.get(path, { meta })` hands `meta` to every plugin as `ctx.meta` and never sends it. Declare your own keys once and they are typed everywhere:
+
+```ts
+declare module "arthron" {
+  interface ArthronMeta {
+    skipAuth?: boolean;
+  }
+}
+
+api.use({ request: (ctx) => (ctx.meta.skipAuth ? ctx : withToken(ctx)) });
+api.get("/health", { meta: { skipAuth: true } });
+```
 
 **Refresh a session on 401, then redo the request.** The refresh is flow, so it is middleware. The header is a value, so it is a request interceptor — and because `next` re-runs the interceptors, the retried request carries the new token without extra code.
 

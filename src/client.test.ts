@@ -157,6 +157,40 @@ describe("arthron — argument errors reject instead of throwing synchronously",
   });
 });
 
+describe("arthron — per-call meta", () => {
+  it("hands meta to plugins and never sends it to fetch", async () => {
+    const seen: unknown[] = [];
+    const { api, fetch } = make(undefined, {
+      use: [
+        {
+          middleware: (c, next) => {
+            seen.push(c.meta);
+            return next(c);
+          },
+        },
+      ],
+    });
+    await api.get("/u", { meta: { timeout: 5 } });
+    expect(seen).toEqual([{ timeout: 5 }]);
+    expect("meta" in (fetch.calls[0]?.init ?? {})).toBe(false);
+  });
+  it("gives every call a meta object, empty when none was passed", async () => {
+    const seen: unknown[] = [];
+    const { api } = make(undefined, {
+      use: [
+        {
+          request: (c) => {
+            seen.push(c.meta);
+            return c;
+          },
+        },
+      ],
+    });
+    await api.get("/u");
+    expect(seen).toEqual([{}]);
+  });
+});
+
 describe("arthron — config", () => {
   it("merges default headers under per-call headers, case-insensitively", async () => {
     const { api, fetch } = make(undefined, {
