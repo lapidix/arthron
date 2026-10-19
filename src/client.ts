@@ -2,11 +2,11 @@ import { serializeBody } from "./body";
 import { isCancellation, networkError, responseError } from "./error";
 import { mergeHeaders, toHeaderRecord } from "./headers";
 import { runPipeline } from "./pipeline";
-import { toIeumPromise } from "./promise";
+import { toFerrulePromise } from "./promise";
 import type {
-  Ieum,
-  IeumConfig,
-  IeumPromise,
+  Ferrule,
+  FerruleConfig,
+  FerrulePromise,
   Plugin,
   RequestContext,
   RequestInitWithBody,
@@ -14,13 +14,13 @@ import type {
 } from "./types";
 import { resolveUrl } from "./url";
 
-type Resolved = Omit<IeumConfig, "headers" | "use"> & {
+type Resolved = Omit<FerruleConfig, "headers" | "use"> & {
   headers: Record<string, string>;
   use: readonly Plugin[];
 };
 
 /** Normalize once so `extend` can merge headers and append plugins cheaply. */
-function resolveConfig(config: IeumConfig): Resolved {
+function resolveConfig(config: FerruleConfig): Resolved {
   const { headers, use, ...rest } = config;
   return { ...rest, headers: toHeaderRecord(headers), use: use ?? [] };
 }
@@ -29,11 +29,11 @@ function resolveConfig(config: IeumConfig): Resolved {
  * Build a client from config. The result is immutable — `use` and `extend`
  * return new clients and never touch the one they were called on.
  */
-export function ieum(config: IeumConfig = {}): Ieum {
+export function ferrule(config: FerruleConfig = {}): Ferrule {
   const resolved = resolveConfig(config);
   const fetchImpl = resolved.fetch ?? globalThis.fetch;
 
-  /** The one place a failure becomes an IeumError. Cancellation passes through. */
+  /** The one place a failure becomes an FerruleError. Cancellation passes through. */
   const send = async (ctx: RequestContext): Promise<Response> => {
     let res: Response;
     try {
@@ -51,7 +51,7 @@ export function ieum(config: IeumConfig = {}): Ieum {
     method: string,
     rawBody: unknown,
     { params, headers: callHeaders, ...init }: RequestOptions,
-  ): IeumPromise => {
+  ): FerrulePromise => {
     try {
       const url = resolveUrl(resolved.baseURL, path, params);
       const { body, headers } = serializeBody(
@@ -68,23 +68,23 @@ export function ieum(config: IeumConfig = {}): Ieum {
         headers,
       };
       if (body !== undefined) requestInit.body = body;
-      return toIeumPromise(
+      return toFerrulePromise(
         runPipeline(resolved.use, { url, init: requestInit }, send),
       );
     } catch (thrown) {
       // Argument errors (no baseURL, unserializable body) reject like everything else.
-      return toIeumPromise(Promise.reject(thrown));
+      return toFerrulePromise(Promise.reject(thrown));
     }
   };
 
-  const derive = (next: Partial<IeumConfig>): Ieum => {
-    const merged: IeumConfig = {
+  const derive = (next: Partial<FerruleConfig>): Ferrule => {
+    const merged: FerruleConfig = {
       ...resolved,
       ...next,
       headers: mergeHeaders(resolved.headers, next.headers),
       use: [...resolved.use, ...(next.use ?? [])],
     };
-    return ieum(merged);
+    return ferrule(merged);
   };
 
   return {
@@ -97,8 +97,10 @@ export function ieum(config: IeumConfig = {}): Ieum {
     request: (path, init: RequestInitWithBody) => {
       const { method, body, ...rest } = init;
       if (!method) {
-        return toIeumPromise(
-          Promise.reject(new TypeError("ieum: request() requires init.method")),
+        return toFerrulePromise(
+          Promise.reject(
+            new TypeError("ferrule: request() requires init.method"),
+          ),
         );
       }
       return dispatch(path, method, body, rest);

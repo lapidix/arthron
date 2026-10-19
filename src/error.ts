@@ -5,7 +5,7 @@ export type ErrorMessageResolver = (
   response: Response,
 ) => string | undefined;
 
-type IeumErrorInit = {
+type FerruleErrorInit = {
   message: string;
   status: number;
   statusText: string;
@@ -17,12 +17,12 @@ type IeumErrorInit = {
 };
 
 /**
- * The only error ieum itself produces. Two sources: a response with
+ * The only error ferrule itself produces. Two sources: a response with
  * `ok === false`, or fetch rejecting outright (network failure, `status` 0).
  * Everything else — cancellation, interceptor bugs — is rethrown untouched.
  */
-export class IeumError extends Error {
-  override readonly name = "IeumError";
+export class FerruleError extends Error {
+  override readonly name = "FerruleError";
   readonly status: number;
   readonly statusText: string;
   readonly headers: Headers;
@@ -31,7 +31,7 @@ export class IeumError extends Error {
   readonly response: Response | undefined;
   override readonly cause: unknown;
 
-  constructor(init: IeumErrorInit) {
+  constructor(init: FerruleErrorInit) {
     super(init.message);
     this.status = init.status;
     this.statusText = init.statusText;
@@ -43,8 +43,8 @@ export class IeumError extends Error {
   }
 }
 
-export function isIeumError(error: unknown): error is IeumError {
-  return error instanceof IeumError;
+export function isFerruleError(error: unknown): error is FerruleError {
+  return error instanceof FerruleError;
 }
 
 /** Cancellation is not an HTTP failure. Matched by name so it works across realms. */
@@ -83,9 +83,9 @@ export async function responseError(
   response: Response,
   request: RequestContext,
   resolve: ErrorMessageResolver = defaultErrorMessage,
-): Promise<IeumError> {
+): Promise<FerruleError> {
   const data = await readBody(response);
-  return new IeumError({
+  return new FerruleError({
     message:
       resolve(data, response) ??
       `Request failed with status ${response.status}`,
@@ -101,8 +101,8 @@ export async function responseError(
 export function networkError(
   cause: unknown,
   request: RequestContext,
-): IeumError {
-  return new IeumError({
+): FerruleError {
+  return new FerruleError({
     message: cause instanceof Error ? cause.message : "Network error",
     status: 0,
     statusText: "",

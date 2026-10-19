@@ -1,4 +1,4 @@
-import { isCancellation, isIeumError } from "../error";
+import { isCancellation, isFerruleError } from "../error";
 import type { Plugin } from "../types";
 
 export type LoggingOptions = {
@@ -29,15 +29,15 @@ export function logging(options: LoggingOptions = {}): Plugin {
       const started = now();
       const elapsed = () => `${Math.round(now() - started)}ms`;
 
-      logger.log(`[ieum] → ${method} ${path}`);
+      logger.log(`[ferrule] → ${method} ${path}`);
       try {
         const res = await next(ctx);
-        logger.log(`[ieum] ← ${method} ${path} ${res.status} ${elapsed()}`);
+        logger.log(`[ferrule] ← ${method} ${path} ${res.status} ${elapsed()}`);
         return res;
       } catch (thrown) {
         if (!isCancellation(thrown)) {
-          const status = isIeumError(thrown) ? thrown.status : "-";
-          logger.error(`[ieum] ✕ ${method} ${path} ${status} ${elapsed()}`);
+          const status = isFerruleError(thrown) ? thrown.status : "-";
+          logger.error(`[ferrule] ✕ ${method} ${path} ${status} ${elapsed()}`);
         }
         throw thrown;
       }

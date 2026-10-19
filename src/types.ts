@@ -1,4 +1,4 @@
-import type { ErrorMessageResolver, IeumError } from "./error";
+import type { ErrorMessageResolver, FerruleError } from "./error";
 import type { QueryParams } from "./url";
 
 export type { ErrorMessageResolver } from "./error";
@@ -19,14 +19,14 @@ export type ResponseInterceptor = (
 
 /** Runs after a failed attempt. Returns the error to throw; it is always thrown. */
 export type ErrorInterceptor = (
-  err: IeumError,
+  err: FerruleError,
   ctx: RequestContext,
-) => IeumError | Promise<IeumError>;
+) => FerruleError | Promise<FerruleError>;
 
 /**
  * Wraps the whole call. `next` runs everything below it (request interceptors →
  * fetch → response/error interceptors) and may be called again to retry.
- * `next` rejects with an `IeumError`, or with the untouched original when the
+ * `next` rejects with an `FerruleError`, or with the untouched original when the
  * failure was a cancellation or a bug in a plugin.
  */
 export type Middleware = (
@@ -52,7 +52,7 @@ export type RequestInitWithBody = RequestOptions & {
   body?: unknown;
 };
 
-export type IeumConfig = {
+export type FerruleConfig = {
   /** Prefix for relative paths. Without it only absolute URLs are accepted. */
   baseURL?: string;
   /** Default headers. Per-call headers win, compared case-insensitively. */
@@ -66,7 +66,7 @@ export type IeumConfig = {
   errorMessage?: ErrorMessageResolver;
 };
 
-export type IeumPromise = Promise<Response> & {
+export type FerrulePromise = Promise<Response> & {
   json<T = unknown>(): Promise<T>;
   text(): Promise<string>;
   blob(): Promise<Blob>;
@@ -74,16 +74,16 @@ export type IeumPromise = Promise<Response> & {
   formData(): Promise<FormData>;
 };
 
-export type Ieum = {
-  get(path: string, init?: RequestOptions): IeumPromise;
-  delete(path: string, init?: RequestOptions): IeumPromise;
-  head(path: string, init?: RequestOptions): IeumPromise;
-  post(path: string, body?: unknown, init?: RequestOptions): IeumPromise;
-  put(path: string, body?: unknown, init?: RequestOptions): IeumPromise;
-  patch(path: string, body?: unknown, init?: RequestOptions): IeumPromise;
-  request(path: string, init: RequestInitWithBody): IeumPromise;
+export type Ferrule = {
+  get(path: string, init?: RequestOptions): FerrulePromise;
+  delete(path: string, init?: RequestOptions): FerrulePromise;
+  head(path: string, init?: RequestOptions): FerrulePromise;
+  post(path: string, body?: unknown, init?: RequestOptions): FerrulePromise;
+  put(path: string, body?: unknown, init?: RequestOptions): FerrulePromise;
+  patch(path: string, body?: unknown, init?: RequestOptions): FerrulePromise;
+  request(path: string, init: RequestInitWithBody): FerrulePromise;
   /** New client with these plugins appended. The receiver is untouched. */
-  use(...plugins: Plugin[]): Ieum;
+  use(...plugins: Plugin[]): Ferrule;
   /** New client with config shallow-merged, headers merged, plugins appended. */
-  extend(config: Partial<IeumConfig>): Ieum;
+  extend(config: Partial<FerruleConfig>): Ferrule;
 };

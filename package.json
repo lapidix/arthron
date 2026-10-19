@@ -1,12 +1,12 @@
 {
-  "name": "ieum",
+  "name": "ferrule",
   "version": "0.0.1",
   "description": "Composable fetch client — create from config, plug in interceptors and middleware",
   "license": "MIT",
   "author": "lapidix",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lapidix/ieum.git"
+    "url": "git+https://github.com/lapidix/ferrule.git"
   },
   "keywords": [
     "fetch",

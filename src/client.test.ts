@@ -1,18 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
-import { ieum } from "./client";
-import { IeumError } from "./error";
+import { ferrule } from "./client";
+import { FerruleError } from "./error";
 import { fakeFetch, jsonResponse } from "./test-utils";
-import type { IeumConfig, Plugin } from "./types";
+import type { FerruleConfig, Plugin } from "./types";
 
 const make = (
   fetch = fakeFetch(jsonResponse({ ok: 1 })),
-  extra: Partial<IeumConfig> = {},
-) => ({ fetch, api: ieum({ baseURL: "https://a/v1", fetch, ...extra }) });
+  extra: Partial<FerruleConfig> = {},
+) => ({ fetch, api: ferrule({ baseURL: "https://a/v1", fetch, ...extra }) });
 
 const headersOf = (init: RequestInit | undefined) =>
   init?.headers as Record<string, string>;
 
-describe("ieum — requests", () => {
+describe("ferrule — requests", () => {
   it("get sends GET to baseURL + path with params and returns the Response", async () => {
     const { api, fetch } = make();
     const res = await api.get("/u", { params: { q: 1 } });
@@ -68,10 +68,12 @@ describe("ieum — requests", () => {
   });
 });
 
-describe("ieum — argument errors reject instead of throwing synchronously", () => {
+describe("ferrule — argument errors reject instead of throwing synchronously", () => {
   it("relative path without baseURL rejects with TypeError", async () => {
     const fetch = fakeFetch(jsonResponse({}));
-    await expect(ieum({ fetch }).get("rel")).rejects.toBeInstanceOf(TypeError);
+    await expect(ferrule({ fetch }).get("rel")).rejects.toBeInstanceOf(
+      TypeError,
+    );
     expect(fetch.calls).toHaveLength(0);
   });
   it("unserializable body rejects", async () => {
@@ -81,7 +83,7 @@ describe("ieum — argument errors reject instead of throwing synchronously", ()
   });
 });
 
-describe("ieum — config", () => {
+describe("ferrule — config", () => {
   it("merges default headers under per-call headers, case-insensitively", async () => {
     const { api, fetch } = make(undefined, {
       headers: { "X-A": "base", "X-B": "base" },
@@ -111,7 +113,7 @@ describe("ieum — config", () => {
     const spy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse({}));
-    await ieum({ baseURL: "https://a" }).get("/u");
+    await ferrule({ baseURL: "https://a" }).get("/u");
     expect(spy).toHaveBeenCalledOnce();
     spy.mockRestore();
   });
@@ -126,8 +128,8 @@ describe("ieum — config", () => {
   });
 });
 
-describe("ieum — errors", () => {
-  it("throws IeumError on !ok with parsed body and custom errorMessage", async () => {
+describe("ferrule — errors", () => {
+  it("throws FerruleError on !ok with parsed body and custom errorMessage", async () => {
     const { api } = make(
       fakeFetch(jsonResponse({ msg: "bad" }, { status: 422 })),
       {
@@ -135,13 +137,13 @@ describe("ieum — errors", () => {
       },
     );
     await expect(api.get("/u")).rejects.toMatchObject({
-      name: "IeumError",
+      name: "FerruleError",
       status: 422,
       message: "bad",
       data: { msg: "bad" },
     });
   });
-  it("throws IeumError status 0 when fetch rejects", async () => {
+  it("throws FerruleError status 0 when fetch rejects", async () => {
     const { api } = make(fakeFetch(new TypeError("fetch failed")));
     await expect(api.get("/u")).rejects.toMatchObject({
       status: 0,
@@ -153,17 +155,17 @@ describe("ieum — errors", () => {
     const { api } = make(fakeFetch(abort));
     await expect(api.get("/u")).rejects.toBe(abort);
   });
-  it("error interceptors see the IeumError", async () => {
-    const seen = vi.fn((e: IeumError) => e);
+  it("error interceptors see the FerruleError", async () => {
+    const seen = vi.fn((e: FerruleError) => e);
     const { api } = make(fakeFetch(jsonResponse({}, { status: 500 })), {
       use: [{ error: seen }],
     });
-    await expect(api.get("/u")).rejects.toBeInstanceOf(IeumError);
+    await expect(api.get("/u")).rejects.toBeInstanceOf(FerruleError);
     expect(seen).toHaveBeenCalledOnce();
   });
 });
 
-describe("ieum — immutability", () => {
+describe("ferrule — immutability", () => {
   const tag = (v: string): Plugin => ({
     request: (c) => ({
       ...c,
@@ -176,7 +178,7 @@ describe("ieum — immutability", () => {
 
   it("use() returns a new client and leaves the parent untouched", async () => {
     const fetch = fakeFetch(jsonResponse({}));
-    const parent = ieum({ baseURL: "https://a", fetch });
+    const parent = ferrule({ baseURL: "https://a", fetch });
     const child = parent.use(tag("child"));
     expect(child).not.toBe(parent);
     await parent.get("/u");
@@ -188,7 +190,7 @@ describe("ieum — immutability", () => {
   });
   it("extend() appends plugins, merges headers (child wins), keeps parent config otherwise", async () => {
     const fetch = fakeFetch(jsonResponse({}));
-    const parent = ieum({
+    const parent = ferrule({
       baseURL: "https://a/v1",
       fetch,
       headers: { "X-A": "p", "X-B": "p" },
@@ -205,7 +207,7 @@ describe("ieum — immutability", () => {
   });
   it("adding to the parent after extend does not affect the child", async () => {
     const fetch = fakeFetch(jsonResponse({}));
-    const parent = ieum({ baseURL: "https://a", fetch });
+    const parent = ferrule({ baseURL: "https://a", fetch });
     const child = parent.extend({});
     parent.use(tag("late"));
     await child.get("/u");

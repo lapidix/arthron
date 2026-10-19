@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { IeumError, isIeumError, networkError } from "./error";
+import { FerruleError, isFerruleError, networkError } from "./error";
 import { runPipeline } from "./pipeline";
 import { jsonResponse } from "./test-utils";
 import type { Plugin, RequestContext } from "./types";
@@ -121,11 +121,13 @@ describe("runPipeline", () => {
     expect(await res.text()).toBe("swapped");
   });
 
-  it("passes IeumError through error interceptors and always throws the result", async () => {
+  it("passes FerruleError through error interceptors and always throws the result", async () => {
     const send = async (c: RequestContext) => {
       throw networkError(new Error("down"), c);
     };
-    const tagged = vi.fn((e: IeumError) => Object.assign(e, { tagged: true }));
+    const tagged = vi.fn((e: FerruleError) =>
+      Object.assign(e, { tagged: true }),
+    );
     await expect(
       runPipeline([{ error: tagged }], ctx(), send),
     ).rejects.toMatchObject({
@@ -135,12 +137,12 @@ describe("runPipeline", () => {
     expect(tagged).toHaveBeenCalledTimes(1);
   });
 
-  it("lets an error interceptor swap in a different IeumError", async () => {
+  it("lets an error interceptor swap in a different FerruleError", async () => {
     const send = async (c: RequestContext) => {
       throw networkError(new Error("down"), c);
     };
-    const swapped = (e: IeumError) =>
-      new IeumError({
+    const swapped = (e: FerruleError) =>
+      new FerruleError({
         message: "swapped",
         status: 599,
         statusText: "",
@@ -157,7 +159,7 @@ describe("runPipeline", () => {
   });
 
   it("rethrows AbortError/TimeoutError untouched without running error interceptors", async () => {
-    const error = vi.fn((e: IeumError) => e);
+    const error = vi.fn((e: FerruleError) => e);
     for (const name of ["AbortError", "TimeoutError"]) {
       const ex = new DOMException("x", name);
       await expect(
@@ -170,7 +172,7 @@ describe("runPipeline", () => {
   });
 
   it("rethrows interceptor/middleware exceptions untouched (not wrapped, no error interceptors)", async () => {
-    const error = vi.fn((e: IeumError) => e);
+    const error = vi.fn((e: FerruleError) => e);
     const bug = new RangeError("bug");
     await expect(
       runPipeline(
@@ -215,7 +217,7 @@ describe("runPipeline", () => {
       ),
     ).rejects.toBe(bug);
     expect(error).not.toHaveBeenCalled();
-    expect(isIeumError(bug)).toBe(false);
+    expect(isFerruleError(bug)).toBe(false);
   });
 
   it("works with zero plugins", async () => {

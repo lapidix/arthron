@@ -34,7 +34,9 @@ export function resolveUrl(
     url = path;
   } else {
     if (baseURL === undefined) {
-      throw new TypeError(`ieum: relative path "${path}" requires a baseURL`);
+      throw new TypeError(
+        `ferrule: relative path "${path}" requires a baseURL`,
+      );
     }
     url = `${baseURL.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
   }

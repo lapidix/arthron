@@ -1,23 +1,23 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type { Middleware, Plugin } from "./index";
-import * as ieumModule from "./index";
+import * as ferruleModule from "./index";
 import {
   defineInterceptor,
   defineMiddleware,
   definePlugin,
-  ieum,
+  ferrule,
 } from "./index";
 
 describe("public surface", () => {
   it("exports exactly the documented values", () => {
-    expect(Object.keys(ieumModule).sort()).toEqual(
+    expect(Object.keys(ferruleModule).sort()).toEqual(
       [
-        "IeumError",
+        "FerruleError",
         "defineInterceptor",
         "defineMiddleware",
         "definePlugin",
-        "ieum",
-        "isIeumError",
+        "ferrule",
+        "isFerruleError",
         "logging",
         "retry",
       ].sort(),
@@ -31,7 +31,7 @@ describe("public surface", () => {
     const r = defineInterceptor.request((c) => c);
     expectTypeOf(r).parameter(0).toHaveProperty("url");
   });
-  it("ieum() accepts no config", () => {
-    expect(() => ieum()).not.toThrow();
+  it("ferrule() accepts no config", () => {
+    expect(() => ferrule()).not.toThrow();
   });
 });

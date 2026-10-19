@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ieum } from "../client";
+import { ferrule } from "../client";
 import { fakeFetch, jsonResponse } from "../test-utils";
 import { type RetryOptions, retry } from "./retry";
 
@@ -8,7 +8,11 @@ const noSleep = { sleep: sleepSpy() };
 const err = (status: number, headers?: Record<string, string>) =>
   jsonResponse({}, { status, ...(headers ? { headers } : {}) });
 const make = (fetch: ReturnType<typeof fakeFetch>, opts: RetryOptions = {}) =>
-  ieum({ baseURL: "https://a", fetch, use: [retry({ ...noSleep, ...opts })] });
+  ferrule({
+    baseURL: "https://a",
+    fetch,
+    use: [retry({ ...noSleep, ...opts })],
+  });
 
 describe("retry", () => {
   it("retries up to `retries` times on retryable status, then throws the last error", async () => {
@@ -51,7 +55,7 @@ describe("retry", () => {
   it("does not retry interceptor bugs or cancellations", async () => {
     const bug = new RangeError("bug");
     const fetch = fakeFetch(jsonResponse({}));
-    const api = ieum({
+    const api = ferrule({
       baseURL: "https://a",
       fetch,
       use: [
