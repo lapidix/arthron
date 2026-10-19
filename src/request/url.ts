@@ -1,12 +1,4 @@
-type QueryValue = string | number | boolean | null | undefined;
-
-/**
- * Query parameters. `null`/`undefined` values are skipped, an array becomes
- * repeated keys (`ids=1&ids=2`), and a `URLSearchParams` is used as is.
- */
-export type QueryParams =
-  | Record<string, QueryValue | readonly QueryValue[]>
-  | URLSearchParams;
+import type { QueryParams } from "../types/request.types";
 
 const ABSOLUTE_URL = /^[a-z][a-z0-9+.-]*:\/\//i;
 const HTTP_URL = /^https?:\/\//i;

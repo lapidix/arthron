@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { arthron } from "../client";
-import { isArthronError } from "../error";
-import { fakeFetch, jsonResponse } from "../test-utils";
-import { retry } from "./retry";
+import { arthron } from "../../client/client";
+import { isArthronError } from "../../error/arthron-error";
+import { fakeFetch, jsonResponse } from "../../testkit/fetch.testkit";
+import { retry } from "../retry/retry";
 import { timeout } from "./timeout";
 
 /** A fetch that never answers on its own but honours the signal. */

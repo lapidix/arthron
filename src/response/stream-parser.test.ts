@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseNdjson, parseSse } from "./stream";
+import { parseNdjson, parseSse } from "./stream-parser";
 
 const stream = (...chunks: string[]) =>
   new Response(

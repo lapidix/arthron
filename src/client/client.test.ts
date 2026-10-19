@@ -1,14 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
+import { ArthronError } from "../error/arthron-error";
+import { logging } from "../plugins/logging/logging";
+import { retry } from "../plugins/retry/retry";
+import { timeout } from "../plugins/timeout/timeout";
+import { fakeFetch, jsonResponse } from "../testkit/fetch.testkit";
+import type { Plugin } from "../types/plugin.types";
 import { arthron } from "./client";
-import { ArthronError } from "./error";
-import { logging } from "./plugins/logging";
-import { retry } from "./plugins/retry";
-import { timeout } from "./plugins/timeout";
-import { fakeFetch, jsonResponse } from "./test-utils";
-import type { ArthronConfig, Plugin } from "./types";
+import type { ArthronConfig } from "./client.types";
 
 // Public types are interfaces, so a plugin package can extend them.
-declare module "./types" {
+declare module "./client.types" {
   interface RequestOptions {
     traceName?: string;
   }

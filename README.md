@@ -354,7 +354,7 @@ class ArthronError extends Error {
 ## For tooling and agents
 
 - `llms.txt` ships in the package — a compressed API reference meant to be read by LLM-based tools (`node_modules/arthron/llms.txt`).
-- `examples/` holds type-checked, runnable recipes: LLM streaming, auth refresh, an error page, upload/download. `src/recipes.test.ts` keeps the auth and error-page recipes honest.
+- `examples/` holds type-checked, runnable recipes: LLM streaming, auth refresh, an error page, upload/download. `examples/recipes.test.ts` keeps the auth and error-page recipes honest.
 - Error messages state the fix (`… — pass baseURL in arthron({ baseURL }) or use an absolute URL`).
 
 ## License
