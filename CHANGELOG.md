@@ -12,6 +12,12 @@ From 1.0.0 arthron follows [Semantic Versioning](https://semver.org/):
 
 A deprecated API keeps working, is marked `@deprecated` with what to use instead, is listed here, and is removed only in the next major.
 
+## [Unreleased]
+
+### Fixed
+
+- Types check in a Node project typed with `@types/node` and no DOM lib. `HeadersOption` named `HeadersInit`, which only the DOM lib declares: such a project got `Cannot find name 'HeadersInit'`, or, with `skipLibCheck`, headers typed as `any`. [#61]
+
 ## [1.0.0] — 2026-10-19
 
 First stable release. Compared with 0.1.0:
@@ -92,4 +98,5 @@ First stable release. Compared with 0.1.0:
 [#55]: https://github.com/lapidix/arthron/pull/55
 [#56]: https://github.com/lapidix/arthron/pull/56
 [#57]: https://github.com/lapidix/arthron/pull/57
+[#61]: https://github.com/lapidix/arthron/pull/61
 [1.0.0]: https://github.com/lapidix/arthron/releases/tag/v1.0.0
