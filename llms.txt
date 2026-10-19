@@ -1,6 +1,6 @@
 # arthron
 
-> A fetch client assembled from plugins. Returns native `Response`; middleware controls flow (can retry via `next`), interceptors transform values. Zero dependencies, ESM + CJS, Node 18+ and browsers.
+> A fetch client assembled from plugins. Returns native `Response`; middleware controls flow (can retry via `next`), interceptors transform values. Zero dependencies, ESM + CJS, Node 22+ and browsers.
 
 Import: `import { arthron, retry, timeout, logging, isArthronError, SchemaError, definePlugin } from "arthron";`
 

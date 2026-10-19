@@ -16,7 +16,7 @@ const user = await api.get("/me").json<User>();
 - **Plain `Response` in, plain `Response` out.** No wrapper type to learn. `.json<T>()` and friends are there when you want the body.
 - **Two kinds of plugin, kept apart by the types.** Middleware wraps the request and controls the flow — it can call `next` again to retry. Interceptors transform one value and return it; they cannot retry, skip, or swallow. Auth refresh, retry, timeouts, logging, and anything that reacts to how a call ended (error pages, domain errors) are middleware. Headers, trace ids and per-attempt error details are interceptors.
 - **One error type, two causes.** `ArthronError` means the server said no (`!response.ok`) or the network failed (`status: 0`). Everything else — cancellation, a bug in a plugin — is rethrown as-is.
-- Zero dependencies. ESM and CJS. TypeScript types included. Node 18+ and browsers.
+- Zero dependencies. ESM and CJS. TypeScript types included. Node 22+ and browsers.
 
 ## Install
 

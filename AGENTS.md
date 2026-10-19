@@ -14,13 +14,13 @@ pnpm check:types-pkg # attw --pack . — package types must be green for node10/
 node scripts/smoke.mjs  # runs dist/ against a real local HTTP server
 ```
 
-The dev toolchain needs Node 22+. Runtime support is Node 18+; CI proves it by running `scripts/smoke.mjs` on 18 and 20 against the built output.
+Node 22+ for everything — the dev toolchain and the runtime (`engines`). CI runs the full check, `scripts/smoke.mjs` against the built output included, on 22, 24 and 26.
 
 ## Rules
 
 - **Tests first.** Every behaviour change starts with a failing test in the matching `*.test.ts`. Tests inject `fetch` through `ArthronConfig.fetch` (see `src/test-utils.ts`: `fakeFetch`, `jsonResponse`); never stub `globalThis.fetch`.
 - **No runtime dependencies.** `dependencies` stays empty. New dev tooling must work on Node 22+.
-- **Node 18 APIs only in `src/`.** No `AbortSignal.any`, `AbortSignal.timeout`, `Promise.withResolvers`, `Array.prototype.toSorted`, etc. If you need one, add the Node 18 fallback and a smoke check.
+- **Node 22 APIs only in `src/`** (and what browsers ship). `AbortSignal.any` is fine; anything newer than Node 22 needs a fallback and a smoke check.
 - **Only two things become `ArthronError`:** `!response.ok` and fetch rejecting. Cancellation and plugin exceptions propagate untouched and skip error interceptors. Do not widen this. `throwOn` may only *narrow* which non-ok responses reject (an ok response never does); by default opaque responses and the 3xx of `redirect: "manual"` are returned, not thrown.
 - **Interceptors transform, middleware controls flow.** Do not add a way for an interceptor to retry, skip, or swallow. Flow-control features are middleware (see `src/plugins/retry.ts`, `timeout.ts`).
 - **Clients are immutable.** `use`/`extend` return new instances; never mutate `resolved` after construction.
