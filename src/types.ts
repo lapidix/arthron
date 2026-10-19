@@ -68,7 +68,11 @@ export type Middleware = (
 ) => Promise<Response>;
 
 export type Plugin = {
-  /** For logs and debugging only. */
+  /**
+   * Identity within a client: `use`/`extend` replace the plugin of the same
+   * name in place, `without(name)` removes it. The built-ins are named
+   * "retry", "timeout" and "logging". Leave it out to always append.
+   */
   name?: string;
   middleware?: Middleware;
   request?: RequestInterceptor;
@@ -135,8 +139,13 @@ export type Arthron = {
   /** RFC 10008 QUERY: safe and idempotent like GET, but the query travels in the body. */
   query(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
   request(path: string, init: RequestInitWithBody): ArthronPromise;
-  /** New client with these plugins appended. The receiver is untouched. */
+  /**
+   * New client with these plugins added: a named one replaces the plugin of
+   * that name in place, an unnamed one appends. The receiver is untouched.
+   */
   use(...plugins: Plugin[]): Arthron;
-  /** New client with config shallow-merged, headers merged, plugins appended. */
+  /** New client with config shallow-merged, headers merged, plugins added as `use` adds them. */
   extend(config: Partial<ArthronConfig>): Arthron;
+  /** New client without the plugins of these names. The receiver is untouched. */
+  without(...names: string[]): Arthron;
 };

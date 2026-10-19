@@ -21,10 +21,36 @@ type Resolved = Omit<ArthronConfig, "headers" | "use"> & {
   use: readonly Plugin[];
 };
 
-/** Normalize once so `extend` can merge headers and append plugins cheaply. */
+/**
+ * Add plugins to a list. A named plugin takes the place of the one already
+ * there with that name — same position, so a replaced `logging()` stays
+ * outermost and a second `retry()` does not multiply attempts. Unnamed
+ * plugins append.
+ */
+function addPlugins(
+  base: readonly Plugin[],
+  added: readonly Plugin[],
+): Plugin[] {
+  const out = [...base];
+  for (const plugin of added) {
+    const at =
+      plugin.name === undefined
+        ? -1
+        : out.findIndex((p) => p.name === plugin.name);
+    if (at === -1) out.push(plugin);
+    else out[at] = plugin;
+  }
+  return out;
+}
+
+/** Normalize once so `extend` can merge headers and add plugins cheaply. */
 function resolveConfig(config: ArthronConfig): Resolved {
   const { headers, use, ...rest } = config;
-  return { ...rest, headers: toHeaderRecord(headers), use: use ?? [] };
+  return {
+    ...rest,
+    headers: toHeaderRecord(headers),
+    use: addPlugins([], use ?? []),
+  };
 }
 
 /**
@@ -145,7 +171,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
       ...resolved,
       ...next,
       headers: mergeHeaders(resolved.headers, next.headers),
-      use: [...resolved.use, ...(next.use ?? [])],
+      use: addPlugins(resolved.use, next.use ?? []),
     };
     return arthron(merged);
   };
@@ -173,5 +199,12 @@ export function arthron(config: ArthronConfig = {}): Arthron {
     },
     use: (...plugins) => derive({ use: plugins }),
     extend: (next) => derive(next),
+    without: (...names) =>
+      arthron({
+        ...resolved,
+        use: resolved.use.filter(
+          (p) => p.name === undefined || !names.includes(p.name),
+        ),
+      }),
   };
 }
