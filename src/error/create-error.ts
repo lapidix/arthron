@@ -18,6 +18,18 @@ export function isCancellation(
   return name === "AbortError" || name === "TimeoutError";
 }
 
+/**
+ * What a cancelled call rejects with: its signal's reason. WebKit's fetch
+ * rejects, and errors a half-read body, with a generic AbortError instead,
+ * dropping a TimeoutError or the caller's own reason.
+ */
+export function cancellationError(
+  error: unknown,
+  signal?: AbortSignal | null,
+): unknown {
+  return signal?.aborted ? signal.reason : error;
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 

@@ -91,6 +91,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
           { url, init: requestInit, meta: { ...meta } },
           (ctx) => send(resolved, ctx, throwOn),
         ),
+        init.signal,
       );
     } catch (thrown) {
       // Argument errors (no baseURL, unserializable body) reject like everything else.

@@ -1,4 +1,5 @@
 import {
+  cancellationError,
   isCancellation,
   networkError,
   responseError,
@@ -60,7 +61,7 @@ export async function send(
   try {
     res = await fetchImpl(ctx.url, ctx.init);
   } catch (thrown) {
-    if (isCancellation(thrown, signal)) throw thrown;
+    if (isCancellation(thrown, signal)) throw cancellationError(thrown, signal);
     throw networkError(thrown, ctx);
   }
   // Only a non-ok response can become an ArthronError; throwOn narrows which.
