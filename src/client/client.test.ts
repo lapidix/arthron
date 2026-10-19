@@ -313,6 +313,84 @@ describe("arthron — config", () => {
     await api.get("/u", { credentials: "omit" });
     expect(fetch.calls[0]?.init.credentials).toBe("omit");
   });
+  it("sends any fetch option set in config as a default", async () => {
+    const { api, fetch } = make(undefined, {
+      cache: "no-store",
+      redirect: "error",
+      mode: "cors",
+      keepalive: true,
+      referrerPolicy: "no-referrer",
+    });
+    await api.get("/u");
+    expect(fetch.calls[0]?.init).toMatchObject({
+      cache: "no-store",
+      redirect: "error",
+      mode: "cors",
+      keepalive: true,
+      referrerPolicy: "no-referrer",
+    });
+  });
+  it("lets a per-call fetch option win over the config default", async () => {
+    const { api, fetch } = make(undefined, { cache: "no-store" });
+    await api.get("/u", { cache: "reload" });
+    expect(fetch.calls[0]?.init.cache).toBe("reload");
+  });
+  it("extend() overrides a fetch default and keeps the others", async () => {
+    const fetch = fakeFetch(jsonResponse({}));
+    const parent = arthron({
+      baseURL: "https://a",
+      fetch,
+      cache: "no-store",
+      redirect: "error",
+    });
+    await parent.extend({ cache: "force-cache" }).get("/u");
+    expect(fetch.calls[0]?.init).toMatchObject({
+      cache: "force-cache",
+      redirect: "error",
+    });
+  });
+  it("sends no fetch option it was not given", async () => {
+    const { api, fetch } = make();
+    await api.get("/u");
+    expect(Object.keys(fetch.calls[0]?.init ?? {}).sort()).toEqual([
+      "headers",
+      "method",
+    ]);
+  });
+  it.each(["signal", "body", "method"])(
+    "refuses %s as a client default, at construction",
+    (key) => {
+      expect(() =>
+        arthron({ baseURL: "https://a", [key]: "x" } as ArthronConfig),
+      ).toThrow(new RegExp(`${key}.*per call`));
+    },
+  );
+  it("does not type signal, body or method as config", () => {
+    // Type-checked, never run: these would throw at construction.
+    const typeOnly = () => {
+      // @ts-expect-error — a client-wide signal would abort every later call
+      arthron({ signal: new AbortController().signal });
+      // @ts-expect-error — body is per call
+      arthron({ body: "x" });
+    };
+    expect(typeOnly).toBeTypeOf("function");
+  });
+  it("never sends arthron's own config keys to fetch", async () => {
+    const fetch = fakeFetch(jsonResponse({}));
+    await arthron({
+      baseURL: "https://a",
+      allowAbsoluteUrls: true,
+      headers: { a: "1" },
+      fetch,
+      use: [],
+      errorMessage: () => undefined,
+      throwOn: () => true,
+    }).get("/u");
+    expect(Object.keys(fetch.calls[0]?.init ?? {}).sort()).toEqual([
+      "headers",
+      "method",
+    ]);
+  });
   it("uses globalThis.fetch when none injected", async () => {
     const spy = vi
       .spyOn(globalThis, "fetch")

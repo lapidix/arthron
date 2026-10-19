@@ -33,6 +33,7 @@ const api = arthron({
   baseURL: "https://api.example.com", // prefix for relative paths
   headers: { accept: "application/json" }, // defaults; per-call headers win
   credentials: "include", // only if you need cookies cross-origin
+  cache: "no-store", // any fetch option works as a default; per-call values win
   use: [retry()], // plugins, outermost first
 });
 ```
@@ -300,11 +301,13 @@ type ArthronConfig = {
   baseURL?: string;
   allowAbsoluteUrls?: boolean; // let absolute URLs leave baseURL's origin (without config headers)
   headers?: HeadersInit | Record<string, string | null>; // null drops a header (in extend)
-  credentials?: RequestCredentials;
   fetch?: typeof fetch; // inject for tests or a polyfill; resolved per request
   use?: Plugin[];
   errorMessage?: (data: unknown, res: Response) => string | undefined;
   throwOn?: (res: Response) => boolean; // which non-ok responses reject (also per call)
+  // …plus any fetch option as a default: credentials, cache, redirect, mode,
+  // keepalive, referrerPolicy, priority, integrity. Not body, method or signal —
+  // those belong to one request (passing them throws).
 };
 ```
 
@@ -347,7 +350,7 @@ class ArthronError extends Error {
 - **Error bodies are read up to 64 KiB.** That is enough for any error message and keeps a huge or endless error body from filling memory. Past the limit `data` is the raw text and the rest of the body is cancelled.
 - **Redirects follow fetch's rules.** On a redirect to another origin, fetch drops `Authorization` but keeps other headers such as `x-api-key`. Pass `redirect: "error"` (or `"manual"`) for calls that carry such keys if the server could redirect off-origin.
 - **Bodies.** `string`, `FormData`, `Blob`, `ArrayBuffer`/views, `URLSearchParams` and `ReadableStream` go through untouched — recognised by type tag, so polyfill and cross-realm instances count too. A `ReadableStream` is sent with `duplex: "half"`, which fetch requires. Anything else — including `null` — becomes JSON with `content-type: application/json`; a content type you set must be a JSON one. Bodies JSON would mangle — a `Map`, `Set`, generator, Node stream or function — are rejected with a `TypeError` that says what to pass instead. A `FormData` body is always sent without a `content-type` header, even with a JSON default, so the runtime can add the multipart boundary. `GET`/`HEAD` with a body is rejected with a `TypeError`.
-- **`credentials` is not set unless you set it.** Cross-origin cookies need `credentials: "include"`.
+- **Fetch defaults are flat and only sent when set.** Config takes the same fetch options per-call calls do (`credentials`, `cache`, `redirect`, …) as defaults; a per-call value wins and `extend` overrides. Nothing is sent that you did not set — cross-origin cookies need `credentials: "include"`. `signal`, `body` and `method` are per call: a client-wide signal would fail every call once aborted.
 - **Response bodies are single-use.** A response interceptor that wants to inspect the body must `res.clone()`; one that changes it returns a new `Response`.
 - **Argument errors reject, they don't throw.** No `baseURL` with a relative path, a URL the global fetch cannot parse (`baseURL: "api.example.com"` without `https://`), a `BigInt` in a JSON body, a missing `method` in `request` — all surface as a rejected `TypeError` before anything is sent, never as a retried `status: 0`. An injected `fetch` is the judge of its own URLs: arthron does not pre-check them, so one that accepts relative URLs (SvelteKit's server-side `fetch`) works with `baseURL: "/api"`.
 

@@ -11,7 +11,7 @@ import type {
   RequestInitWithBody,
   RequestOptions,
 } from "./client.types";
-import { addPlugins, resolveConfig } from "./resolve-config";
+import { addPlugins, fetchDefaults, resolveConfig } from "./resolve-config";
 import { send } from "./send";
 
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
@@ -33,6 +33,7 @@ const STANDARD_METHODS = new Set([
  */
 export function arthron(config: ArthronConfig = {}): Arthron {
   const resolved = resolveConfig(config);
+  const initDefaults = fetchDefaults(resolved);
 
   const dispatch = (
     path: string,
@@ -73,11 +74,9 @@ export function arthron(config: ArthronConfig = {}): Arthron {
         rawBody,
         mergeHeaders(defaults, callHeaders),
       );
-      // Config credentials sit underneath so a per-call value wins, like every other option.
+      // Config fetch defaults sit underneath, so a per-call value wins.
       const requestInit: RequestContext["init"] = {
-        ...(resolved.credentials !== undefined && {
-          credentials: resolved.credentials,
-        }),
+        ...initDefaults,
         ...init,
         method: verb,
         headers,

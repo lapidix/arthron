@@ -11,7 +11,7 @@ const api = arthron({
   baseURL?: string,              // prefix for relative paths; required unless you pass absolute URLs
   allowAbsoluteUrls?: boolean,   // default false: an absolute URL must stay on baseURL's origin
   headers?: HeadersInit,         // defaults, per-call headers win (case-insensitive); { name: null } in extend/per-call drops one
-  credentials?: RequestCredentials, // NOT set unless you set it
+  credentials?, cache?, redirect?, mode?, keepalive?, …  // any fetch option (RequestInit minus body/method/headers/signal/window) as a default; per-call wins; NOT set unless you set it; passing signal/body/method throws
   fetch?: typeof fetch,          // injection for tests/polyfills, resolved per request
   use?: Plugin[],                // plugins, outermost first
   errorMessage?: (data: unknown, res: Response) => string | undefined,
