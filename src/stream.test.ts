@@ -45,10 +45,32 @@ describe("parseSse", () => {
     );
     expect(events).toEqual([{ data: '{"x":1}' }]);
   });
-  it("flushes a trailing event without a final blank line", async () => {
-    expect(await collect(parseSse(stream("data: last")))).toEqual([
-      { data: "last" },
-    ]);
+  it("treats a CRLF split across two chunks as one line break", async () => {
+    const events = await collect(
+      parseSse(stream("data: a\r", "\ndata: b\r\n\r\n")),
+    );
+    expect(events).toEqual([{ data: "a\nb" }]);
+  });
+  it("drops an event the stream ends before dispatching, per spec", async () => {
+    expect(
+      await collect(parseSse(stream("data: one\n\n", "data: cut\n"))),
+    ).toEqual([{ data: "one" }]);
+    expect(await collect(parseSse(stream("data: cut")))).toEqual([]);
+  });
+  it("cancels the body when the consumer stops early", async () => {
+    let cancelled = false;
+    const endless = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("data: 1\n\n"));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+    );
+    for await (const _ of parseSse(endless)) break;
+    expect(cancelled).toBe(true);
   });
   it("skips blocks with no data", async () => {
     expect(await collect(parseSse(stream("event: ping\n\n")))).toEqual([]);

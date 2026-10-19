@@ -71,17 +71,19 @@ export function logging(options: LoggingOptions = {}): Plugin {
       const ms = () => Math.round(now() - started);
 
       emit({ phase: "start", method, path });
+      let res: Response;
       try {
-        const res = await next(ctx);
-        emit({ phase: "success", method, path, status: res.status, ms: ms() });
-        return res;
+        res = await next(ctx);
       } catch (error) {
-        if (!isCancellation(error)) {
+        if (!isCancellation(error, ctx.init.signal)) {
           const status = isArthronError(error) ? error.status : undefined;
           emit({ phase: "error", method, path, status, ms: ms(), error });
         }
         throw error;
       }
+      // Outside the try: a sink that throws is a plugin bug, not a failed request.
+      emit({ phase: "success", method, path, status: res.status, ms: ms() });
+      return res;
     },
   };
 }

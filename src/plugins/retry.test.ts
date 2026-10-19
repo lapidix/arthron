@@ -139,13 +139,26 @@ describe("retry", () => {
   it("stops immediately when the signal is already aborted", async () => {
     const ac = new AbortController();
     ac.abort();
+    // This fake answers despite the abort; arthron still surfaces the abort.
     const fetch = fakeFetch(err(500), jsonResponse({}));
     await expect(
       make(fetch).get("/u", { signal: ac.signal }),
-    ).rejects.toMatchObject({
-      status: 500,
-    });
+    ).rejects.toMatchObject({ name: "AbortError" });
     expect(fetch.calls).toHaveLength(1);
+  });
+  it.each([Number.NaN, -1, 1.5, Number.POSITIVE_INFINITY])(
+    "rejects retries: %s with a TypeError when the plugin is created",
+    (retries) => {
+      expect(() => retry({ retries })).toThrow(TypeError);
+    },
+  );
+  it("caps a backoff longer than setTimeout can hold instead of firing at once", async () => {
+    const sleep = sleepSpy();
+    await make(fakeFetch(err(503), jsonResponse({})), {
+      sleep,
+      delay: () => 2 ** 32,
+    }).get("/u");
+    expect(sleep.mock.calls[0]?.[0]).toBe(2 ** 31 - 1);
   });
   it("propagates the abort reason when aborted while sleeping", async () => {
     const reason = new DOMException("a", "AbortError");

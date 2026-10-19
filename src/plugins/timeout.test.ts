@@ -76,6 +76,104 @@ describe("timeout", () => {
   });
 });
 
+describe("timeout — the response it hands back", () => {
+  it("keeps url, redirected and type from the fetched response", async () => {
+    const fetched = Object.defineProperties(jsonResponse({}), {
+      url: { value: "https://a/final" },
+      redirected: { value: true },
+      type: { value: "basic" },
+    });
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: fakeFetch(fetched),
+      use: [timeout(1000)],
+    });
+    const res = await api.get("/start");
+    expect([res.url, res.redirected, res.type]).toEqual([
+      "https://a/final",
+      true,
+      "basic",
+    ]);
+    await res.text();
+  });
+  it("does not keep the Node process alive while a body sits unread", async () => {
+    const spy = vi.spyOn(globalThis, "setTimeout");
+    try {
+      const api = arthron({
+        baseURL: "https://a",
+        fetch: fakeFetch(jsonResponse({})),
+        use: [timeout(30_000)],
+      });
+      const res = await api.get("/u");
+      const timer = spy.mock.results[0]?.value as NodeJS.Timeout;
+      expect(timer.hasRef()).toBe(false);
+      await res.text();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe("timeout(ms) bounds", () => {
+  it("Infinity means no deadline", async () => {
+    // Answers after 20 ms unless its signal aborts first, as fetch would.
+    const slow = ((_url: string, init: RequestInit) =>
+      new Promise<Response>((resolve, reject) => {
+        const signal = init.signal as AbortSignal | undefined;
+        const t = setTimeout(() => resolve(jsonResponse({ ok: 1 })), 20);
+        signal?.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(t);
+            reject(signal?.reason);
+          },
+          { once: true },
+        );
+      })) as unknown as typeof fetch;
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: slow,
+      use: [timeout(Number.POSITIVE_INFINITY)],
+    });
+    expect(await api.get("/u").json()).toEqual({ ok: 1 });
+  });
+  it.each([Number.NaN, -1, 2 ** 31])(
+    "rejects %s with a TypeError when the plugin is created",
+    (ms) => {
+      expect(() => timeout(ms)).toThrow(TypeError);
+    },
+  );
+});
+
+describe("timeout while reading an error body", () => {
+  it("rejects with TimeoutError, not the status, and is not retried", async () => {
+    let calls = 0;
+    // A 503 whose body never finishes but errors once the signal aborts, as fetch's does.
+    const stalled = ((_url: string, init: RequestInit) => {
+      calls += 1;
+      const signal = init.signal as AbortSignal;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          signal.addEventListener(
+            "abort",
+            () => controller.error(signal.reason),
+            { once: true },
+          );
+        },
+      });
+      return Promise.resolve(new Response(body, { status: 503 }));
+    }) as unknown as typeof fetch;
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: stalled,
+      use: [retry({ sleep: async () => {} }), timeout(20)],
+    });
+    const err = await api.get("/u").catch((e: unknown) => e);
+    expect((err as Error).name).toBe("TimeoutError");
+    expect(calls).toBe(1);
+  });
+});
+
 describe("timeout while streaming", () => {
   it("aborts an SSE body that stalls past the deadline", async () => {
     // Headers arrive at once, the body never finishes.

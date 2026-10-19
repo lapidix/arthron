@@ -9,13 +9,26 @@ import type {
   ResponseInterceptor,
 } from "./types";
 
+/** The mutable body kinds an interceptor can `append` to; anything else is shared as is. */
+function cloneBody(body: BodyInit): BodyInit {
+  if (typeof FormData !== "undefined" && body instanceof FormData) {
+    const copy = new FormData();
+    for (const [name, value] of body) copy.append(name, value);
+    return copy;
+  }
+  if (body instanceof URLSearchParams) return new URLSearchParams(body);
+  return body;
+}
+
 /**
  * Interceptors mutate the context in place. A middleware that calls `next`
  * again (retry) must not see the previous attempt's changes, so every attempt
- * starts from a fresh copy.
+ * starts from a fresh copy of the headers and of a FormData/URLSearchParams body.
  */
 function cloneContext({ url, init }: RequestContext): RequestContext {
-  return { url, init: { ...init, headers: toHeaderRecord(init.headers) } };
+  const copy: RequestInit = { ...init, headers: toHeaderRecord(init.headers) };
+  if (init.body) copy.body = cloneBody(init.body);
+  return { url, init: copy };
 }
 
 /**

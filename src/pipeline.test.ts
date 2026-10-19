@@ -102,6 +102,43 @@ describe("runPipeline", () => {
     expect(seen).toEqual(["none", "none"]);
   });
 
+  it.each([
+    ["FormData", () => new FormData()],
+    ["URLSearchParams", () => new URLSearchParams()],
+  ] as const)(
+    "clones a %s body per attempt so in-place appends do not pile up",
+    async (_, make) => {
+      type Appendable = {
+        append(k: string, v: string): void;
+        getAll(k: string): unknown[];
+      };
+      const seen: number[] = [];
+      const addToken: Plugin = {
+        request: (c) => {
+          (c.init.body as unknown as Appendable).append("csrf", "t");
+          return c;
+        },
+      };
+      const twice: Plugin = {
+        middleware: async (c, next) => {
+          await next(c);
+          return next(c);
+        },
+      };
+      await runPipeline(
+        [twice, addToken],
+        { url: "https://a/x", init: { method: "POST", body: make() } },
+        async (c) => {
+          seen.push(
+            (c.init.body as unknown as Appendable).getAll("csrf").length,
+          );
+          return jsonResponse({});
+        },
+      );
+      expect(seen).toEqual([1, 1]);
+    },
+  );
+
   it("lets request interceptors replace the context", async () => {
     const send = vi.fn(async (_c: RequestContext) => jsonResponse({}));
     await runPipeline(

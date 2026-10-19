@@ -6,6 +6,9 @@ function iterate<T>(
   promise: Promise<Response>,
   parse: (res: Response) => AsyncGenerator<T>,
 ): AsyncIterable<T> {
+  // Iteration may start long after the request fails. Mark the rejection
+  // handled now; the first `next()` still rethrows it.
+  promise.catch(() => {});
   return {
     async *[Symbol.asyncIterator]() {
       yield* parse(await promise);

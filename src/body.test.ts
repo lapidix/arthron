@@ -1,3 +1,4 @@
+import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { serializeBody } from "./body";
 
@@ -18,6 +19,20 @@ describe("serializeBody", () => {
       new URLSearchParams("a=1"),
       new ReadableStream(),
     ]) {
+      const out = serializeBody(raw, {});
+      expect(out.body).toBe(raw);
+      expect(out.headers).toEqual({});
+    }
+  });
+  it("passes raw bodies from another realm or a polyfill through", () => {
+    const foreignBuffer = runInNewContext("new ArrayBuffer(2)");
+    // formdata-node, fetch-blob and friends identify themselves this way.
+    class PolyfillFormData {
+      get [Symbol.toStringTag]() {
+        return "FormData";
+      }
+    }
+    for (const raw of [foreignBuffer, new PolyfillFormData()]) {
       const out = serializeBody(raw, {});
       expect(out.body).toBe(raw);
       expect(out.headers).toEqual({});

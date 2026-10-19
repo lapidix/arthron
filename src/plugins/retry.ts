@@ -1,5 +1,6 @@
+import { isReadableStream } from "../body";
 import { type ArthronError, isArthronError } from "../error";
-import type { Plugin, RequestContext } from "../types";
+import type { Plugin } from "../types";
 
 export type RetryOptions = {
   /** Number of retries after the first attempt. Default 2 (3 requests total). */
@@ -14,8 +15,7 @@ export type RetryOptions = {
   sleep?: (ms: number, signal?: AbortSignal | null) => Promise<void>;
   /**
    * Longest `Retry-After` (ms) worth honouring. Beyond it the request is not
-   * retried at all. Default 60 000. Also guards `setTimeout`'s 2^31-1 ms cap,
-   * past which timers fire immediately.
+   * retried at all. Default 60 000.
    */
   maxRetryAfter?: number;
 };
@@ -23,6 +23,8 @@ export type RetryOptions = {
 const DEFAULT_RETRY_ON = [408, 429, 500, 502, 503, 504] as const;
 const DEFAULT_METHODS = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE"] as const;
 const DEFAULT_MAX_RETRY_AFTER = 60_000;
+/** setTimeout fires at once past this, so every wait is capped to it. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
 
 function defaultSleep(ms: number, signal?: AbortSignal | null): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -50,13 +52,6 @@ function retryAfterMs(error: ArthronError): number | undefined {
   return Math.max(0, at - Date.now());
 }
 
-function isStreamBody(ctx: RequestContext): boolean {
-  return (
-    typeof ReadableStream !== "undefined" &&
-    ctx.init.body instanceof ReadableStream
-  );
-}
-
 /**
  * Retry on network errors and the configured statuses by calling `next`
  * again — the whole attempt (request interceptors included) is re-run.
@@ -71,13 +66,19 @@ export function retry(options: RetryOptions = {}): Plugin {
     sleep = defaultSleep,
     maxRetryAfter = DEFAULT_MAX_RETRY_AFTER,
   } = options;
+  // `attempt >= NaN` is never true — an unset env var would retry forever.
+  if (!Number.isInteger(retries) || retries < 0) {
+    throw new TypeError(
+      `arthron: retry({ retries: ${retries} }) needs a whole number ≥ 0 — e.g. retry({ retries: 2 })`,
+    );
+  }
   const allowed = new Set(methods.map((m) => m.toUpperCase()));
 
   return {
     name: "retry",
     middleware: async (ctx, next) => {
       const method = (ctx.init.method ?? "GET").toUpperCase();
-      const eligible = allowed.has(method) && !isStreamBody(ctx);
+      const eligible = allowed.has(method) && !isReadableStream(ctx.init.body);
 
       for (let attempt = 0; ; attempt += 1) {
         try {
@@ -93,7 +94,8 @@ export function retry(options: RetryOptions = {}): Plugin {
           if (retryAfter !== undefined && retryAfter > maxRetryAfter) {
             throw thrown;
           }
-          await sleep(retryAfter ?? delay(attempt, thrown), ctx.init.signal);
+          const wait = retryAfter ?? delay(attempt, thrown);
+          await sleep(Math.min(wait, MAX_TIMER_MS), ctx.init.signal);
         }
       }
     },

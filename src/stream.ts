@@ -20,13 +20,20 @@ async function* lines(response: Response): AsyncGenerator<string> {
     while (true) {
       const { value, done } = await reader.read();
       buffer += decoder.decode(value, { stream: !done });
-      const parts = buffer.split(/\r\n|\r|\n/);
-      buffer = parts.pop() ?? "";
+      // A trailing "\r" may be the first half of a "\r\n" split across
+      // chunks; splitting on it now would invent an extra blank line.
+      const cut =
+        !done && buffer.endsWith("\r") ? buffer.length - 1 : buffer.length;
+      const parts = buffer.slice(0, cut).split(/\r\n|\r|\n/);
+      buffer = (parts.pop() ?? "") + buffer.slice(cut);
       for (const line of parts) yield line;
       if (done) break;
     }
     if (buffer) yield buffer;
   } finally {
+    // Leaving early (break, return, a throw) must close the connection too —
+    // releasing the lock alone leaves the body streaming.
+    await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }
@@ -35,7 +42,8 @@ async function* lines(response: Response): AsyncGenerator<string> {
  * Parse a `text/event-stream` body into events. Follows the spec: a blank
  * line dispatches, `data:` lines are joined with `\n`, one leading space
  * after the colon is dropped, lines starting with `:` are comments, and a
- * block without `data` is not dispatched. Provider sentinels like
+ * block without `data` — or one the stream ends inside — is not dispatched.
+ * Provider sentinels like
  * `[DONE]` are passed through untouched — they are not part of the spec.
  */
 export async function* parseSse(response: Response): AsyncGenerator<SseEvent> {
@@ -88,8 +96,8 @@ export async function* parseSse(response: Response): AsyncGenerator<SseEvent> {
         break; // unknown fields are ignored, per spec
     }
   }
-  const out = flush();
-  if (out) yield out;
+  // A block the stream ended in before its blank line is incomplete — the
+  // spec discards it rather than dispatch a possibly truncated payload.
 }
 
 /**
