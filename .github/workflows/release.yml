@@ -10,6 +10,10 @@ name: Release
 # this job runs, and the staged version goes live only once a maintainer
 # approves it with 2FA — on npmjs.com, or `npm stage list arthron` then
 # `npm stage approve <stage-id>`.
+#
+# Once staged, a second job drafts the GitHub Release with the version's
+# CHANGELOG.md entry as notes. Publish the draft after approving the stage, so
+# the repo's "Latest" release is never ahead of npm.
 on:
   push:
     tags: ["v*"]
@@ -40,5 +44,27 @@ jobs:
           pkg=$(node -p "require('./package.json').version")
           tag="${GITHUB_REF_NAME#v}"
           [ "$pkg" = "$tag" ] || { echo "package.json is $pkg but tag is $tag"; exit 1; }
+      # Checked before staging, so a missing entry cannot leave a staged
+      # version without release notes.
+      - name: CHANGELOG.md must have an entry for the version
+        run: node scripts/release-notes.mjs "${GITHUB_REF_NAME#v}" > /dev/null
       # Stage only: the trusted publisher refuses a direct `npm publish`.
       - run: npm stage publish --provenance --access public
+
+  # Its own job so the token that can write releases never runs next to the
+  # npm publish, whose token stays `contents: read`.
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: node scripts/release-notes.mjs "${GITHUB_REF_NAME#v}" > "$RUNNER_TEMP/notes.md"
+      # A draft: the version is not on npm until its stage is approved.
+      - run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
