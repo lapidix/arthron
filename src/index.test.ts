@@ -18,6 +18,7 @@ describe("public surface", () => {
         "definePlugin",
         "ieum",
         "isIeumError",
+        "logging",
       ].sort(),
     );
   });
