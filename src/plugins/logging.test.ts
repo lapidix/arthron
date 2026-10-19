@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { networkError } from "../error";
 import { runPipeline } from "../pipeline";
 import { jsonResponse } from "../test-utils";
-import { logging } from "./logging";
+import { type LogEvent, logging } from "./logging";
 
 const ctx = { url: "https://a/u?secret=1", init: { method: "POST" } };
 const clock = () => {
@@ -70,6 +70,61 @@ describe("logging", () => {
       async () => jsonResponse({}),
     );
     expect(logger.log.mock.calls[0]?.[0]).toBe("[arthron] → GET https://a/u");
+  });
+  it("onEvent receives structured start/success events and silences the default output", async () => {
+    const logger = spyLogger();
+    const events: unknown[] = [];
+    await runPipeline(
+      [logging({ logger, ...clock(), onEvent: (e) => events.push(e) })],
+      ctx,
+      async () => jsonResponse({}, { status: 201 }),
+    );
+    expect(events).toEqual([
+      { phase: "start", method: "POST", path: "https://a/u" },
+      {
+        phase: "success",
+        method: "POST",
+        path: "https://a/u",
+        status: 201,
+        ms: 12,
+      },
+    ]);
+    expect(logger.log).not.toHaveBeenCalled();
+  });
+  it("onEvent error events carry the status for ArthronError and undefined otherwise", async () => {
+    const events: LogEvent[] = [];
+    const plugin = () =>
+      logging({ ...clock(), onEvent: (e) => events.push(e) });
+    await runPipeline([plugin()], ctx, async (c) => {
+      throw networkError(new Error("x"), c);
+    }).catch(() => {});
+    const bug = new RangeError("bug");
+    await runPipeline([plugin()], ctx, async () => {
+      throw bug;
+    }).catch(() => {});
+    expect(events.filter((e) => e.phase === "error")).toEqual([
+      expect.objectContaining({ phase: "error", status: 0, ms: 12 }),
+      expect.objectContaining({
+        phase: "error",
+        status: undefined,
+        ms: 12,
+        error: bug,
+      }),
+    ]);
+  });
+  it("onEvent is not called for cancellations", async () => {
+    const events: unknown[] = [];
+    const abort = new DOMException("a", "AbortError");
+    await runPipeline(
+      [logging({ onEvent: (e) => events.push(e) })],
+      ctx,
+      async () => {
+        throw abort;
+      },
+    ).catch(() => {});
+    expect(events.map((e) => (e as { phase: string }).phase)).toEqual([
+      "start",
+    ]);
   });
   it("defaults method to GET", async () => {
     const logger = spyLogger();

@@ -84,7 +84,8 @@ export async function responseError(
   request: RequestContext,
   resolve: ErrorMessageResolver = defaultErrorMessage,
 ): Promise<ArthronError> {
-  const data = await readBody(response);
+  // Read from a clone so `error.response` stays usable by the caller.
+  const data = await readBody(response.clone());
   return new ArthronError({
     message:
       resolve(data, response) ??

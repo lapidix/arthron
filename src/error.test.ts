@@ -41,6 +41,14 @@ describe("responseError", () => {
     expect(err.response?.status).toBe(400);
     expect(err.request).toBe(req);
   });
+  it("keeps the original response readable (body is read from a clone)", async () => {
+    const err = await responseError(
+      jsonResponse({ message: "nope" }, { status: 400 }),
+      req,
+    );
+    expect(err.response?.bodyUsed).toBe(false);
+    expect(await err.response?.json()).toEqual({ message: "nope" });
+  });
   it("falls back to text when body is not JSON", async () => {
     const err = await responseError(new Response("boom", { status: 502 }), req);
     expect(err.data).toBe("boom");
