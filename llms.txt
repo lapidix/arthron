@@ -25,7 +25,7 @@ const api = arthron({
 api.get(path, init?) | api.delete(path, init?) | api.head(path, init?)
 api.post(path, body?, init?) | api.put(path, body?, init?) | api.patch(path, body?, init?) | api.query(path, body?, init?)   // QUERY = RFC 10008
 api.request(path, { method, body?, ...init })      // method is required here
-// init = RequestInit minus method/body, plus params?: Record<string, scalar | scalar[] | null | undefined> | URLSearchParams (arrays → repeated keys; object values → TypeError); headers values may be null to drop a default; meta?: ArthronMeta (plugin settings, not sent)
+// init = RequestInit minus method/body, plus params?: Record<string, scalar | scalar[] | null | undefined> | URLSearchParams (arrays → repeated keys; object values → TypeError); headers values may be null to drop a default; meta?: ArthronMeta (plugin settings, not sent); path?: Record<string, string|number> fills {name} placeholders, encoded per segment ("", ".", ".." refused) — use it instead of interpolating ids
 ```
 
 Every method returns `Promise<Response>` plus helpers:

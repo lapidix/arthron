@@ -71,6 +71,41 @@ function toQueryString(params: QueryParams | undefined): string {
 }
 
 /**
+ * Fill `{name}` placeholders with encoded values, so each one stays inside
+ * its segment: "/", "?" and "#" are encoded, and the values WHATWG URL would
+ * turn into a different path — "", "." and ".." — are refused. A placeholder
+ * without a value, or a value without a placeholder, is a mistake too.
+ */
+export function fillPath(
+  template: string,
+  values: Record<string, string | number>,
+): string {
+  const used = new Set<string>();
+  const filled = template.replace(/\{([^{}/]+)\}/g, (_, name: string) => {
+    if (!Object.hasOwn(values, name)) {
+      throw new TypeError(
+        `arthron: path "${template}" has {${name}} but no value for it — pass path: { ${name}: … }`,
+      );
+    }
+    used.add(name);
+    const value = String(values[name]);
+    if (value === "" || value === "." || value === "..") {
+      throw new TypeError(
+        `arthron: path value ${name}=${JSON.stringify(value)} would change the path, not fill a segment — pass a real id`,
+      );
+    }
+    return encodeURIComponent(value);
+  });
+  const unused = Object.keys(values).find((name) => !used.has(name));
+  if (unused !== undefined) {
+    throw new TypeError(
+      `arthron: path "${template}" has no {${unused}} — add the placeholder or drop the value`,
+    );
+  }
+  return filled;
+}
+
+/**
  * Join `baseURL` and `path` by plain string concatenation so a path prefix in
  * the base (`/v1`) survives a leading slash in the path. WHATWG `new URL()`
  * would drop it. An absolute path replaces the base only when it stays on the

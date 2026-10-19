@@ -64,7 +64,7 @@ const stream = (await api.post("/chat", prompt)).body; // ReadableStream
 for await (const e of api.post("/chat", prompt).sse()) {} // see "Stream responses"
 ```
 
-`init` accepts everything `fetch` does (`signal`, `cache`, `headers`, …) plus `params`: an object whose `null`/`undefined` values are dropped and whose arrays become repeated keys (`{ ids: [1, 2] }` → `ids=1&ids=2`), or a `URLSearchParams`. Other object values (a `Date`, a nested object) are rejected rather than sent as `[object Object]`. A `null` (or `undefined`) header value drops a client default for that call: `api.get("/public", { headers: { authorization: null } })`.
+`init` accepts everything `fetch` does (`signal`, `cache`, `headers`, …) plus `params`: an object whose `null`/`undefined` values are dropped and whose arrays become repeated keys (`{ ids: [1, 2] }` → `ids=1&ids=2`), or a `URLSearchParams`. Other object values (a `Date`, a nested object) are rejected rather than sent as `[object Object]`. Put ids into the path with `path`, not string interpolation: `api.get("/users/{id}", { path: { id } })` encodes each value into its own segment, so an id like `../admin` or `x?role=admin` cannot change which endpoint you call (`encodeURIComponent` alone lets `..` through). A `null` (or `undefined`) header value drops a client default for that call: `api.get("/public", { headers: { authorization: null } })`.
 
 `query` sends the [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008) QUERY method: safe and idempotent like GET, so `retry()` repeats it by default, but the query travels in the body. Any `fetch` sends it; the server has to understand it (Node's own `http` server does from v20).
 
@@ -336,6 +336,7 @@ class ArthronError extends Error {
 
 ### Rules worth knowing
 
+- **Fill path segments with `path`.** `{name}` placeholders are encoded per segment; `""`, `.` and `..` are refused, as are missing or unused values. Without `path`, braces are left alone.
 - **URLs are joined by string concatenation.** `baseURL: "https://a/v1"` + `"/users"` → `https://a/v1/users`. The `/v1` survives, unlike with `new URL()`.
 - **Absolute URLs stay on `baseURL`'s origin.** `api.get("https://other.example/x")` on a client with a `baseURL` rejects with a `TypeError`, because a path built from user input or an API response must not carry your credentials elsewhere. Same-origin absolute URLs work. `allowAbsoluteUrls: true` lets other origins through, with per-call headers only. Only `http(s)` URLs are accepted.
 - **Error bodies are read up to 64 KiB.** That is enough for any error message and keeps a huge or endless error body from filling memory. Past the limit `data` is the raw text and the rest of the body is cancelled.
