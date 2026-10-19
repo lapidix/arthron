@@ -41,7 +41,8 @@ describe("ArthronError keeps request secrets out of serialization", () => {
     expect(json).not.toContain("pw@");
     expect(JSON.parse(json)).toMatchObject({
       name: "ArthronError",
-      message: "nope",
+      message: "POST https://api.test/login failed with 401",
+      detail: "nope",
       status: 401,
       method: "POST",
       url: "https://api.test/login",

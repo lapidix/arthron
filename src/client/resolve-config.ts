@@ -16,7 +16,7 @@ const OWN_KEYS: Record<
   headers: true,
   fetch: true,
   use: true,
-  errorMessage: true,
+  errorDetail: true,
   throwOn: true,
 };
 

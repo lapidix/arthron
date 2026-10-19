@@ -6,7 +6,7 @@ import type {
 } from "../types/request.types";
 import type {
   ArthronPromise,
-  ErrorMessageResolver,
+  ErrorDetailResolver,
 } from "../types/response.types";
 
 /**
@@ -84,7 +84,7 @@ export interface ArthronConfig extends FetchDefaults {
   fetch?: typeof fetch;
   use?: Plugin[];
   /** How to pick a message out of an error body. */
-  errorMessage?: ErrorMessageResolver;
+  errorDetail?: ErrorDetailResolver;
   /**
    * Which non-ok responses reject with an ArthronError — return `false` to
    * get the Response instead (a 404 that is data, say). An ok response never

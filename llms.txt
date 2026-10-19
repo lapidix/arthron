@@ -14,7 +14,7 @@ const api = arthron({
   credentials?, cache?, redirect?, mode?, keepalive?, …  // any fetch option (RequestInit minus body/method/headers/signal/window) as a default; per-call wins; NOT set unless you set it; passing signal/body/method throws
   fetch?: typeof fetch,          // injection for tests/polyfills, resolved per request
   use?: Plugin[],                // plugins, outermost first
-  errorMessage?: (data: unknown, res: Response) => string | undefined,
+  errorDetail?: (data: unknown, res: Response) => string | undefined, // picks ArthronError.detail
   throwOn?: (res: Response) => boolean, // which non-ok responses reject; also a per-call option
 });
 ```
@@ -43,18 +43,20 @@ class ArthronError extends Error {
   status: number;        // HTTP status, 0 = network failure
   statusText: string;
   headers: Headers;      // not enumerable
+  message: string;       // arthron's: "GET https://api.test/users/1 failed with 404 Not Found" / "… failed: fetch failed" — no query, no server text
+  detail?: string;       // the server's explanation (body message → error → error.message → detail); untrusted — show as text
   data: unknown;         // JSON if parseable, else text, else undefined; from at most 64 KiB of body (text if cut)
   response?: Response;   // still readable, holding what was read (≤ 64 KiB); absent for network failure; not enumerable
   request: { url: string; init: RequestInit }; // not enumerable (holds credentials)
   cause?: unknown;       // underlying error for network failure
-  toJSON(): { name, message, status, statusText, method, url /* no query/userinfo */, data };
+  toJSON(): { name, message, detail, status, statusText, method, url /* no query/userinfo */, data };
 }
 isArthronError(e): e is ArthronError   // branded with Symbol.for: works (and instanceof works) across the ESM and CJS copies
 ```
 
 - Only `!response.ok` and fetch rejection become ArthronError — and not every non-ok: opaque responses (no-cors) and the 3xx of `redirect: "manual"` are returned; `throwOn(res)` (config or per call) narrows further. An ok response never rejects. Aborts (`AbortError`/`TimeoutError` or any custom `abort(reason)`, including during the error-body read) and exceptions thrown by plugins propagate untouched and skip error interceptors.
-- Serializing an ArthronError (JSON.stringify, console.error, error trackers, logging onEvent) never includes request headers, body, query or userinfo. Error messages arthron writes leave the query out too. `message` usually comes from the server body — untrusted text.
-- Default message: body `message` → `error` (string) → `error.message` → `detail` → `"Request failed with status N"`. Override with `errorMessage`.
+- Serializing an ArthronError (JSON.stringify, console.error, error trackers, logging onEvent) never includes request headers, body, query or userinfo. Error messages arthron writes leave the query out too.
+- `message` is arthron's (for logs); `detail` is the server's (for UI: `e.detail ?? fallback`). Default `detail`: body `message` → `error` (string) → `error.message` → `detail`, else undefined. Override with `errorDetail`.
 
 ## Plugins
 

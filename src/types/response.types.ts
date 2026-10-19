@@ -85,7 +85,7 @@ export type InferOutput<S extends StandardSchemaV1> = NonNullable<
   S["~standard"]["types"]
 >["output"];
 
-export type ErrorMessageResolver = (
+export type ErrorDetailResolver = (
   data: unknown,
   response: Response,
 ) => string | undefined;

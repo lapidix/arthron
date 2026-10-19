@@ -1,6 +1,7 @@
+import { redactUrl } from "../request/url";
 import { rebuildResponse } from "../response/rebuild-response";
 import type { RequestContext } from "../types/request.types";
-import type { ErrorMessageResolver } from "../types/response.types";
+import type { ErrorDetailResolver } from "../types/response.types";
 import { ArthronError } from "./arthron-error";
 
 /**
@@ -21,7 +22,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 /** `message` → `error` (string) → `error.message` → `detail`. */
-export function defaultErrorMessage(data: unknown): string | undefined {
+export function defaultErrorDetail(data: unknown): string | undefined {
   if (!isRecord(data)) return undefined;
   if (typeof data.message === "string") return data.message;
   if (typeof data.error === "string") return data.error;
@@ -85,19 +86,27 @@ function parseBody(read: {
   }
 }
 
+/** The request as error messages name it: method and URL, no query or userinfo. */
+function describeRequest(request: RequestContext): string {
+  return `${request.init.method ?? "GET"} ${redactUrl(request.url)}`;
+}
+
 export async function responseError(
   response: Response,
   request: RequestContext,
-  resolve: ErrorMessageResolver = defaultErrorMessage,
+  resolve: ErrorDetailResolver = defaultErrorDetail,
 ): Promise<ArthronError> {
   const read = await readCapped(response, MAX_ERROR_BODY_BYTES);
   const data = read && parseBody(read);
   // The body was consumed above; hand the caller a Response over what was read.
   if (read) response = rebuildResponse(response, read.bytes);
+  const status = response.statusText
+    ? `${response.status} ${response.statusText}`
+    : String(response.status);
   return new ArthronError({
-    message:
-      resolve(data, response) ??
-      `Request failed with status ${response.status}`,
+    // arthron's own words for logs; the server's go in `detail`.
+    message: `${describeRequest(request)} failed with ${status}`,
+    detail: resolve(data, response) || undefined,
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,
@@ -112,7 +121,9 @@ export function networkError(
   request: RequestContext,
 ): ArthronError {
   return new ArthronError({
-    message: cause instanceof Error ? cause.message : "Network error",
+    message: `${describeRequest(request)} failed: ${
+      cause instanceof Error && cause.message ? cause.message : "network error"
+    }`,
     status: 0,
     statusText: "",
     headers: new Headers(),

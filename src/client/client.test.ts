@@ -383,7 +383,7 @@ describe("arthron — config", () => {
       headers: { a: "1" },
       fetch,
       use: [],
-      errorMessage: () => undefined,
+      errorDetail: () => undefined,
       throwOn: () => true,
     }).get("/u");
     expect(Object.keys(fetch.calls[0]?.init ?? {}).sort()).toEqual([
@@ -422,17 +422,18 @@ describe("arthron — config", () => {
 });
 
 describe("arthron — errors", () => {
-  it("throws ArthronError on !ok with parsed body and custom errorMessage", async () => {
+  it("throws ArthronError on !ok with parsed body and custom errorDetail", async () => {
     const { api } = make(
       fakeFetch(jsonResponse({ msg: "bad" }, { status: 422 })),
       {
-        errorMessage: (d: unknown) => (d as { msg: string }).msg,
+        errorDetail: (d: unknown) => (d as { msg: string }).msg,
       },
     );
     await expect(api.get("/u")).rejects.toMatchObject({
       name: "ArthronError",
       status: 422,
-      message: "bad",
+      message: "GET https://a/v1/u failed with 422",
+      detail: "bad",
       data: { msg: "bad" },
     });
   });
@@ -440,7 +441,7 @@ describe("arthron — errors", () => {
     const { api } = make(fakeFetch(new TypeError("fetch failed")));
     await expect(api.get("/u")).rejects.toMatchObject({
       status: 0,
-      message: "fetch failed",
+      message: "GET https://a/v1/u failed: fetch failed",
     });
   });
   it("rethrows AbortError raw when fetch rejects with it", async () => {
