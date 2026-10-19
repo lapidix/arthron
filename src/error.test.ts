@@ -1,5 +1,5 @@
 import { inspect } from "node:util";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ArthronError,
   defaultErrorMessage,
@@ -193,5 +193,22 @@ describe("responseError reads at most 64 KiB of the body", () => {
     expect(err.response?.url).toBe("https://a/x");
     expect(err.response?.redirected).toBe(true);
     expect(await err.response?.json()).toEqual({ message: "nope" });
+  });
+});
+
+describe("across copies of the package (ESM and CJS both loaded)", () => {
+  it("isArthronError and instanceof recognise an error from the other copy", async () => {
+    vi.resetModules();
+    const other = await import("./error");
+    expect(other.ArthronError).not.toBe(ArthronError);
+    const foreign = other.networkError(new Error("x"), req);
+    expect(isArthronError(foreign)).toBe(true);
+    expect(foreign instanceof ArthronError).toBe(true);
+    expect(other.isArthronError(networkError(new Error("y"), req))).toBe(true);
+  });
+  it("still says no to other errors", () => {
+    expect(isArthronError(new Error("x"))).toBe(false);
+    expect(new Error("x") instanceof ArthronError).toBe(false);
+    expect(isArthronError(null)).toBe(false);
   });
 });
