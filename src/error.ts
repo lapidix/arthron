@@ -1,3 +1,4 @@
+import { rebuildResponse } from "./response";
 import type { RequestContext } from "./types";
 import { redactUrl } from "./url";
 
@@ -37,7 +38,7 @@ export class ArthronError extends Error {
    * and error trackers leave it out. Read it directly when you need it.
    */
   declare readonly request: RequestContext;
-  /** The original Response, still readable (the body was parsed from a clone). Absent for network failures. Not enumerable. */
+  /** The failed Response, still readable — its body holds what arthron read (at most 64 KiB). Absent for network failures. Not enumerable. */
   declare readonly response: Response | undefined;
   /** The underlying error for network failures. */
   override readonly cause: unknown;
@@ -103,10 +104,52 @@ export function defaultErrorMessage(data: unknown): string | undefined {
   return undefined;
 }
 
-/** Body as JSON if it parses, else as text, else `undefined` when empty. */
-async function readBody(response: Response): Promise<unknown> {
-  const text = await response.text().catch(() => "");
+/** How much of an error body arthron reads. Error bodies are for diagnosis; a hostile or broken server must not be able to fill memory with one. */
+const MAX_ERROR_BODY_BYTES = 64 * 1024;
+
+/** Up to `limit` bytes of the body; the rest is cancelled unread. `undefined` when there is no body or reading it failed. */
+async function readCapped(
+  response: Response,
+  limit: number,
+): Promise<{ bytes: Uint8Array<ArrayBuffer>; truncated: boolean } | undefined> {
+  if (!response.body) return undefined;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    // Inside the try: a body that is already locked or used counts as unreadable.
+    reader = response.body.getReader();
+    while (size <= limit) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      size += value.byteLength;
+    }
+  } catch {
+    return undefined;
+  } finally {
+    await reader?.cancel().catch(() => {});
+    reader?.releaseLock();
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return size > limit
+    ? { bytes: bytes.subarray(0, limit), truncated: true }
+    : { bytes, truncated: false };
+}
+
+/** JSON if the whole body parses, else the text (cut at the limit), else `undefined` when empty. */
+function parseBody(read: {
+  bytes: Uint8Array<ArrayBuffer>;
+  truncated: boolean;
+}): unknown {
+  const text = new TextDecoder().decode(read.bytes);
   if (text === "") return undefined;
+  if (read.truncated) return text;
   try {
     return JSON.parse(text);
   } catch {
@@ -119,8 +162,10 @@ export async function responseError(
   request: RequestContext,
   resolve: ErrorMessageResolver = defaultErrorMessage,
 ): Promise<ArthronError> {
-  // Read from a clone so `error.response` stays usable by the caller.
-  const data = await readBody(response.clone());
+  const read = await readCapped(response, MAX_ERROR_BODY_BYTES);
+  const data = read && parseBody(read);
+  // The body was consumed above; hand the caller a Response over what was read.
+  if (read) response = rebuildResponse(response, read.bytes);
   return new ArthronError({
     message:
       resolve(data, response) ??

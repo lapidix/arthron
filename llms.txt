@@ -42,8 +42,8 @@ class ArthronError extends Error {
   status: number;        // HTTP status, 0 = network failure
   statusText: string;
   headers: Headers;      // not enumerable
-  data: unknown;         // JSON if parseable, else text, else undefined
-  response?: Response;   // original, still readable; absent for network failure; not enumerable
+  data: unknown;         // JSON if parseable, else text, else undefined; from at most 64 KiB of body (text if cut)
+  response?: Response;   // still readable, holding what was read (≤ 64 KiB); absent for network failure; not enumerable
   request: { url: string; init: RequestInit }; // not enumerable (holds credentials)
   cause?: unknown;       // underlying error for network failure
   toJSON(): { name, message, status, statusText, method, url /* no query/userinfo */, data };
