@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { arthron } from "../client";
 import { fakeFetch, jsonResponse } from "../test-utils";
 import { type RetryOptions, retry } from "./retry";
+import { timeout } from "./timeout";
 
 const sleepSpy = () => vi.fn(async (_ms: number) => {});
 const noSleep = { sleep: sleepSpy() };
@@ -75,12 +76,17 @@ describe("retry", () => {
     await expect(api.get("/u")).rejects.toBe(bug);
     expect(fetch.calls).toHaveLength(0);
   });
-  it("uses exponential backoff by default: 300, 600", async () => {
-    const sleep = sleepSpy();
-    await expect(
-      make(fakeFetch(err(500)), { sleep }).get("/u"),
-    ).rejects.toBeDefined();
-    expect(sleep.mock.calls.map((c) => c[0])).toEqual([300, 600]);
+  it("uses full-jitter exponential backoff by default: random share of 300, 600", async () => {
+    const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      const sleep = sleepSpy();
+      await expect(
+        make(fakeFetch(err(500)), { sleep }).get("/u"),
+      ).rejects.toBeDefined();
+      expect(sleep.mock.calls.map((c) => c[0])).toEqual([150, 300]);
+    } finally {
+      random.mockRestore();
+    }
   });
   it("honours Retry-After in seconds", async () => {
     const sleep = sleepSpy();
@@ -109,7 +115,7 @@ describe("retry", () => {
     const sleep = sleepSpy();
     await make(
       fakeFetch(err(503, { "retry-after": "soon" }), jsonResponse({})),
-      { sleep },
+      { sleep, delay: () => 300 },
     ).get("/u");
     expect(sleep.mock.calls[0]?.[0]).toBe(300);
   });
@@ -138,6 +144,7 @@ describe("retry", () => {
     const sleep = sleepSpy();
     await make(fakeFetch(err(503, { "retry-after": "" }), jsonResponse({})), {
       sleep,
+      delay: () => 300,
     }).get("/u");
     expect(sleep.mock.calls[0]?.[0]).toBe(300);
   });
@@ -197,5 +204,77 @@ describe("retry", () => {
     const fetch = fakeFetch(err(500), jsonResponse({}));
     await expect(make(fetch, { sleep }).get("/u")).rejects.toBe(reason);
     expect(fetch.calls).toHaveLength(1);
+  });
+
+  describe("shouldRetry / onRetry", () => {
+    it("false stops a retry the defaults would make", async () => {
+      const fetch = fakeFetch(err(503), jsonResponse({}));
+      await expect(
+        make(fetch, { shouldRetry: () => false }).get("/u"),
+      ).rejects.toMatchObject({ status: 503 });
+      expect(fetch.calls).toHaveLength(1);
+    });
+    it("true retries what the defaults would not — a 404, a POST", async () => {
+      const f1 = fakeFetch(err(404), jsonResponse({}));
+      await make(f1, { shouldRetry: () => true }).get("/u");
+      expect(f1.calls).toHaveLength(2);
+      const f2 = fakeFetch(err(500), jsonResponse({}));
+      await make(f2, { shouldRetry: () => true }).post("/u", {});
+      expect(f2.calls).toHaveLength(2);
+    });
+    it("undefined falls back to the defaults", async () => {
+      const fetch = fakeFetch(err(503), jsonResponse({}));
+      await make(fetch, { shouldRetry: () => undefined }).get("/u");
+      expect(fetch.calls).toHaveLength(2);
+    });
+    it("can opt in to retrying an inner timeout", async () => {
+      let calls = 0;
+      const hangsOnce = ((_url: string, init: RequestInit) => {
+        calls += 1;
+        if (calls > 1) return Promise.resolve(jsonResponse({ ok: 1 }));
+        return new Promise<Response>((_, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(init.signal?.reason),
+          );
+        });
+      }) as unknown as typeof fetch;
+      const api = arthron({
+        baseURL: "https://a",
+        fetch: hangsOnce,
+        use: [
+          retry({
+            ...noSleep,
+            shouldRetry: (e) =>
+              (e as Error).name === "TimeoutError" ? true : undefined,
+          }),
+          timeout(10),
+        ],
+      });
+      expect(await api.get("/u").json()).toEqual({ ok: 1 });
+      expect(calls).toBe(2);
+    });
+    it("cannot override the budget, a stream body or an abort", async () => {
+      const f1 = fakeFetch(err(503));
+      await expect(
+        make(f1, { retries: 1, shouldRetry: () => true }).get("/u"),
+      ).rejects.toBeDefined();
+      expect(f1.calls).toHaveLength(2);
+      const f2 = fakeFetch(err(500), jsonResponse({}));
+      await expect(
+        make(f2, { shouldRetry: () => true }).post("/u", new ReadableStream()),
+      ).rejects.toBeDefined();
+      expect(f2.calls).toHaveLength(1);
+    });
+    it("onRetry hears each retry with the wait it is about to take", async () => {
+      const heard: [number, number][] = [];
+      await make(fakeFetch(err(503), err(503), jsonResponse({})), {
+        delay: (n) => (n + 1) * 10,
+        onRetry: (_e, attempt, wait) => heard.push([attempt, wait]),
+      }).get("/u");
+      expect(heard).toEqual([
+        [0, 10],
+        [1, 20],
+      ]);
+    });
   });
 });
