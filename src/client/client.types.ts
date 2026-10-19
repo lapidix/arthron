@@ -52,7 +52,23 @@ export interface RequestInitWithBody extends RequestOptions {
   body?: unknown;
 }
 
-export interface ArthronConfig {
+/**
+ * The fetch options a client can set as defaults: the same `RequestInit`
+ * fields per-call options take, minus what only makes sense per call —
+ * `body`, `method`, `signal` (one client-wide signal, once aborted, would
+ * fail every later call) and `window`. `headers` has its own merge rules.
+ */
+export type FetchDefaults = Omit<
+  RequestInit,
+  "body" | "method" | "headers" | "signal" | "window"
+>;
+
+/**
+ * Client config. Besides arthron's own keys it takes any fetch option as a
+ * default (`credentials`, `cache`, `redirect`, `mode`, …), flat like per-call
+ * options; a per-call value wins.
+ */
+export interface ArthronConfig extends FetchDefaults {
   /** Prefix for relative paths. Without it only absolute URLs are accepted. */
   baseURL?: string;
   /**
@@ -64,8 +80,6 @@ export interface ArthronConfig {
   allowAbsoluteUrls?: boolean;
   /** Default headers. Per-call headers win, compared case-insensitively; `extend` can drop one with `null`. */
   headers?: HeadersOption;
-  /** Forwarded to fetch as-is. Not set unless you set it. */
-  credentials?: RequestCredentials;
   /** Injection point for tests and polyfills. Defaults to `globalThis.fetch`. */
   fetch?: typeof fetch;
   use?: Plugin[];
