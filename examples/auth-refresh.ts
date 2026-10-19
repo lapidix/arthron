@@ -5,24 +5,37 @@
 // - "refresh, then redo the request" is *flow* → middleware
 // Because `next` re-runs the request interceptors, the retried attempt picks
 // up the new token without any extra wiring.
+//
+// Two details make it safe beyond a demo:
+// - Single flight. Concurrent 401s share one refresh, and a call whose token
+//   was already replaced just retries. With refresh-token rotation, parallel
+//   refreshes would revoke each other and log the user out.
+// - Origin check. The token goes to the API's origin only, never to an
+//   absolute URL elsewhere (a CDN link, a URL from a response body).
 import { arthron, definePlugin, isArthronError } from "../src";
 
-type TokenStore = {
+export type TokenStore = {
   token: () => string | null;
+  /** Fetch a new token; throw when that fails — the caller sees the error. */
   refresh: () => Promise<void>;
 };
 
-export const auth = (store: TokenStore) =>
-  definePlugin({
+export const auth = (store: TokenStore, origin: string) => {
+  let refreshing: Promise<void> | undefined;
+  const bearer = () => {
+    const token = store.token();
+    return token ? `Bearer ${token}` : undefined;
+  };
+  return definePlugin({
     name: "auth",
     request: (ctx) => {
-      const token = store.token();
-      if (!token) return ctx;
+      const value = bearer();
+      if (!value || new URL(ctx.url).origin !== origin) return ctx;
       return {
         ...ctx,
         init: {
           ...ctx.init,
-          headers: { ...ctx.init.headers, authorization: `Bearer ${token}` },
+          headers: { ...ctx.init.headers, authorization: value },
         },
       };
     },
@@ -31,27 +44,41 @@ export const auth = (store: TokenStore) =>
         return await next(ctx);
       } catch (error) {
         if (!isArthronError(error) || error.status !== 401) throw error;
-        await store.refresh(); // if this throws, the caller decides (log out, etc.)
+        // Refresh only if the token that failed is still the current one —
+        // otherwise another call has refreshed it already.
+        if (error.request.init.headers.authorization === bearer()) {
+          refreshing ??= store.refresh().finally(() => {
+            refreshing = undefined;
+          });
+          await refreshing;
+        }
         return next(ctx);
       }
     },
   });
+};
 
 // Usage — any store works; this one keeps the token in memory.
+const API = "https://api.example.com";
 let current: string | null = null;
 const api = arthron({
-  baseURL: "https://api.example.com",
+  baseURL: API,
   use: [
-    auth({
-      token: () => current,
-      refresh: async () => {
-        const res = await fetch("https://api.example.com/token/refresh", {
-          method: "POST",
-          credentials: "include",
-        });
-        current = ((await res.json()) as { access_token: string }).access_token;
+    auth(
+      {
+        token: () => current,
+        refresh: async () => {
+          const res = await fetch(`${API}/token/refresh`, {
+            method: "POST",
+            credentials: "include",
+          });
+          if (!res.ok) throw new Error(`token refresh failed: ${res.status}`);
+          current = ((await res.json()) as { access_token: string })
+            .access_token;
+        },
       },
-    }),
+      API,
+    ),
   ],
 });
 

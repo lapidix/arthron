@@ -84,13 +84,16 @@ Helpers (identity, for typing): `definePlugin(p)`, `defineMiddleware(m)`, `defin
 
 ## Recipes
 
-Auth refresh (middleware retries, interceptor adds header; retried attempt picks up the new token automatically):
+Auth refresh — single flight, origin-scoped (full version: examples/auth-refresh.ts):
 ```ts
-const auth = (store) => definePlugin({
-  request: (ctx) => store.token() ? { ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, authorization: `Bearer ${store.token()}` } } } : ctx,
-  middleware: async (ctx, next) => { try { return await next(ctx); } catch (e) { if (!isArthronError(e) || e.status !== 401) throw e; await store.refresh(); return next(ctx); } },
-});
+const auth = (store, origin) => { let refreshing; const bearer = () => store.token() ? `Bearer ${store.token()}` : undefined; return definePlugin({
+  name: "auth",
+  request: (ctx) => !bearer() || new URL(ctx.url).origin !== origin ? ctx : { ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, authorization: bearer() } } },
+  middleware: async (ctx, next) => { try { return await next(ctx); } catch (e) { if (!isArthronError(e) || e.status !== 401) throw e; if (e.request.init.headers.authorization === bearer()) { refreshing ??= store.refresh().finally(() => (refreshing = undefined)); await refreshing; } return next(ctx); } },
+}); };
 ```
+
+Reacting to a call's final outcome (error page, domain error) is middleware registered BEFORE retry() — error interceptors run per attempt, including attempts a retry then recovers (see examples/error-page.ts).
 
 Streaming an LLM response:
 ```ts
