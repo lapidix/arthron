@@ -1,13 +1,13 @@
-import { isArthronError } from "../error/error";
+import { isArthronError } from "../error/arthron-error";
 import { toHeaderRecord } from "../request/headers";
+import type { RequestContext } from "../types/context.types";
 import type {
   ErrorInterceptor,
   Middleware,
   Plugin,
-  RequestContext,
   RequestInterceptor,
   ResponseInterceptor,
-} from "../types";
+} from "../types/plugin.types";
 
 /** The mutable body kinds an interceptor can `append` to; anything else is shared as is. */
 function cloneBody(body: BodyInit): BodyInit {

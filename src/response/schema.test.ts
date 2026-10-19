@@ -1,8 +1,9 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import { isArthronError } from "../error/error";
+import { isArthronError } from "../error/arthron-error";
 import { jsonResponse } from "../testkit/fetch.testkit";
+import type { StandardSchemaV1 } from "../types/schema.types";
 import { toArthronPromise } from "./promise";
-import { SchemaError, type StandardSchemaV1 } from "./schema";
+import { SchemaError } from "./schema";
 
 /** A hand-written Standard Schema — what Zod, Valibot or ArkType hand you. */
 const user: StandardSchemaV1<unknown, { id: number; name: string }> = {

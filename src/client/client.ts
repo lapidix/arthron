@@ -4,15 +4,15 @@ import { isReadableStream, serializeBody } from "../request/body";
 import { mergeHeaders, toHeaderRecord } from "../request/headers";
 import { fillPath, leavesBase, redactUrl, resolveUrl } from "../request/url";
 import { toArthronPromise } from "../response/promise";
+import type { RequestContext } from "../types/context.types";
+import type { Plugin } from "../types/plugin.types";
+import type { ArthronPromise } from "../types/promise.types";
 import type {
   Arthron,
   ArthronConfig,
-  ArthronPromise,
-  Plugin,
-  RequestContext,
   RequestInitWithBody,
   RequestOptions,
-} from "../types";
+} from "./client.types";
 
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
 /** Sent uppercased whatever their case; fetch itself only normalizes six. */

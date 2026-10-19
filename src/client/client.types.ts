@@ -1,85 +1,8 @@
-import type { ArthronError, ErrorMessageResolver } from "./error/error";
-import type { RetryOptions } from "./plugins/retry";
-import type { HeadersOption } from "./request/headers";
-import type { QueryParams } from "./request/url";
-import type { InferOutput, StandardSchemaV1 } from "./response/schema";
-import type { NdjsonOptions, SseEvent, SseOptions } from "./response/stream";
-
-export type { ErrorMessageResolver } from "./error/error";
-export type { HeadersOption } from "./request/headers";
-export type { QueryParams } from "./request/url";
-export type { NdjsonOptions, SseEvent, SseOptions } from "./response/stream";
-
-/**
- * What plugins see and return. `init.headers` is always a plain record with
- * lowercased names — spread it, read it, add to it — and the pipeline puts
- * it back into that shape after every request interceptor.
- */
-export interface RequestContext {
-  url: string;
-  init: Omit<RequestInit, "headers"> & { headers: Record<string, string> };
-  /** Per-call settings for plugins (`RequestOptions.meta`); never sent. */
-  meta: ArthronMeta;
-}
-
-/**
- * Per-call settings for plugins, passed as `api.get(path, { meta })` and
- * carried next to `init` — never sent to fetch. The built-in plugins read
- * `retry` and `timeout`; your own add keys by augmentation:
- *
- * ```ts
- * declare module "arthron" {
- *   interface ArthronMeta { skipAuth?: boolean }
- * }
- * ```
- */
-export interface ArthronMeta {
-  /** `false` turns `retry()` off for this call; an object overrides its options. */
-  retry?: false | Omit<RetryOptions, "sleep">;
-  /** Deadline for this call in ms, overriding `timeout(ms)`. `Infinity` lifts it. */
-  timeout?: number;
-}
-
-/** Runs before each attempt. Returns the context to send (may be a new object). */
-export type RequestInterceptor = (
-  ctx: RequestContext,
-) => RequestContext | Promise<RequestContext>;
-
-/** Runs after a successful attempt. The body is single-use — `clone()` to peek. */
-export type ResponseInterceptor = (
-  res: Response,
-  ctx: RequestContext,
-) => Response | Promise<Response>;
-
-/** Runs after a failed attempt. Returns the error to throw; it is always thrown. */
-export type ErrorInterceptor = (
-  err: ArthronError,
-  ctx: RequestContext,
-) => ArthronError | Promise<ArthronError>;
-
-/**
- * Wraps the whole call. `next` runs everything below it (request interceptors →
- * fetch → response/error interceptors) and may be called again to retry.
- * `next` rejects with an `ArthronError`, or with the untouched original when the
- * failure was a cancellation or a bug in a plugin.
- */
-export type Middleware = (
-  ctx: RequestContext,
-  next: (ctx: RequestContext) => Promise<Response>,
-) => Promise<Response>;
-
-export interface Plugin {
-  /**
-   * Identity within a client: `use`/`extend` replace the plugin of the same
-   * name in place, `without(name)` removes it. The built-ins are named
-   * "retry", "timeout" and "logging". Leave it out to always append.
-   */
-  name?: string;
-  middleware?: Middleware;
-  request?: RequestInterceptor;
-  response?: ResponseInterceptor;
-  error?: ErrorInterceptor;
-}
+import type { ArthronMeta } from "../types/context.types";
+import type { ErrorMessageResolver } from "../types/error.types";
+import type { Plugin } from "../types/plugin.types";
+import type { ArthronPromise } from "../types/promise.types";
+import type { HeadersOption, QueryParams } from "../types/request.types";
 
 /**
  * The methods arthron knows by name; any other string is sent as written.
@@ -150,24 +73,6 @@ export interface ArthronConfig {
    * (`mode: "no-cors"`) and the 3xx of `redirect: "manual"`.
    */
   throwOn?: (res: Response) => boolean;
-}
-
-export interface ArthronPromise extends Promise<Response> {
-  /** The body as JSON. `T` is a cast — nothing checks it. */
-  json<T = unknown>(): Promise<T>;
-  /**
-   * The body as JSON, validated by a Standard Schema (Zod, Valibot, ArkType…)
-   * and typed by it. A mismatch rejects with a `SchemaError`.
-   */
-  json<S extends StandardSchemaV1>(schema: S): Promise<InferOutput<S>>;
-  text(): Promise<string>;
-  blob(): Promise<Blob>;
-  arrayBuffer(): Promise<ArrayBuffer>;
-  formData(): Promise<FormData>;
-  /** Iterate a `text/event-stream` body as events. */
-  sse(options?: SseOptions): AsyncIterable<SseEvent>;
-  /** Iterate a newline-delimited JSON body, one parsed value per line. */
-  ndjson<T = unknown>(options?: NdjsonOptions): AsyncIterable<T>;
 }
 
 export interface Arthron {

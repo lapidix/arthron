@@ -1,10 +1,9 @@
 import { inspect } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import { jsonResponse } from "../testkit/fetch.testkit";
+import { ArthronError, isArthronError } from "./arthron-error";
 import {
-  ArthronError,
   defaultErrorMessage,
-  isArthronError,
   isCancellation,
   networkError,
   responseError,
@@ -199,7 +198,10 @@ describe("responseError reads at most 64 KiB of the body", () => {
 describe("across copies of the package (ESM and CJS both loaded)", () => {
   it("isArthronError and instanceof recognise an error from the other copy", async () => {
     vi.resetModules();
-    const other = await import("./error");
+    const other = {
+      ...(await import("./arthron-error")),
+      ...(await import("./error")),
+    };
     expect(other.ArthronError).not.toBe(ArthronError);
     const foreign = other.networkError(new Error("x"), req);
     expect(isArthronError(foreign)).toBe(true);

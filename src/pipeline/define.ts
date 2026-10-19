@@ -4,7 +4,7 @@ import type {
   Plugin,
   RequestInterceptor,
   ResponseInterceptor,
-} from "../types";
+} from "../types/plugin.types";
 
 /*
  * Identity helpers. They do nothing at runtime; they exist so a plugin written

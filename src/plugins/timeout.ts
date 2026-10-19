@@ -1,5 +1,6 @@
 import { rebuildResponse } from "../response/rebuild-response";
-import type { Plugin } from "../types";
+import type { Plugin } from "../types/plugin.types";
+import type { TimeoutOptions } from "./timeout.types";
 
 const MAX_TIMER_MS = 2 ** 31 - 1;
 
@@ -50,15 +51,6 @@ function checkDeadline(ms: number, where: string): void {
     `arthron: ${where} needs 0–${MAX_TIMER_MS} ms — pass Infinity for no deadline`,
   );
 }
-
-export type TimeoutOptions = {
-  /**
-   * Also abort when no data has arrived for this many ms — while waiting for
-   * the headers and between body chunks. Unlike the total deadline, a stream
-   * that keeps flowing is never cut off: `timeout(Infinity, { idle: 30_000 })`.
-   */
-  idle?: number;
-};
 
 /** A timer that aborts `controller` with a TimeoutError and never keeps Node alive on its own. */
 function deadlineTimer(

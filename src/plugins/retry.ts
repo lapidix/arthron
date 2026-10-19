@@ -1,42 +1,7 @@
-import { type ArthronError, isArthronError } from "../error/error";
+import { type ArthronError, isArthronError } from "../error/arthron-error";
 import { isReadableStream } from "../request/body";
-import type { Plugin, RequestContext } from "../types";
-
-export type RetryOptions = {
-  /** Number of retries after the first attempt. Default 2 (3 requests total). */
-  retries?: number;
-  /** Statuses worth retrying. Network errors (status 0) always are. */
-  retryOn?: readonly number[];
-  /** Methods safe to repeat (QUERY is, per RFC 10008). Compared case-insensitively. */
-  methods?: readonly string[];
-  /**
-   * Backoff in ms for retry number `retry` (0-based). Default "full jitter":
-   * a random share of 300 · 2^retry, so clients that failed together do not
-   * retry together.
-   */
-  delay?: (retry: number, error: unknown) => number;
-  /**
-   * Your own verdict on one failure: `true` retries, `false` stops,
-   * `undefined` leaves it to `retryOn`/`methods`. It sees every error — a
-   * TimeoutError from a `timeout()` placed after `retry()` included — but
-   * cannot exceed `retries`, resend a `ReadableStream` body, or retry a call
-   * the caller aborted.
-   */
-  shouldRetry?: (
-    error: unknown,
-    attempt: number,
-    ctx: RequestContext,
-  ) => boolean | undefined;
-  /** Called before each wait, for logs and metrics. */
-  onRetry?: (error: unknown, attempt: number, waitMs: number) => void;
-  /** Injectable for tests. Default `setTimeout`; rejects with the abort reason. */
-  sleep?: (ms: number, signal?: AbortSignal | null) => Promise<void>;
-  /**
-   * Longest `Retry-After` (ms) worth honouring. Beyond it the request is not
-   * retried at all. Default 60 000.
-   */
-  maxRetryAfter?: number;
-};
+import type { RetryOptions } from "../types/context.types";
+import type { Plugin } from "../types/plugin.types";
 
 const DEFAULT_RETRY_ON = [408, 429, 500, 502, 503, 504] as const;
 const DEFAULT_METHODS = [

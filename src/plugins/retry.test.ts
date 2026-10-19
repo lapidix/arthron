@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { arthron } from "../client/client";
 import { fakeFetch, jsonResponse } from "../testkit/fetch.testkit";
-import { type RetryOptions, retry } from "./retry";
+import type { RetryOptions } from "../types/context.types";
+import { retry } from "./retry";
 import { timeout } from "./timeout";
 
 const sleepSpy = () => vi.fn(async (_ms: number) => {});

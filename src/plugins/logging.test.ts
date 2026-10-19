@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { networkError, responseError } from "../error/error";
 import { runPipeline } from "../pipeline/pipeline";
 import { jsonResponse } from "../testkit/fetch.testkit";
-import { type LogEvent, logging } from "./logging";
+import { logging } from "./logging";
+import type { LogEvent } from "./logging.types";
 
 const ctx = {
   url: "https://a/u?secret=1",

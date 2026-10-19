@@ -1,11 +1,4 @@
-/**
- * Headers as config and per-call options accept them: any `HeadersInit`, or a
- * plain object whose `null`/`undefined` values delete that header from the
- * layer underneath (a client default, an inherited header).
- */
-export type HeadersOption =
-  | HeadersInit
-  | Record<string, string | null | undefined>;
+import type { HeadersOption } from "../types/request.types";
 
 const isPlainRecord = (
   headers: HeadersOption,
