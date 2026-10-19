@@ -104,6 +104,34 @@ describe("retry", () => {
     ).get("/u");
     expect(sleep.mock.calls[0]?.[0]).toBe(300);
   });
+  it("gives up (no retry) when Retry-After exceeds maxRetryAfter", async () => {
+    const sleep = sleepSpy();
+    const fetch = fakeFetch(
+      err(503, { "retry-after": "2592000" }),
+      jsonResponse({}),
+    );
+    await expect(make(fetch, { sleep }).get("/u")).rejects.toMatchObject({
+      status: 503,
+    });
+    expect(fetch.calls).toHaveLength(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+  it("honours a custom maxRetryAfter", async () => {
+    const sleep = sleepSpy();
+    const fetch = fakeFetch(
+      err(503, { "retry-after": "120" }),
+      jsonResponse({}),
+    );
+    await make(fetch, { sleep, maxRetryAfter: 200_000 }).get("/u");
+    expect(sleep.mock.calls[0]?.[0]).toBe(120_000);
+  });
+  it("treats an empty Retry-After as absent", async () => {
+    const sleep = sleepSpy();
+    await make(fakeFetch(err(503, { "retry-after": "" }), jsonResponse({})), {
+      sleep,
+    }).get("/u");
+    expect(sleep.mock.calls[0]?.[0]).toBe(300);
+  });
   it("stops immediately when the signal is already aborted", async () => {
     const ac = new AbortController();
     ac.abort();

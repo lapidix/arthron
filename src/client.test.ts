@@ -68,6 +68,19 @@ describe("ieum — requests", () => {
   });
 });
 
+describe("ieum — argument errors reject instead of throwing synchronously", () => {
+  it("relative path without baseURL rejects with TypeError", async () => {
+    const fetch = fakeFetch(jsonResponse({}));
+    await expect(ieum({ fetch }).get("rel")).rejects.toBeInstanceOf(TypeError);
+    expect(fetch.calls).toHaveLength(0);
+  });
+  it("unserializable body rejects", async () => {
+    const { api, fetch } = make();
+    await expect(api.post("/u", { n: 1n })).rejects.toBeInstanceOf(TypeError);
+    expect(fetch.calls).toHaveLength(0);
+  });
+});
+
 describe("ieum — config", () => {
   it("merges default headers under per-call headers, case-insensitively", async () => {
     const { api, fetch } = make(undefined, {
@@ -88,6 +101,11 @@ describe("ieum — config", () => {
     const { api, fetch } = make(undefined, { credentials: "include" });
     await api.get("/u");
     expect(fetch.calls[0]?.init.credentials).toBe("include");
+  });
+  it("lets a per-call credentials override the configured default", async () => {
+    const { api, fetch } = make(undefined, { credentials: "include" });
+    await api.get("/u", { credentials: "omit" });
+    expect(fetch.calls[0]?.init.credentials).toBe("omit");
   });
   it("uses globalThis.fetch when none injected", async () => {
     const spy = vi

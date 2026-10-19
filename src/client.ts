@@ -52,19 +52,29 @@ export function ieum(config: IeumConfig = {}): Ieum {
     rawBody: unknown,
     { params, headers: callHeaders, ...init }: RequestOptions,
   ): IeumPromise => {
-    const url = resolveUrl(resolved.baseURL, path, params);
-    const { body, headers } = serializeBody(
-      rawBody,
-      mergeHeaders(resolved.headers, callHeaders),
-    );
-    const requestInit: RequestInit = { ...init, method, headers };
-    if (body !== undefined) requestInit.body = body;
-    if (resolved.credentials !== undefined) {
-      requestInit.credentials = resolved.credentials;
+    try {
+      const url = resolveUrl(resolved.baseURL, path, params);
+      const { body, headers } = serializeBody(
+        rawBody,
+        mergeHeaders(resolved.headers, callHeaders),
+      );
+      // Config credentials sit underneath so a per-call value wins, like every other option.
+      const requestInit: RequestInit = {
+        ...(resolved.credentials !== undefined && {
+          credentials: resolved.credentials,
+        }),
+        ...init,
+        method,
+        headers,
+      };
+      if (body !== undefined) requestInit.body = body;
+      return toIeumPromise(
+        runPipeline(resolved.use, { url, init: requestInit }, send),
+      );
+    } catch (thrown) {
+      // Argument errors (no baseURL, unserializable body) reject like everything else.
+      return toIeumPromise(Promise.reject(thrown));
     }
-    return toIeumPromise(
-      runPipeline(resolved.use, { url, init: requestInit }, send),
-    );
   };
 
   const derive = (next: Partial<IeumConfig>): Ieum => {

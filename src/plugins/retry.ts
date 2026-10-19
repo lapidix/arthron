@@ -12,10 +12,17 @@ export type RetryOptions = {
   delay?: (retry: number, error: IeumError) => number;
   /** Injectable for tests. Default `setTimeout`; rejects with the abort reason. */
   sleep?: (ms: number, signal?: AbortSignal | null) => Promise<void>;
+  /**
+   * Longest `Retry-After` (ms) worth honouring. Beyond it the request is not
+   * retried at all. Default 60 000. Also guards `setTimeout`'s 2^31-1 ms cap,
+   * past which timers fire immediately.
+   */
+  maxRetryAfter?: number;
 };
 
 const DEFAULT_RETRY_ON = [408, 429, 500, 502, 503, 504] as const;
 const DEFAULT_METHODS = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE"] as const;
+const DEFAULT_MAX_RETRY_AFTER = 60_000;
 
 function defaultSleep(ms: number, signal?: AbortSignal | null): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -34,8 +41,8 @@ function defaultSleep(ms: number, signal?: AbortSignal | null): Promise<void> {
 
 /** `Retry-After` as ms — seconds or an HTTP-date. `undefined` when absent or unparsable. */
 function retryAfterMs(error: IeumError): number | undefined {
-  const value = error.headers.get("retry-after");
-  if (value === null) return undefined;
+  const value = error.headers.get("retry-after")?.trim();
+  if (!value) return undefined;
   const seconds = Number(value);
   if (!Number.isNaN(seconds)) return Math.max(0, seconds * 1000);
   const at = Date.parse(value);
@@ -62,6 +69,7 @@ export function retry(options: RetryOptions = {}): Plugin {
     methods = DEFAULT_METHODS,
     delay = (retry) => 300 * 2 ** retry,
     sleep = defaultSleep,
+    maxRetryAfter = DEFAULT_MAX_RETRY_AFTER,
   } = options;
   const allowed = new Set(methods.map((m) => m.toUpperCase()));
 
@@ -81,10 +89,11 @@ export function retry(options: RetryOptions = {}): Plugin {
             throw thrown;
           }
           if (ctx.init.signal?.aborted) throw thrown;
-          await sleep(
-            retryAfterMs(thrown) ?? delay(attempt, thrown),
-            ctx.init.signal,
-          );
+          const retryAfter = retryAfterMs(thrown);
+          if (retryAfter !== undefined && retryAfter > maxRetryAfter) {
+            throw thrown;
+          }
+          await sleep(retryAfter ?? delay(attempt, thrown), ctx.init.signal);
         }
       }
     },

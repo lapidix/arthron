@@ -23,7 +23,7 @@ const base = ieum({
 });
 
 const api = base.extend({
-  use: [auth({ refreshUrl: "/token/refresh" })], // your own plugin — see below
+  use: [auth({ getToken, refresh })], // your own plugin — see "Writing your own plugin"
 });
 
 const res = await api.get("/me");                             // Response
@@ -115,7 +115,7 @@ class IeumError extends Error {
   statusText: string;
   headers: Headers;
   data: unknown;         // parsed body: JSON if it parses, else text, else undefined
-  response?: Response;   // absent for network failures (body already consumed into `data`)
+  response?: Response;   // the original; its body is already consumed into `data`. Absent for network failures
   request: RequestContext;
   cause?: unknown;       // the original error for network failures
 }
@@ -159,8 +159,9 @@ Retries by calling `next` again, so request interceptors (fresh auth header, fre
 | `retryOn` | `[408, 429, 500, 502, 503, 504]` | network failures (`status 0`) are always retried |
 | `methods` | `GET HEAD OPTIONS PUT DELETE` | case-insensitive |
 | `delay` | `retry => 300 * 2 ** retry` | ms; `retry` is 0-based |
+| `maxRetryAfter` | `60_000` | a `Retry-After` longer than this (ms) means "don't retry" |
 
-`Retry-After` (seconds or HTTP-date) wins over `delay` when present. `ReadableStream` bodies are never retried (they can only be read once). Respects `signal` — an aborted request stops retrying immediately.
+`Retry-After` (seconds or HTTP-date) wins over `delay` when present and within `maxRetryAfter`; beyond it the error is thrown without retrying. `ReadableStream` bodies are never retried (they can only be read once). Respects `signal` — an aborted request stops retrying immediately.
 
 ## Writing your own plugin
 
@@ -215,6 +216,8 @@ api.use({ error: errorRedirect(router.push) });
 ```
 
 ### `timeout` — a four-line middleware
+
+`AbortSignal.any` needs Node 20.3+ or a current browser; on Node 18 combine the signals with an `AbortController` by hand.
 
 ```ts
 import { defineMiddleware } from "ieum";
