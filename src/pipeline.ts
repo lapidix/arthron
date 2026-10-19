@@ -25,13 +25,13 @@ function cloneBody(body: BodyInit): BodyInit {
  * again (retry) must not see the previous attempt's changes, so every attempt
  * starts from a fresh copy of the headers and of a FormData/URLSearchParams body.
  */
-function cloneContext({ url, init }: RequestContext): RequestContext {
+function cloneContext({ url, init, meta }: RequestContext): RequestContext {
   const copy: RequestContext["init"] = {
     ...init,
     headers: toHeaderRecord(init.headers),
   };
   if (init.body) copy.body = cloneBody(init.body);
-  return { url, init: copy };
+  return { url, init: copy, meta: { ...meta } };
 }
 
 /**
@@ -39,10 +39,15 @@ function cloneContext({ url, init }: RequestContext): RequestContext {
  * with a cast) may hand back a `Headers` object, and the next plugin's
  * `{ ...ctx.init.headers }` would otherwise drop every header.
  */
-function normalize(ctx: RequestContext): RequestContext {
+function normalize(
+  ctx: RequestContext,
+  previous: RequestContext,
+): RequestContext {
   return {
     ...ctx,
     init: { ...ctx.init, headers: toHeaderRecord(ctx.init.headers) },
+    // A plugin that builds a fresh `{ url, init }` must not lose the call's meta.
+    meta: ctx.meta ?? previous.meta,
   };
 }
 
@@ -75,7 +80,7 @@ export async function runPipeline(
     let current = cloneContext(input);
     try {
       for (const interceptor of request) {
-        current = normalize(await interceptor(current));
+        current = normalize(await interceptor(current), current);
       }
       let res = await send(current);
       for (const interceptor of response) res = await interceptor(res, current);
@@ -94,7 +99,10 @@ export async function runPipeline(
   ): Promise<Response> => {
     const middleware = middlewares[index];
     if (!middleware) return attempt(input);
-    return middleware(input, (next) => dispatch(index + 1, next));
+    // A middleware that builds a fresh `{ url, init }` keeps the call's meta.
+    return middleware(input, (next) =>
+      dispatch(index + 1, { ...next, meta: next.meta ?? input.meta }),
+    );
   };
   return dispatch(0, ctx);
 }

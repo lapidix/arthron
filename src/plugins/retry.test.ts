@@ -165,6 +165,30 @@ describe("retry", () => {
     }).get("/u");
     expect(sleep.mock.calls[0]?.[0]).toBe(2 ** 31 - 1);
   });
+  it("meta.retry: false turns retry off for one call", async () => {
+    const fetch = fakeFetch(err(503), jsonResponse({}));
+    await expect(
+      make(fetch).get("/u", { meta: { retry: false } }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(fetch.calls).toHaveLength(1);
+  });
+  it("meta.retry overrides options for one call", async () => {
+    const f1 = fakeFetch(err(503), err(503), err(503), err(503), err(503));
+    await expect(
+      make(f1).get("/u", { meta: { retry: { retries: 4 } } }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(f1.calls).toHaveLength(5);
+    const f2 = fakeFetch(err(500), jsonResponse({}));
+    await make(f2).post("/u", {}, { meta: { retry: { methods: ["POST"] } } });
+    expect(f2.calls).toHaveLength(2);
+  });
+  it("rejects an invalid meta.retry.retries with a TypeError", async () => {
+    await expect(
+      make(fakeFetch(jsonResponse({}))).get("/u", {
+        meta: { retry: { retries: -1 } },
+      }),
+    ).rejects.toBeInstanceOf(TypeError);
+  });
   it("propagates the abort reason when aborted while sleeping", async () => {
     const reason = new DOMException("a", "AbortError");
     const sleep = vi.fn(async () => {

@@ -4,9 +4,16 @@ import { runPipeline } from "./pipeline";
 import { jsonResponse } from "./test-utils";
 import type { Plugin, RequestContext } from "./types";
 
+declare module "./types" {
+  interface ArthronMeta {
+    skipAuth?: boolean;
+  }
+}
+
 const ctx = (): RequestContext => ({
   url: "https://a/x",
   init: { method: "GET", headers: { a: "1" } },
+  meta: {},
 });
 const ok = async () => jsonResponse({});
 
@@ -130,6 +137,7 @@ describe("runPipeline", () => {
         {
           url: "https://a/x",
           init: { method: "POST", body: make(), headers: {} },
+          meta: {},
         },
         async (c) => {
           seen.push(
@@ -168,11 +176,44 @@ describe("runPipeline", () => {
   it("types ctx.init.headers as a lowercase record plugins can read", async () => {
     const seen: (string | undefined)[] = [];
     await runPipeline(
-      [{ request: (c) => (seen.push(c.init.headers.a), c) }],
+      [
+        {
+          request: (c) => {
+            seen.push(c.init.headers.a);
+            return c;
+          },
+        },
+      ],
       ctx(),
       ok,
     );
     expect(seen).toEqual(["1"]);
+  });
+
+  it("keeps meta when an interceptor returns a context without it", async () => {
+    const send = vi.fn(async (_c: RequestContext) => jsonResponse({}));
+    await runPipeline(
+      [{ request: (c) => ({ url: c.url, init: c.init }) as RequestContext }],
+      { ...ctx(), meta: { timeout: 7 } },
+      send,
+    );
+    expect(send.mock.calls[0]?.[0].meta).toEqual({ timeout: 7 });
+  });
+  it("lets plugins declare their own meta keys by augmentation", async () => {
+    const seen: (boolean | undefined)[] = [];
+    await runPipeline(
+      [
+        {
+          request: (c) => {
+            seen.push(c.meta.skipAuth);
+            return c;
+          },
+        },
+      ],
+      { ...ctx(), meta: { skipAuth: true } },
+      ok,
+    );
+    expect(seen).toEqual([true]);
   });
 
   it("lets request interceptors replace the context", async () => {

@@ -114,6 +114,56 @@ describe("timeout — the response it hands back", () => {
   });
 });
 
+describe("timeout — meta.timeout per call", () => {
+  /** Answers after `ms` unless its signal aborts first, as fetch would. */
+  const answersAfter = (ms: number) =>
+    ((_url: string, init: RequestInit) =>
+      new Promise<Response>((resolve, reject) => {
+        const signal = init.signal as AbortSignal | undefined;
+        const t = setTimeout(() => resolve(jsonResponse({ ok: 1 })), ms);
+        signal?.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(t);
+            reject(signal?.reason);
+          },
+          { once: true },
+        );
+      })) as unknown as typeof fetch;
+  it("lengthens the deadline for one call", async () => {
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: answersAfter(40),
+      use: [timeout(10)],
+    });
+    expect(await api.get("/u", { meta: { timeout: 1000 } }).json()).toEqual({
+      ok: 1,
+    });
+  });
+  it("shortens the deadline for one call", async () => {
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: answersAfter(200),
+      use: [timeout(5000)],
+    });
+    await expect(
+      api.get("/u", { meta: { timeout: 10 } }),
+    ).rejects.toMatchObject({ name: "TimeoutError" });
+  });
+  it("Infinity lifts the deadline for one call", async () => {
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: answersAfter(40),
+      use: [timeout(10)],
+    });
+    expect(
+      await api
+        .get("/u", { meta: { timeout: Number.POSITIVE_INFINITY } })
+        .json(),
+    ).toEqual({ ok: 1 });
+  });
+});
+
 describe("timeout(ms) bounds", () => {
   it("Infinity means no deadline", async () => {
     // Answers after 20 ms unless its signal aborts first, as fetch would.

@@ -64,26 +64,50 @@ function retryAfterMs(error: ArthronError): number | undefined {
  * again — the whole attempt (request interceptors included) is re-run.
  * Only `ArthronError` is considered; cancellation and plugin bugs pass through.
  */
-export function retry(options: RetryOptions = {}): Plugin {
+type Settings = {
+  retries: number;
+  retryOn: readonly number[];
+  allowed: Set<string>;
+  delay: (retry: number, error: ArthronError) => number;
+  maxRetryAfter: number;
+};
+
+/** Defaults filled in and `retries` checked — `attempt >= NaN` is never true, so an unset env var would retry forever. */
+function settle(options: Omit<RetryOptions, "sleep">, where: string): Settings {
   const {
     retries = 2,
     retryOn = DEFAULT_RETRY_ON,
     methods = DEFAULT_METHODS,
     delay = (retry) => 300 * 2 ** retry,
-    sleep = defaultSleep,
     maxRetryAfter = DEFAULT_MAX_RETRY_AFTER,
   } = options;
-  // `attempt >= NaN` is never true — an unset env var would retry forever.
   if (!Number.isInteger(retries) || retries < 0) {
     throw new TypeError(
-      `arthron: retry({ retries: ${retries} }) needs a whole number ≥ 0 — e.g. retry({ retries: 2 })`,
+      `arthron: ${where} retries: ${retries} needs a whole number ≥ 0 — e.g. retries: 2`,
     );
   }
   const allowed = new Set(methods.map((m) => m.toUpperCase()));
+  return { retries, retryOn, allowed, delay, maxRetryAfter };
+}
+
+/**
+ * Retry on network errors and the configured statuses by calling `next`
+ * again — the whole attempt (request interceptors included) is re-run.
+ * Only `ArthronError` is considered; cancellation and plugin bugs pass through.
+ * A call can turn it off or override its options with `meta.retry`.
+ */
+export function retry(options: RetryOptions = {}): Plugin {
+  const { sleep = defaultSleep, ...rest } = options;
+  const base = settle(rest, "retry()");
 
   return {
     name: "retry",
     middleware: async (ctx, next) => {
+      const override = ctx.meta?.retry;
+      if (override === false) return next(ctx);
+      const { retries, retryOn, allowed, delay, maxRetryAfter } = override
+        ? settle({ ...rest, ...override }, "meta.retry")
+        : base;
       const method = (ctx.init.method ?? "GET").toUpperCase();
       const eligible = allowed.has(method) && !isReadableStream(ctx.init.body);
 

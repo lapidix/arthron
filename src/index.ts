@@ -11,6 +11,7 @@ export { timeout } from "./plugins/timeout";
 export type {
   Arthron,
   ArthronConfig,
+  ArthronMeta,
   ArthronPromise,
   ErrorInterceptor,
   ErrorMessageResolver,
