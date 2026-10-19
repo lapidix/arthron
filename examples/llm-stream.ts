@@ -10,8 +10,9 @@ const api = arthron({
     ? { authorization: `Bearer ${process.env.LLM_API_KEY}` }
     : {},
   // retry only covers the connection and the first bytes; once tokens flow a
-  // retry would duplicate output, so keep it outside and let timeout bound
-  // the whole stream.
+  // retry would duplicate output, so keep it outside. The timeout bounds the
+  // silence, not the length: a long answer that keeps streaming is fine, a
+  // model that stops sending for 30 s is not.
   use: [
     retry({
       methods: ["POST"],
@@ -21,7 +22,7 @@ const api = arthron({
       shouldRetry: (e) =>
         isArthronError(e) && e.status === 0 ? false : undefined,
     }),
-    timeout(120_000),
+    timeout(Number.POSITIVE_INFINITY, { idle: 30_000 }),
   ],
 });
 

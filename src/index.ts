@@ -7,7 +7,7 @@ export {
   logging,
 } from "./plugins/logging";
 export { type RetryOptions, retry } from "./plugins/retry";
-export { timeout } from "./plugins/timeout";
+export { type TimeoutOptions, timeout } from "./plugins/timeout";
 export type {
   Arthron,
   ArthronConfig,

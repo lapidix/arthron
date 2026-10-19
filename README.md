@@ -180,9 +180,11 @@ Honours `Retry-After` (seconds or HTTP date). Never retries a `ReadableStream` b
 
 Opting a non-idempotent method in (`methods: ["POST"]`) means a network failure is retried too, and a dropped connection may already have reached the server. Where a duplicate would hurt — a payment, an LLM completion you pay for — keep retries to statuses: `shouldRetry: (e) => (isArthronError(e) && e.status === 0 ? false : undefined)`. Per call, `meta: { retry: false }` turns it off and `meta: { retry: { retries: 5 } }` overrides any option but `sleep`.
 
-#### `timeout(ms)`
+#### `timeout(ms, { idle? })`
 
 Aborts the attempt after `ms`, counted until the body has been fully read — a server that sends headers and then stalls still trips it. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore. Combines with a `signal` you pass yourself. `Infinity` means no deadline. The timer never keeps a Node process alive on its own. Per call, `meta: { timeout: 120_000 }` replaces the deadline (`Infinity` lifts it).
+
+A total deadline also cuts off a stream that is still flowing. For streams, bound the silence instead: `timeout(Infinity, { idle: 30_000 })` aborts only after 30 s without data — waiting for headers or between chunks — however long the stream runs. Both can be combined: `timeout(600_000, { idle: 30_000 })`.
 
 ```ts
 arthron({ use: [retry(), timeout(5_000)] }); // 5 s per attempt — a timed-out attempt is not retried
