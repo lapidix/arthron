@@ -75,3 +75,33 @@ describe("timeout", () => {
     expect(fetch.calls).toHaveLength(1);
   });
 });
+
+describe("timeout while streaming", () => {
+  it("aborts an SSE body that stalls past the deadline", async () => {
+    // Headers arrive at once, the body never finishes.
+    const stalled = (() =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("data: first\n\n"));
+              // never close
+            },
+          }),
+          { headers: { "content-type": "text/event-stream" } },
+        ),
+      )) as unknown as typeof fetch;
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: stalled,
+      use: [timeout(30)],
+    });
+    const seen: string[] = [];
+    const run = async () => {
+      for await (const e of api.get("/stream").sse()) seen.push(e.data);
+    };
+    const err = await run().catch((e: unknown) => e);
+    expect(seen).toEqual(["first"]);
+    expect((err as Error).name).toBe("TimeoutError");
+  });
+});
