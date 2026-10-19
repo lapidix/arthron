@@ -60,9 +60,25 @@ const user = await api.get("/me").json<User>(); // body parsed; T is a cast, not
 const text = await api.get("/robots.txt").text();
 const blob = await api.get("/export").blob();
 const stream = (await api.post("/chat", prompt)).body; // ReadableStream
+for await (const e of api.post("/chat", prompt).sse()) {} // see "Stream responses"
 ```
 
 `init` accepts everything `fetch` does (`signal`, `cache`, `headers`, …) plus `params`, a query object whose `null`/`undefined` values are dropped.
+
+### Stream responses
+
+```ts
+// Server-sent events — one event per `for await` step
+for await (const { event, data } of api.post("/v1/chat/completions", body).sse()) {
+  if (data === "[DONE]") break; // provider sentinel; arthron does not interpret it
+  process.stdout.write(JSON.parse(data).choices[0].delta.content ?? "");
+}
+
+// Newline-delimited JSON (Ollama, many log endpoints)
+for await (const row of api.get("/logs").ndjson<LogRow>()) console.log(row);
+```
+
+`.sse()` follows the EventSource spec (multi-line `data:` joined with `\n`, comments ignored, dispatch on blank line). Both helpers honour `signal` and `timeout` while the body is being read.
 
 ### Handle errors
 
@@ -148,7 +164,7 @@ Honours `Retry-After` (seconds or HTTP date). Never retries a `ReadableStream` b
 
 #### `timeout(ms)`
 
-Aborts the attempt after `ms`. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore. Combines with a `signal` you pass yourself.
+Aborts the attempt after `ms`, counted until the body has been fully read — a server that sends headers and then stalls still trips it. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore. Combines with a `signal` you pass yourself.
 
 ```ts
 arthron({ use: [retry(), timeout(5_000)] }); // 5 s per attempt
@@ -270,6 +286,12 @@ class ArthronError extends Error {
 - **`credentials` is not set unless you set it.** Cross-origin cookies need `credentials: "include"`.
 - **Response bodies are single-use.** A response interceptor that wants to inspect the body must `res.clone()`; one that changes it returns a new `Response`.
 - **Argument errors reject, they don't throw.** No `baseURL` with a relative path, a `BigInt` in a JSON body, a missing `method` in `request` — all surface as a rejected promise.
+
+## For tooling and agents
+
+- `llms.txt` ships in the package — a compressed API reference meant to be read by LLM-based tools (`node_modules/arthron/llms.txt`).
+- `examples/` holds type-checked, runnable recipes: LLM streaming, auth refresh, upload/download.
+- Error messages state the fix (`… — pass baseURL in arthron({ baseURL }) or use an absolute URL`).
 
 ## License
 
