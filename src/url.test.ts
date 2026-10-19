@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveUrl } from "./url";
+import { fillPath, resolveUrl } from "./url";
 
 describe("resolveUrl", () => {
   it("joins baseURL and path with exactly one slash", () => {
@@ -102,5 +102,28 @@ describe("resolveUrl", () => {
     expect(() =>
       resolveUrl("https://a", "/u", { at: new Date(0) } as never),
     ).toThrow(/toISOString/);
+  });
+});
+
+describe("fillPath", () => {
+  it("keeps each value inside its segment", () => {
+    expect(
+      fillPath("/users/{id}/files/{name}", { id: 42, name: "a/b?c#d" }),
+    ).toBe("/users/42/files/a%2Fb%3Fc%23d");
+  });
+  it("turns a traversal attempt into a literal segment", () => {
+    expect(fillPath("/users/{id}", { id: "../admin" })).toBe(
+      "/users/..%2Fadmin",
+    );
+    expect(fillPath("/users/{id}", { id: "%2e%2e" })).toBe("/users/%252e%252e");
+  });
+  it.each(["", ".", ".."])("rejects %j, which would change the path", (id) => {
+    expect(() => fillPath("/users/{id}", { id })).toThrow(
+      /would change the path/,
+    );
+  });
+  it("rejects a missing or an unused value", () => {
+    expect(() => fillPath("/users/{id}", {})).toThrow(/\{id\}/);
+    expect(() => fillPath("/users", { id: 1 })).toThrow(/\{id\}/);
   });
 });

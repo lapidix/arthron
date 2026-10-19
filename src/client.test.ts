@@ -34,6 +34,23 @@ describe("arthron — requests", () => {
       "https://a/v1/u?a=1&a=2",
     ]);
   });
+  it("fills {placeholders} from path, encoded", async () => {
+    const { api, fetch } = make();
+    await api.get("/users/{id}/posts", { path: { id: "a b/c" } });
+    expect(fetch.calls[0]?.url).toBe("https://a/v1/users/a%20b%2Fc/posts");
+  });
+  it("leaves braces alone when no path values are given", async () => {
+    const { api, fetch } = make();
+    await api.get("/literal/{x}");
+    expect(fetch.calls[0]?.url).toBe("https://a/v1/literal/{x}");
+  });
+  it("rejects a dot segment in path values before fetch", async () => {
+    const { api, fetch } = make();
+    await expect(
+      api.get("/users/{id}", { path: { id: ".." } }),
+    ).rejects.toBeInstanceOf(TypeError);
+    expect(fetch.calls).toHaveLength(0);
+  });
   it(".json<T>() works on the client promise", async () => {
     const { api } = make();
     expect(await api.get("/u").json<{ ok: number }>()).toEqual({ ok: 1 });

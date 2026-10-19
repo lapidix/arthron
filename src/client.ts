@@ -12,7 +12,7 @@ import type {
   RequestInitWithBody,
   RequestOptions,
 } from "./types";
-import { leavesBase, redactUrl, resolveUrl } from "./url";
+import { fillPath, leavesBase, redactUrl, resolveUrl } from "./url";
 
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
 
@@ -134,6 +134,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
       headers: callHeaders,
       meta,
       throwOn = resolved.throwOn,
+      path: pathValues,
       ...init
     }: RequestOptions,
   ): ArthronPromise => {
@@ -144,6 +145,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
           `arthron: ${method.toUpperCase()} requests cannot carry a body — send it as params (query) or switch to POST`,
         );
       }
+      if (pathValues) path = fillPath(path, pathValues);
       const url = resolveUrl(
         resolved.baseURL,
         path,

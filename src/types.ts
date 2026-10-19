@@ -87,6 +87,12 @@ export type RequestOptions = Omit<
   /** Per-call headers; a `null`/`undefined` value drops a client default. */
   headers?: HeadersOption;
   params?: QueryParams;
+  /**
+   * Values for `{name}` placeholders in the path, each encoded into its own
+   * segment: `get("/users/{id}", { path: { id } })`. Interpolating ids into
+   * the path string yourself lets "../" or "?" escape the segment.
+   */
+  path?: Record<string, string | number>;
   /** Settings for plugins on this call only (see `ArthronMeta`). Not sent. */
   meta?: ArthronMeta;
   /** Which non-ok responses reject on this call; overrides the client's `throwOn`. */
