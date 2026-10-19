@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { networkError, responseError } from "../error/error";
-import { runPipeline } from "../pipeline/pipeline";
-import { jsonResponse } from "../testkit/fetch.testkit";
+import { networkError, responseError } from "../../error/create-error";
+import { runPipeline } from "../../pipeline/pipeline";
+import { jsonResponse } from "../../testkit/fetch.testkit";
 import { logging } from "./logging";
 import type { LogEvent } from "./logging.types";
 

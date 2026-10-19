@@ -4,8 +4,8 @@ import type {
   SseOptions,
   StandardSchemaV1,
 } from "../types/response.types";
-import { validate } from "./schema";
-import { parseNdjson, parseSse } from "./stream";
+import { validate } from "./schema-validation";
+import { parseNdjson, parseSse } from "./stream-parser";
 
 /** Defer the Response until iteration starts, so the helper itself never rejects. */
 function iterate<T>(

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ArthronError, isArthronError } from "../error/arthron-error";
-import { networkError } from "../error/error";
+import { networkError } from "../error/create-error";
 import { jsonResponse } from "../testkit/fetch.testkit";
 import type { Plugin } from "../types/plugin.types";
 import type { RequestContext } from "../types/request.types";

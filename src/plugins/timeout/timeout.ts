@@ -1,5 +1,5 @@
-import { rebuildResponse } from "../response/rebuild-response";
-import type { Plugin } from "../types/plugin.types";
+import { rebuildResponse } from "../../response/rebuild-response";
+import type { Plugin } from "../../types/plugin.types";
 import type { TimeoutOptions } from "./timeout.types";
 
 const MAX_TIMER_MS = 2 ** 31 - 1;

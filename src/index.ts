@@ -11,13 +11,13 @@ export {
   defineInterceptor,
   defineMiddleware,
   definePlugin,
-} from "./pipeline/define";
-export { logging } from "./plugins/logging";
-export type { LogEvent, LoggingOptions } from "./plugins/logging.types";
-export { retry } from "./plugins/retry";
-export { timeout } from "./plugins/timeout";
-export type { TimeoutOptions } from "./plugins/timeout.types";
-export { SchemaError } from "./response/schema";
+} from "./pipeline/define-plugin";
+export { logging } from "./plugins/logging/logging";
+export type { LogEvent, LoggingOptions } from "./plugins/logging/logging.types";
+export { retry } from "./plugins/retry/retry";
+export { timeout } from "./plugins/timeout/timeout";
+export type { TimeoutOptions } from "./plugins/timeout/timeout.types";
+export { SchemaError } from "./response/schema-validation";
 export type {
   ErrorInterceptor,
   Middleware,

@@ -1,4 +1,8 @@
-import { isCancellation, networkError, responseError } from "../error/error";
+import {
+  isCancellation,
+  networkError,
+  responseError,
+} from "../error/create-error";
 import { redactUrl } from "../request/url";
 import type { RequestContext } from "../types/request.types";
 import type { Resolved } from "./client.types";

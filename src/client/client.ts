@@ -2,7 +2,7 @@ import { runPipeline } from "../pipeline/pipeline";
 import { isReadableStream, serializeBody } from "../request/body";
 import { mergeHeaders } from "../request/headers";
 import { fillPath, leavesBase, resolveUrl } from "../request/url";
-import { toArthronPromise } from "../response/promise";
+import { toArthronPromise } from "../response/arthron-promise";
 import type { RequestContext } from "../types/request.types";
 import type { ArthronPromise } from "../types/response.types";
 import type {
@@ -11,7 +11,7 @@ import type {
   RequestInitWithBody,
   RequestOptions,
 } from "./client.types";
-import { addPlugins, resolveConfig } from "./config";
+import { addPlugins, resolveConfig } from "./resolve-config";
 import { send } from "./send";
 
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);

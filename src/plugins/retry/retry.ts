@@ -1,7 +1,7 @@
-import { type ArthronError, isArthronError } from "../error/arthron-error";
-import { isReadableStream } from "../request/body";
-import type { Plugin } from "../types/plugin.types";
-import type { RetryOptions } from "../types/request.types";
+import { type ArthronError, isArthronError } from "../../error/arthron-error";
+import { isReadableStream } from "../../request/body";
+import type { Plugin } from "../../types/plugin.types";
+import type { RetryOptions } from "../../types/request.types";
 
 const DEFAULT_RETRY_ON = [408, 429, 500, 502, 503, 504] as const;
 const DEFAULT_METHODS = [
