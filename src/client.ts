@@ -12,7 +12,7 @@ import type {
   RequestInitWithBody,
   RequestOptions,
 } from "./types";
-import { leavesBase, resolveUrl } from "./url";
+import { leavesBase, redactUrl, resolveUrl } from "./url";
 
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
 
@@ -39,9 +39,13 @@ function assertSendable(url: string, method: string): void {
   try {
     new Request(url, { method });
   } catch (cause) {
-    const reason = cause instanceof Error ? cause.message : String(cause);
+    const shown = redactUrl(url);
+    // fetch's own message repeats the full URL, query included.
+    const reason = (cause instanceof Error ? cause.message : String(cause))
+      .split(url)
+      .join(shown);
     throw new TypeError(
-      `arthron: cannot send ${method} ${url} (${reason}) — use an absolute URL or a baseURL with a scheme (https://…), and a valid HTTP method`,
+      `arthron: cannot send ${method} ${shown} (${reason}) — use an absolute URL or a baseURL with a scheme (https://…), and a valid HTTP method`,
       { cause },
     );
   }

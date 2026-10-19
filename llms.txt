@@ -41,16 +41,18 @@ Every method returns `Promise<Response>` plus helpers:
 class ArthronError extends Error {
   status: number;        // HTTP status, 0 = network failure
   statusText: string;
-  headers: Headers;
+  headers: Headers;      // not enumerable
   data: unknown;         // JSON if parseable, else text, else undefined
-  response?: Response;   // original, still readable; absent for network failure
-  request: { url: string; init: RequestInit };
+  response?: Response;   // original, still readable; absent for network failure; not enumerable
+  request: { url: string; init: RequestInit }; // not enumerable (holds credentials)
   cause?: unknown;       // underlying error for network failure
+  toJSON(): { name, message, status, statusText, method, url /* no query/userinfo */, data };
 }
 isArthronError(e): e is ArthronError
 ```
 
 - Only `!response.ok` and fetch rejection become ArthronError. Aborts (`AbortError`/`TimeoutError` or any custom `abort(reason)`, including during the error-body read) and exceptions thrown by plugins propagate untouched and skip error interceptors.
+- Serializing an ArthronError (JSON.stringify, console.error, error trackers, logging onEvent) never includes request headers, body, query or userinfo. Error messages arthron writes leave the query out too. `message` usually comes from the server body — untrusted text.
 - Default message: body `message` → `error` (string) → `error.message` → `detail` → `"Request failed with status N"`. Override with `errorMessage`.
 
 ## Plugins

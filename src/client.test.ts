@@ -109,6 +109,13 @@ describe("arthron — argument errors reject instead of throwing synchronously",
     expect(err).toBeInstanceOf(TypeError);
     expect(err).not.toBeInstanceOf(ArthronError);
   });
+  it("keeps the query out of the URL-check message", async () => {
+    const err = await arthron({ baseURL: "api.example.com" })
+      .get("/x", { params: { token: "s3cret" } })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TypeError);
+    expect((err as Error).message).not.toContain("s3cret");
+  });
   it("leaves URL rules to an injected fetch — relative URLs reach one that accepts them", async () => {
     // e.g. SvelteKit's server-side `event.fetch`
     const fetch = fakeFetch(jsonResponse({ ok: 1 }));

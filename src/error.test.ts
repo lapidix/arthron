@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
   ArthronError,
@@ -98,5 +99,48 @@ describe("guards", () => {
     expect(isCancellation(new DOMException("a", "AbortError"))).toBe(true);
     expect(isCancellation(new DOMException("t", "TimeoutError"))).toBe(true);
     expect(isCancellation(new Error("x"))).toBe(false);
+  });
+});
+
+describe("ArthronError keeps request secrets out of serialization", () => {
+  const SECRETS = ["Q-SECRET", "H-SECRET", "B-SECRET", "R-SECRET"];
+  const make = () =>
+    responseError(
+      jsonResponse(
+        { message: "nope" },
+        { status: 401, headers: { "x-session": "R-SECRET" } },
+      ),
+      {
+        url: "https://user:pw@api.test/login?api_key=Q-SECRET",
+        init: {
+          method: "POST",
+          headers: { authorization: "Bearer H-SECRET" },
+          body: '{"password":"B-SECRET"}',
+        },
+      },
+    );
+  it("JSON.stringify gives status, message, method and a redacted url — no secrets", async () => {
+    const json = JSON.stringify(await make());
+    for (const secret of SECRETS) expect(json).not.toContain(secret);
+    expect(json).not.toContain("pw@");
+    expect(JSON.parse(json)).toMatchObject({
+      name: "ArthronError",
+      message: "nope",
+      status: 401,
+      method: "POST",
+      url: "https://api.test/login",
+    });
+  });
+  it("util.inspect (console.error) shows no secrets", async () => {
+    const text = inspect(await make(), { depth: 10 });
+    for (const secret of SECRETS) expect(text).not.toContain(secret);
+  });
+  it("still hands request, response and headers to code that asks for them", async () => {
+    const err = await make();
+    expect(err.request.init.headers).toEqual({
+      authorization: "Bearer H-SECRET",
+    });
+    expect(err.headers.get("x-session")).toBe("R-SECRET");
+    expect(err.response?.status).toBe(401);
   });
 });

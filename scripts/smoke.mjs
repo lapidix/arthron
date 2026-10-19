@@ -49,6 +49,10 @@ const server = createServer((req, res) => {
     });
     return;
   }
+  if (req.url?.startsWith("/fail")) {
+    res.writeHead(500, { "content-type": "application/json" }).end("{}");
+    return;
+  }
   if (req.url === "/flaky" && hits === 1) {
     res.writeHead(503, { "retry-after": "0" }).end();
     return;
@@ -144,6 +148,21 @@ try {
   assert(
     bad instanceof TypeError && !isArthronError(bad),
     "a baseURL without a scheme rejects with TypeError, not status 0",
+  );
+
+  const leaky = await arthron({
+    baseURL,
+    headers: { authorization: "Bearer SMOKE-TOKEN" },
+  })
+    .get("/fail", { params: { key: "SMOKE-QUERY" } })
+    .catch((e) => e);
+  const serialized = JSON.stringify(leaky);
+  assert(
+    isArthronError(leaky) &&
+      !serialized.includes("SMOKE-TOKEN") &&
+      !serialized.includes("SMOKE-QUERY") &&
+      leaky.request.init.headers.authorization === "Bearer SMOKE-TOKEN",
+    "ArthronError serializes without request secrets",
   );
 } finally {
   server.closeAllConnections?.();

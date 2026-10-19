@@ -1,4 +1,5 @@
 import type { RequestContext } from "./types";
+import { redactUrl } from "./url";
 
 export type ErrorMessageResolver = (
   data: unknown,
@@ -26,14 +27,18 @@ export class ArthronError extends Error {
   /** HTTP status of the failed response; `0` when fetch itself failed (network). */
   readonly status: number;
   readonly statusText: string;
-  /** Response headers; empty for network failures. */
-  readonly headers: Headers;
+  /** Response headers; empty for network failures. Not enumerable — kept out of logs. */
+  declare readonly headers: Headers;
   /** Parsed body: JSON if it parses, else the text, else `undefined`. */
   readonly data: unknown;
-  /** The context that was sent — url and init after request interceptors. */
-  readonly request: RequestContext;
-  /** The original Response, still readable (the body was parsed from a clone). Absent for network failures. */
-  readonly response: Response | undefined;
+  /**
+   * The context that was sent — url and init after request interceptors.
+   * Not enumerable: it holds credentials, so `JSON.stringify`, `console.error`
+   * and error trackers leave it out. Read it directly when you need it.
+   */
+  declare readonly request: RequestContext;
+  /** The original Response, still readable (the body was parsed from a clone). Absent for network failures. Not enumerable. */
+  declare readonly response: Response | undefined;
   /** The underlying error for network failures. */
   override readonly cause: unknown;
 
@@ -41,11 +46,26 @@ export class ArthronError extends Error {
     super(init.message);
     this.status = init.status;
     this.statusText = init.statusText;
-    this.headers = init.headers;
     this.data = init.data;
-    this.request = init.request;
-    this.response = init.response;
     this.cause = init.cause;
+    Object.defineProperties(this, {
+      headers: { value: init.headers },
+      request: { value: init.request },
+      response: { value: init.response },
+    });
+  }
+
+  /** What serializers see: no headers, no body, no query or userinfo. */
+  toJSON() {
+    return {
+      name: this.name,
+      message: this.message,
+      status: this.status,
+      statusText: this.statusText,
+      method: this.request.init.method ?? "GET",
+      url: redactUrl(this.request.url),
+      data: this.data,
+    };
   }
 }
 

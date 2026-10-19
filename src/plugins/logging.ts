@@ -1,5 +1,6 @@
 import { isArthronError, isCancellation } from "../error";
 import type { Plugin } from "../types";
+import { redactUrl } from "../url";
 
 type LogEventBase = { method: string; path: string };
 export type LogEvent =
@@ -22,16 +23,6 @@ export type LoggingOptions = {
   /** Clock in ms. Injectable for tests. */
   now?: () => number;
 };
-
-/** Origin + pathname only — the query and userinfo tend to carry secrets. */
-function displayPath(url: string): string {
-  try {
-    const parsed = new URL(url);
-    return `${parsed.origin}${parsed.pathname}`;
-  } catch {
-    return url.split("?")[0] ?? url;
-  }
-}
 
 function consoleSink(logger: Pick<Console, "log" | "error">) {
   return (e: LogEvent) => {
@@ -66,7 +57,7 @@ export function logging(options: LoggingOptions = {}): Plugin {
     middleware: async (ctx, next) => {
       if (!enabled) return next(ctx);
       const method = ctx.init.method ?? "GET";
-      const path = displayPath(ctx.url);
+      const path = redactUrl(ctx.url);
       const started = now();
       const ms = () => Math.round(now() - started);
 

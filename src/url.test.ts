@@ -51,6 +51,12 @@ describe("resolveUrl", () => {
   it("throws when no baseURL and path is relative", () => {
     expect(() => resolveUrl(undefined, "/users")).toThrow(TypeError);
   });
+  it("keeps the query out of the missing-baseURL message", () => {
+    expect(() => resolveUrl(undefined, "/u?token=s3cret")).toThrow(TypeError);
+    expect(() => resolveUrl(undefined, "/u?token=s3cret")).not.toThrow(
+      /s3cret/,
+    );
+  });
   it("appends params, skipping null/undefined, stringifying others", () => {
     expect(
       resolveUrl("https://a", "/u", {

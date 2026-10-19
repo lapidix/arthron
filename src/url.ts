@@ -11,6 +11,19 @@ export function isAbsoluteUrl(path: string): boolean {
 }
 
 /**
+ * Origin + pathname only — the query and userinfo tend to carry secrets.
+ * For anything printed: log lines, error messages, `ArthronError.toJSON`.
+ */
+export function redactUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return url.split(/[?#]/)[0] ?? url;
+  }
+}
+
+/**
  * `undefined` when `url` has no origin of its own. A relative baseURL takes
  * the page's origin in a browser and has none elsewhere.
  */
@@ -71,7 +84,7 @@ export function resolveUrl(
   } else {
     if (baseURL === undefined) {
       throw new TypeError(
-        `arthron: relative path "${path}" needs a baseURL — pass baseURL in arthron({ baseURL }) or use an absolute URL`,
+        `arthron: relative path "${redactUrl(path)}" needs a baseURL — pass baseURL in arthron({ baseURL }) or use an absolute URL`,
       );
     }
     url = `${baseURL.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
