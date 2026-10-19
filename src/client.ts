@@ -15,6 +15,17 @@ import type {
 import { fillPath, leavesBase, redactUrl, resolveUrl } from "./url";
 
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
+/** Sent uppercased whatever their case; fetch itself only normalizes six. */
+const STANDARD_METHODS = new Set([
+  "GET",
+  "HEAD",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "OPTIONS",
+  "QUERY",
+]);
 
 type Resolved = Omit<ArthronConfig, "headers" | "use"> & {
   headers: Record<string, string>;
@@ -139,10 +150,12 @@ export function arthron(config: ArthronConfig = {}): Arthron {
     }: RequestOptions,
   ): ArthronPromise => {
     try {
-      if (rawBody !== undefined && BODYLESS_METHODS.has(method.toUpperCase())) {
+      const upper = method.toUpperCase();
+      const verb = STANDARD_METHODS.has(upper) ? upper : method;
+      if (rawBody !== undefined && BODYLESS_METHODS.has(upper)) {
         // fetch rejects these with a TypeError that would otherwise be mistaken for a network failure and retried.
         throw new TypeError(
-          `arthron: ${method.toUpperCase()} requests cannot carry a body — send it as params (query) or switch to POST`,
+          `arthron: ${upper} requests cannot carry a body — send it as params (query) or switch to POST`,
         );
       }
       if (pathValues) path = fillPath(path, pathValues);
@@ -168,7 +181,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
           credentials: resolved.credentials,
         }),
         ...init,
-        method,
+        method: verb,
         headers,
       };
       if (body !== undefined) requestInit.body = body;

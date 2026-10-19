@@ -14,12 +14,12 @@ export type { QueryParams } from "./url";
  * lowercased names — spread it, read it, add to it — and the pipeline puts
  * it back into that shape after every request interceptor.
  */
-export type RequestContext = {
+export interface RequestContext {
   url: string;
   init: Omit<RequestInit, "headers"> & { headers: Record<string, string> };
   /** Per-call settings for plugins (`RequestOptions.meta`); never sent. */
   meta: ArthronMeta;
-};
+}
 
 /**
  * Per-call settings for plugins, passed as `api.get(path, { meta })` and
@@ -67,7 +67,7 @@ export type Middleware = (
   next: (ctx: RequestContext) => Promise<Response>,
 ) => Promise<Response>;
 
-export type Plugin = {
+export interface Plugin {
   /**
    * Identity within a client: `use`/`extend` replace the plugin of the same
    * name in place, `without(name)` removes it. The built-ins are named
@@ -78,12 +78,30 @@ export type Plugin = {
   request?: RequestInterceptor;
   response?: ResponseInterceptor;
   error?: ErrorInterceptor;
-};
+}
 
-export type RequestOptions = Omit<
-  RequestInit,
-  "body" | "method" | "headers"
-> & {
+/**
+ * The methods arthron knows by name; any other string is sent as written.
+ * The standard ones go out uppercased whatever their case — fetch itself
+ * only normalizes six of them, so a lowercase "patch" would draw a 405.
+ */
+export type HttpMethod =
+  | "GET"
+  | "HEAD"
+  | "POST"
+  | "PUT"
+  | "PATCH"
+  | "DELETE"
+  | "OPTIONS"
+  | "QUERY"
+  | (string & {});
+
+/**
+ * Per-call options. Public types are interfaces, so a plugin package can add
+ * its own options by augmentation (`declare module "arthron"`).
+ */
+export interface RequestOptions
+  extends Omit<RequestInit, "body" | "method" | "headers"> {
   /** Per-call headers; a `null`/`undefined` value drops a client default. */
   headers?: HeadersOption;
   params?: QueryParams;
@@ -97,14 +115,15 @@ export type RequestOptions = Omit<
   meta?: ArthronMeta;
   /** Which non-ok responses reject on this call; overrides the client's `throwOn`. */
   throwOn?: (res: Response) => boolean;
-};
+}
 
-export type RequestInitWithBody = RequestOptions & {
-  method: string;
+/** `request()`'s options: any method, with the same body rules as `post`. */
+export interface RequestInitWithBody extends RequestOptions {
+  method: HttpMethod;
   body?: unknown;
-};
+}
 
-export type ArthronConfig = {
+export interface ArthronConfig {
   /** Prefix for relative paths. Without it only absolute URLs are accepted. */
   baseURL?: string;
   /**
@@ -130,9 +149,9 @@ export type ArthronConfig = {
    * (`mode: "no-cors"`) and the 3xx of `redirect: "manual"`.
    */
   throwOn?: (res: Response) => boolean;
-};
+}
 
-export type ArthronPromise = Promise<Response> & {
+export interface ArthronPromise extends Promise<Response> {
   json<T = unknown>(): Promise<T>;
   text(): Promise<string>;
   blob(): Promise<Blob>;
@@ -142,9 +161,9 @@ export type ArthronPromise = Promise<Response> & {
   sse(options?: SseOptions): AsyncIterable<SseEvent>;
   /** Iterate a newline-delimited JSON body, one parsed value per line. */
   ndjson<T = unknown>(options?: NdjsonOptions): AsyncIterable<T>;
-};
+}
 
-export type Arthron = {
+export interface Arthron {
   get(path: string, init?: RequestOptions): ArthronPromise;
   delete(path: string, init?: RequestOptions): ArthronPromise;
   head(path: string, init?: RequestOptions): ArthronPromise;
@@ -153,6 +172,7 @@ export type Arthron = {
   patch(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
   /** RFC 10008 QUERY: safe and idempotent like GET, but the query travels in the body. */
   query(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
+  /** Any method — the extension point for verbs without their own helper. */
   request(path: string, init: RequestInitWithBody): ArthronPromise;
   /**
    * New client with these plugins added: a named one replaces the plugin of
@@ -163,4 +183,4 @@ export type Arthron = {
   extend(config: Partial<ArthronConfig>): Arthron;
   /** New client without the plugins of these names. The receiver is untouched. */
   without(...names: string[]): Arthron;
-};
+}

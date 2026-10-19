@@ -7,6 +7,13 @@ import { timeout } from "./plugins/timeout";
 import { fakeFetch, jsonResponse } from "./test-utils";
 import type { ArthronConfig, Plugin } from "./types";
 
+// Public types are interfaces, so a plugin package can extend them.
+declare module "./types" {
+  interface RequestOptions {
+    traceName?: string;
+  }
+}
+
 const make = (
   fetch = fakeFetch(jsonResponse({ ok: 1 })),
   extra: Partial<ArthronConfig> = {},
@@ -95,6 +102,25 @@ describe("arthron — requests", () => {
     await api.head("/u");
     expect(fetch.calls.map((c) => c.init.method)).toEqual(["DELETE", "HEAD"]);
     expect(fetch.calls.every((c) => c.init.body === undefined)).toBe(true);
+  });
+  it.each([
+    ["patch", "PATCH"],
+    ["query", "QUERY"],
+    ["delete", "DELETE"],
+  ])("request() sends a standard method %s as %s", async (given, sent) => {
+    const { api, fetch } = make();
+    await api.request("/u", { method: given });
+    expect(fetch.calls[0]?.init.method).toBe(sent);
+  });
+  it("request() keeps a non-standard method as written", async () => {
+    const { api, fetch } = make();
+    await api.request("/u", { method: "Purge" });
+    expect(fetch.calls[0]?.init.method).toBe("Purge");
+  });
+  it("accepts options a plugin added to RequestOptions by augmentation", async () => {
+    const { api, fetch } = make();
+    await api.get("/u", { traceName: "checkout" });
+    expect(fetch.calls).toHaveLength(1);
   });
   it("request() sends an arbitrary method with the same body rules", async () => {
     const { api, fetch } = make();
