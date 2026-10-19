@@ -4,6 +4,7 @@ import {
   networkError,
   responseError,
 } from "../error/create-error";
+import { isReadableStream, runtimeStreamsRequestBody } from "../request/body";
 import { redactUrl } from "../request/url";
 import type { RequestContext } from "../types/request.types";
 import type { Resolved } from "./client.types";
@@ -33,6 +34,19 @@ function assertSendable(url: string, method: string): void {
 }
 
 /**
+ * A ReadableStream body the browser cannot stream is rejected before it is
+ * sent: Firefox would send the text "[object ReadableStream]", older Safari
+ * fails with a bare network error. Only for the global fetch, like
+ * assertSendable.
+ */
+function assertStreamable(url: string, method: string, body: unknown): void {
+  if (!isReadableStream(body) || runtimeStreamsRequestBody()) return;
+  throw new TypeError(
+    `arthron: cannot send ${method} ${redactUrl(url)} with a ReadableStream body — this browser cannot stream a request body and would send it garbled or not at all; pass a Blob or ArrayBuffer instead`,
+  );
+}
+
+/**
  * Non-ok responses the caller asked for are not failures: an opaque one
  * (`mode: "no-cors"`) and the 3xx of `redirect: "manual"`.
  */
@@ -54,7 +68,9 @@ export async function send(
   // interceptors produced. A TypeError is not an ArthronError: retry and
   // error interceptors leave it alone.
   if (resolved.fetch === undefined) {
-    assertSendable(ctx.url, ctx.init.method ?? "GET");
+    const method = ctx.init.method ?? "GET";
+    assertSendable(ctx.url, method);
+    assertStreamable(ctx.url, method, ctx.init.body);
   }
   const { signal } = ctx.init;
   let res: Response;

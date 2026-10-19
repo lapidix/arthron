@@ -24,6 +24,39 @@ export function isReadableStream(value: unknown): value is ReadableStream {
 }
 
 /**
+ * Whether `RequestCtor` can send a ReadableStream body. Node and Chromium
+ * read `duplex` and leave the stream alone; Firefox ignores `duplex` and
+ * would send the text "[object ReadableStream]"; older Safari refuses it.
+ * The check from
+ * https://developer.chrome.com/docs/capabilities/web-apis/fetch-streaming-requests
+ */
+export function canStreamRequestBody(RequestCtor: typeof Request): boolean {
+  let duplexRead = false;
+  try {
+    const request = new RequestCtor("https://stream.test", {
+      method: "POST",
+      body: new ReadableStream(),
+      get duplex() {
+        duplexRead = true;
+        return "half";
+      },
+    } as RequestInit);
+    return duplexRead && !request.headers.has("content-type");
+  } catch {
+    return false;
+  }
+}
+
+let runtimeStreams: boolean | undefined;
+
+/** `canStreamRequestBody` for the global `Request`, checked once. */
+export function runtimeStreamsRequestBody(): boolean {
+  runtimeStreams ??=
+    typeof Request !== "function" || canStreamRequestBody(Request);
+  return runtimeStreams;
+}
+
+/**
  * What JSON.stringify would turn into `{}`, `undefined` or internal state
  * instead of the data — with the fix, so it reads as an error message.
  */

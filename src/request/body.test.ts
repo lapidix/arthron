@@ -1,7 +1,7 @@
 import { Readable } from "node:stream";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
-import { serializeBody } from "./body";
+import { canStreamRequestBody, serializeBody } from "./body";
 
 describe("serializeBody", () => {
   it("returns undefined body for undefined", () => {
@@ -88,5 +88,30 @@ describe("serializeBody", () => {
     ]) {
       expect(() => serializeBody(body, {})).toThrow(TypeError);
     }
+  });
+});
+
+describe("canStreamRequestBody", () => {
+  it("is true where Request takes duplex and leaves the stream alone (Node, Chromium)", () => {
+    expect(canStreamRequestBody(Request)).toBe(true);
+  });
+  it("is false where the stream would go out as text (Firefox)", () => {
+    // Ignores duplex and stringifies the body, as Firefox does.
+    class TextRequest {
+      headers = new Headers({ "content-type": "text/plain;charset=UTF-8" });
+    }
+    expect(canStreamRequestBody(TextRequest as unknown as typeof Request)).toBe(
+      false,
+    );
+  });
+  it("is false where Request refuses a stream body", () => {
+    class Refusing {
+      constructor() {
+        throw new TypeError("ReadableStream uploading is not supported");
+      }
+    }
+    expect(canStreamRequestBody(Refusing as unknown as typeof Request)).toBe(
+      false,
+    );
   });
 });
