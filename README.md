@@ -96,9 +96,12 @@ try {
     e.data; // parsed body: JSON, else text, else undefined
     e.message; // from the body (`message` → `error` → `error.message` → `detail`), else "Request failed with status 404"
     e.response; // the original Response, still readable
+    e.request; // what was sent (url, init) — read it directly; it is left out of logs
   }
 }
 ```
+
+`request`, `response` and `headers` are not enumerable, and `toJSON()` returns only name, message, status, method, a URL without query or userinfo, and `data`. So `JSON.stringify(e)`, `console.error(e)` and error trackers never print your tokens. `e.message` usually comes from the server's body: treat it as untrusted text, not HTML.
 
 A request that is aborted or times out rejects with the abort reason — `AbortError` / `TimeoutError`, or whatever you passed to `abort(reason)` — not an `ArthronError`.
 
@@ -275,11 +278,12 @@ All arguments after `path` are optional, except `method` in `request`.
 class ArthronError extends Error {
   status: number; // 0 for network failures
   statusText: string;
-  headers: Headers;
+  headers: Headers; // not enumerable
   data: unknown;
-  response?: Response; // absent for network failures
-  request: RequestContext;
+  response?: Response; // absent for network failures; not enumerable
+  request: RequestContext; // not enumerable — holds credentials
   cause?: unknown; // the underlying error for network failures
+  toJSON(): { name; message; status; statusText; method; url; data }; // url without query/userinfo
 }
 ```
 

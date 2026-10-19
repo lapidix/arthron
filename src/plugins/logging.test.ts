@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { networkError } from "../error";
+import { networkError, responseError } from "../error";
 import { runPipeline } from "../pipeline";
 import { jsonResponse } from "../test-utils";
 import { type LogEvent, logging } from "./logging";
@@ -82,6 +82,23 @@ describe("logging", () => {
       runPipeline([logging({ onEvent })], ctx, async () => jsonResponse({})),
     ).rejects.toBe(sinkBug);
     expect(phases).toEqual(["start", "success"]);
+  });
+  it("an error event serializes without the request's secrets", async () => {
+    const events: LogEvent[] = [];
+    await runPipeline(
+      [logging({ onEvent: (e) => events.push(e) })],
+      {
+        url: "https://a/u?token=s3cret",
+        init: { headers: { authorization: "Bearer H-SECRET" } },
+      },
+      async (c) => {
+        throw await responseError(new Response("x", { status: 500 }), c);
+      },
+    ).catch(() => {});
+    const json = JSON.stringify(events);
+    expect(json).toContain('"phase":"error"');
+    expect(json).not.toContain("s3cret");
+    expect(json).not.toContain("H-SECRET");
   });
   it("is a no-op when disabled", async () => {
     const logger = spyLogger();
