@@ -15,8 +15,9 @@ export type AuthOptions = {
    * 401s share one refresh, and a call whose token was already replaced
    * retries without one. Throw when the refresh fails — every waiting call
    * rejects with that error. Requests the refresh makes through the same
-   * client need `meta: { auth: false }`. Without `refresh`, a 401 is thrown
-   * as is.
+   * client need `meta: { auth: false }`. Without `refresh`, or for a
+   * `ReadableStream` body (already read, so it cannot be resent), a 401 is
+   * thrown as is.
    */
   refresh?: () => Promise<void>;
 };

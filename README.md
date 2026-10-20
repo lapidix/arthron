@@ -240,7 +240,7 @@ const api = arthron({
 | `token` | required | `() => string \| null \| undefined`, or a promise of one; read on every attempt. No token, no header |
 | `refresh` | — | `() => Promise<void>`, called after a 401; then the call is redone once. Without it, a 401 is thrown as is |
 
-The token goes to `origin` only — never to a CDN or a URL taken from a response body. Concurrent 401s share one refresh: with refresh-token rotation, parallel refreshes would revoke each other and log the user out. A call whose token was already replaced by another call's refresh retries without refreshing again. A second 401 is thrown, and so is a failed refresh — every call waiting on it rejects with the error `refresh` threw, so that is the place to send the user to a login page.
+The token goes to `origin` only — never to a CDN or a URL taken from a response body. Concurrent 401s share one refresh: with refresh-token rotation, parallel refreshes would revoke each other and log the user out. A call whose token was already replaced by another call's refresh retries without refreshing again. A second 401 is thrown, and so is a failed refresh — every call waiting on it rejects with the error `refresh` threw, so that is the place to send the user to a login page. The 401 of a `ReadableStream` body is thrown without a refresh: the first try has read the stream, so there is nothing to resend.
 
 Per call, `meta: { auth: false }` sends no token and never refreshes. Use it for the login and refresh endpoints: a refresh request that went through `auth()` would, on its own 401, wait for itself.
 

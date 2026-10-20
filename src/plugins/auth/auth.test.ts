@@ -201,6 +201,24 @@ describe("auth", () => {
     expect(fetch.calls).toHaveLength(1);
   });
 
+  it("throws the 401 of a stream body, which cannot be sent again", async () => {
+    const { session, refresh } = setup();
+    const fetch = fakeFetch(jsonResponse({}, { status: 401 }));
+    const api = arthron({
+      baseURL: API,
+      fetch,
+      use: [auth({ origin: API, token: () => session.current, refresh })],
+    });
+    const body = new ReadableStream({
+      start: (controller) => controller.close(),
+    });
+    await expect(api.post("/upload", body)).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(fetch.calls).toHaveLength(1);
+    expect(session.refreshes).toBe(0);
+  });
+
   it("leaves other failures alone", async () => {
     const { session, refresh } = setup();
     const fetch = fakeFetch(jsonResponse({}, { status: 403 }));

@@ -1,4 +1,5 @@
 import { isArthronError } from "../../error/arthron-error";
+import { isReadableStream } from "../../request/body";
 import type { Plugin } from "../../types/plugin.types";
 import type { AuthOptions } from "./auth.types";
 
@@ -64,6 +65,8 @@ export function auth(options: AuthOptions): Plugin {
     },
     middleware: async (ctx, next) => {
       if (!refresh || ctx.meta?.auth === false) return next(ctx);
+      // A stream is read by the first try; there is nothing left to resend.
+      if (isReadableStream(ctx.init.body)) return next(ctx);
       try {
         return await next(ctx);
       } catch (error) {
