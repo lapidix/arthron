@@ -96,6 +96,17 @@ const server = createServer((req, res) => {
     res.end("event: end\ndata: two\n\n");
     return;
   }
+  if (req.url === "/progress-upload") {
+    let n = 0;
+    req.on("data", (c) => {
+      n += c.length;
+    });
+    req.on("end", () => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ n, cl: req.headers["content-length"] ?? null }));
+    });
+    return;
+  }
   if (req.url === "/token") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ token: "new" }));
@@ -255,6 +266,23 @@ try {
   assert(
     refreshes === 1 && privates.every((p) => p.authorization === "Bearer new"),
     "bearerAuth refreshes once for concurrent 401s and redoes each call",
+  );
+
+  const progress = [];
+  const counted = await arthron({
+    baseURL,
+    use: [esmPlugins.uploadProgress()],
+  })
+    .put("/progress-upload", new Blob([new Uint8Array(1024 * 1024)]), {
+      meta: { onUploadProgress: (e) => progress.push(e) },
+    })
+    .json();
+  assert(
+    counted.cl === "1048576" &&
+      counted.n === 1048576 &&
+      progress.length > 1 &&
+      progress.at(-1).progress === 1,
+    "uploadProgress counts a Node upload in steps and keeps content-length",
   );
 } finally {
   server.closeAllConnections?.();

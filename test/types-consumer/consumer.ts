@@ -16,6 +16,8 @@ import {
   type RetryOptions,
   retry,
   timeout,
+  type UploadProgressEvent,
+  uploadProgress,
 } from "arthron/plugins";
 
 declare module "arthron" {
@@ -63,6 +65,15 @@ const authed = api.use(bearerAuth(authOptions));
 
 // @ts-expect-error meta.bearerAuth only turns auth off
 authed.get("/x", { meta: { bearerAuth: true } });
+
+const uploads = api.use(uploadProgress());
+uploads.post("/f", new Blob([]), {
+  meta: {
+    onUploadProgress: (e: UploadProgressEvent) => e.progress ?? e.loaded,
+  },
+});
+// @ts-expect-error onUploadProgress is a callback
+uploads.post("/f", new Blob([]), { meta: { onUploadProgress: 1 } });
 
 export async function run(): Promise<void> {
   const pending: ArthronPromise = api.get("/users/{id}", {
