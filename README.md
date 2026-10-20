@@ -222,8 +222,6 @@ Aborts the attempt after `ms`, counted until the body has been fully read — a 
 
 A total deadline also cuts off a stream that is still flowing. For streams, bound the silence instead: `timeout({ idle: 30_000 })` aborts only after 30 s without data — waiting for headers or between chunks — however long the stream runs. Both can be combined: `timeout({ total: 600_000, idle: 30_000 })`; `timeout(ms)` is `timeout({ total: ms })`. Options with neither are a `TypeError`.
 
-`timeout(ms, { idle })` still works but is deprecated; it goes in the next major.
-
 ```ts
 arthron({ use: [retry(), timeout(5_000)] }); // 5 s per attempt — a timed-out attempt is not retried
 arthron({ use: [timeout(5_000), retry()] }); // 5 s for all attempts together

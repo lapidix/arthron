@@ -66,18 +66,14 @@ function deadlineTimer(
   return timer;
 }
 
-/** `timeout(ms)`, `timeout({ total, idle })` or the deprecated `timeout(ms, { idle })`, checked. */
-function settle(
-  first: number | TimeoutOptions,
-  second: Pick<TimeoutOptions, "idle">,
-): { ms: number; idle: number | undefined } {
+/** `timeout(ms)` or `timeout({ total, idle })`, checked. */
+function settle(first: number | TimeoutOptions): {
+  ms: number;
+  idle: number | undefined;
+} {
   if (typeof first === "number") {
     checkDeadline(first, `timeout(${first})`);
-    const { idle } = second;
-    if (idle !== undefined) {
-      checkDeadline(idle, `timeout(…, { idle: ${idle} })`);
-    }
-    return { ms: first, idle };
+    return { ms: first, idle: undefined };
   }
   const { total, idle } = first;
   if (total === undefined && idle === undefined) {
@@ -108,16 +104,17 @@ function settle(
  */
 export function timeout(ms: number): Plugin;
 export function timeout(options: TimeoutOptions): Plugin;
-/** @deprecated Use `timeout({ total: ms, idle })`; this form goes in the next major. */
-export function timeout(
-  ms: number,
-  options: Pick<TimeoutOptions, "idle">,
-): Plugin;
 export function timeout(
   first: number | TimeoutOptions,
-  second: Pick<TimeoutOptions, "idle"> = {},
+  removed?: unknown,
 ): Plugin {
-  const { ms, idle } = settle(first, second);
+  // The 1.x `timeout(ms, { idle })`: from JS it would drop idle silently.
+  if (removed !== undefined) {
+    throw new TypeError(
+      "arthron: timeout(ms, { idle }) was removed in 2.0 — pass one object, timeout({ total: ms, idle })",
+    );
+  }
+  const { ms, idle } = settle(first);
   return {
     name: "timeout",
     middleware: async (ctx, next) => {

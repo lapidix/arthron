@@ -308,18 +308,11 @@ describe("timeout — idle", () => {
   it("rejects a bad idle value when the plugin is created", () => {
     expect(() => timeout({ idle: -1 })).toThrow(TypeError);
   });
-  it("still takes the deprecated timeout(ms, { idle }) form", async () => {
-    const api = arthron({
-      baseURL: "https://a",
-      fetch: drip(10, 5, 2),
-      use: [timeout(Number.POSITIVE_INFINITY, { idle: 30 })],
-    });
-    const err = await (async () => {
-      for await (const _ of api.get("/s").sse()) {
-      }
-    })().catch((e: unknown) => e);
-    expect((err as Error).name).toBe("TimeoutError");
-    expect(() => timeout(1000, { idle: -1 })).toThrow(TypeError);
+  it("refuses the 1.x timeout(ms, { idle }) form, naming its replacement", () => {
+    // @ts-expect-error idle goes in the options object since 2.0
+    const removed = () => timeout(1000, { idle: 30 });
+    expect(removed).toThrow(TypeError);
+    expect(removed).toThrow(/timeout\(\{ total: ms, idle \}\)/);
   });
   it("applies total and idle together, whichever trips first", async () => {
     // Flows every 10 ms for 100 ms: idle never trips, total does.
@@ -367,11 +360,6 @@ describe("timeout({ total, idle })", () => {
       expect(() => timeout(options)).toThrow(TypeError);
     },
   );
-  it("takes total only through the options form", () => {
-    // @ts-expect-error the deprecated second argument has idle only
-    const misuse = () => timeout(1000, { total: 5 });
-    expect(misuse).toBeTypeOf("function");
-  });
 });
 
 describe("timeout — clone() keeps the fetched fields", () => {
