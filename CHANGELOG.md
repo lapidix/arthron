@@ -12,7 +12,7 @@ From 1.0.0 arthron follows [Semantic Versioning](https://semver.org/):
 
 A deprecated API keeps working, is marked `@deprecated` with what to use instead, is listed here, and is removed only in the next major.
 
-## [Unreleased]
+## [1.2.0] — 2026-10-20
 
 ### Added
 
@@ -112,6 +112,7 @@ First stable release. Compared with 0.1.0:
 
 - The auth-refresh recipe refreshes once for concurrent 401s and only sends the token to the API's origin; the error-page recipe runs once per call. Both are tested.
 
+[1.2.0]: https://github.com/lapidix/arthron/releases/tag/v1.2.0
 [1.1.0]: https://github.com/lapidix/arthron/releases/tag/v1.1.0
 [1.0.1]: https://github.com/lapidix/arthron/releases/tag/v1.0.1
 [1.0.0]: https://github.com/lapidix/arthron/releases/tag/v1.0.0
