@@ -713,3 +713,38 @@ describe("arthron — which responses reject", () => {
     await expect(api.get("/u")).rejects.toMatchObject({ status: 404 });
   });
 });
+
+describe("arthron — ctx.fetch", () => {
+  it("fills ctx.fetch with the client's fetch", async () => {
+    const fetch = fakeFetch(jsonResponse({}));
+    const seen: unknown[] = [];
+    const api = arthron({
+      baseURL: "https://a",
+      fetch,
+      use: [
+        {
+          request: (ctx) => {
+            seen.push(ctx.fetch);
+            return ctx;
+          },
+        },
+      ],
+    });
+    await api.get("/u");
+    expect(seen).toEqual([fetch]);
+  });
+  it("sends with the fetch a plugin put in ctx.fetch, and still makes ArthronErrors", async () => {
+    const client = fakeFetch(jsonResponse({}));
+    const swapped = fakeFetch(jsonResponse({}, { status: 500 }));
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: client,
+      use: [{ request: (ctx) => ({ ...ctx, fetch: swapped }) }],
+    });
+    const err = await api.get("/u").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ArthronError);
+    expect((err as ArthronError).status).toBe(500);
+    expect(client.calls).toHaveLength(0);
+    expect(swapped.calls).toHaveLength(1);
+  });
+});

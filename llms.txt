@@ -2,7 +2,7 @@
 
 > A fetch client assembled from plugins. Returns native `Response`; middleware controls flow (can retry via `next`), interceptors transform values. Zero dependencies, ESM + CJS, Node 22+ and browsers, TypeScript 5.0+.
 
-Import: `import { arthron, isArthronError, SchemaError, definePlugin } from "arthron";` and the built-in plugins `import { bearerAuth, retry, timeout, logging } from "arthron/plugins";` (also exported from "arthron" as deprecated aliases until the next major, bearerAuth excepted).
+Import: `import { arthron, isArthronError, SchemaError, definePlugin } from "arthron";` and the built-in plugins `import { bearerAuth, retry, timeout, logging, uploadProgress } from "arthron/plugins";` (also exported from "arthron" as deprecated aliases until the next major, bearerAuth excepted).
 
 ## Create
 
@@ -68,14 +68,14 @@ type Plugin = {
   response?: (res, ctx) => Response;           // per successful attempt; body is single-use, clone() to peek
   error?: (err: ArthronError, ctx) => ArthronError; // per failed attempt; return value is always thrown
 };
-type RequestContext = { url: string; init: Omit<RequestInit, "headers"> & { headers: Record<string, string> }; meta: ArthronMeta }; // headers: lowercase record, re-normalized after each request interceptor — spreading is safe
-// meta: per-call plugin settings from api.get(path, { meta }), never sent. Built-ins read meta.bearerAuth (false), meta.retry (false | options) and meta.timeout (ms).
+type RequestContext = { url: string; init: Omit<RequestInit, "headers"> & { headers: Record<string, string> }; meta: ArthronMeta; fetch?: typeof fetch }; // fetch: the fetch this attempt uses (client's, else global) — a plugin may replace or wrap it per attempt; send still makes every ArthronError. headers: lowercase record, re-normalized after each request interceptor — spreading is safe
+// meta: per-call plugin settings from api.get(path, { meta }), never sent. Built-ins read meta.bearerAuth (false), meta.onUploadProgress (callback), meta.retry (false | options) and meta.timeout (ms).
 // Add keys: declare module "arthron" { interface ArthronMeta { skipTrace?: boolean } }
 ```
 
 Order: `middleware[0]( middleware[1]( attempt: request interceptors → fetch → response | error interceptors ) )` — a middleware is called once; code after `await next(ctx)` runs after the response interceptors. Inside `try`, write `return await next(ctx)` or the catch misses the error. Default order: `[logging(), bearerAuth(…), timeout(ms), retry()]` (timeout before retry = whole call, after = per attempt). Same-named plugins replace each other; for two timeouts rename one: `{ ...timeout(30_000), name: "callTimeout" }`. Values that must be fresh per attempt (token, signature) → request interceptor; the same on every attempt (idempotency key) → middleware before retry. Each attempt gets a fresh copy of ctx (headers, and a FormData/URLSearchParams body).
 
-`api.use(...plugins)`, `api.extend(config)` and `api.without(...names)` return NEW clients; the original is unchanged. A named plugin replaces the one with the same name at its position (built-ins: "bearerAuth", "retry", "timeout", "logging"); unnamed plugins append.
+`api.use(...plugins)`, `api.extend(config)` and `api.without(...names)` return NEW clients; the original is unchanged. A named plugin replaces the one with the same name at its position (built-ins: "bearerAuth", "retry", "timeout", "logging", "uploadProgress"); unnamed plugins append.
 
 Helpers (identity, for typing): `definePlugin(p)`, `defineMiddleware(m)`, `defineInterceptor.request(f) / .response(f) / .error(f)`.
 
@@ -85,6 +85,7 @@ Helpers (identity, for typing): `definePlugin(p)`, `defineMiddleware(m)`, `defin
 - `timeout(ms)` | `timeout({ total?, idle? })` — `total` (= `ms`): deadline from attempt start until the body is fully read; `idle`: aborts after that many ms without data (headers or chunks), so `timeout({ idle: 30_000 })` never cuts a flowing stream. Both together: whichever trips first. `{}` → TypeError. Deprecated: `timeout(ms, { idle })`. Rejects with TimeoutError (not ArthronError; retry ignores it). Place after `retry` for per-attempt, before it for total. Per call: `meta: { timeout: ms }` (Infinity lifts it). `Infinity` = no deadline; NaN/negative/>2^31-1 → TypeError. Keeps `res.url`/`redirected`/`type` (through `clone()` too); timers are unref'd.
 - `bearerAuth({ origin, token, refresh? })` — `authorization: Bearer <token>` on every attempt, only to requests on `origin` (a URL or array; only origins count, non-http(s) → TypeError). `token: () => string | null | undefined | Promise<…>`, read per attempt; empty → no header. With `refresh: () => Promise<void>`, a 401 refreshes and redoes the call once: concurrent 401s share one refresh, a call whose token was already replaced retries without refreshing, a second 401 is thrown, a rejected refresh reaches every waiting call unchanged. Without `refresh`, or for a ReadableStream body (cannot be resent), 401 is thrown without refreshing. Per call: `meta: { bearerAuth: false }` = no token, no refresh — required on the login/refresh requests if they use the same client (else the refresh's own 401 waits on itself). Token is opaque: refresh ahead of a JWT's exp inside `token()`.
 - `logging({ enabled=true, logger=console, onEvent?, now? })` — start/success/error lines or structured events `{ phase, method, path, status?, ms?, error? }`. Never prints query strings or userinfo. Does not log cancellations.
+- `uploadProgress()` — does nothing alone; a call with `meta: { onUploadProgress: ({ loaded, total, progress }) => … }` and a body reports upload progress (total/progress undefined when the size is unknown; restarts at 0 per attempt; no events after the response or an abort). Browser (incl. Electron renderer): sent over XMLHttpRequest (cross-origin → CORS preflight; response not streamed; redirect "manual"/"error", mode "no-cors", credentials "omit" to the page's origin → TypeError before sending; cache/priority/referrerPolicy/integrity/keepalive ignored; ReadableStream body → no progress). Node (incl. jsdom on Node): fetch with the body counted in ≤ 64 KiB steps, content-length and Blob content-type kept (S3 presigned PUT works); FormData encoded with a known length, files streamed. Deno/Bun/Cloudflare Workers/Electron main/service workers, an injected fetch or another transport plugin → sent as usual without progress. A throwing callback rejects the call with its own error (not ArthronError, not retried) — keep uploadProgress last in use. Works through ctx.fetch.
 
 ## Recipes
 
@@ -107,7 +108,7 @@ for await (const { data } of api.post("/v1/chat/completions", { model, messages,
 
 ## Non-goals
 
-No request/response key transformation, no caching, no dedupe, no upload progress, no backend-envelope unwrapping. Do those in your adapter layer.
+No request/response key transformation, no caching, no dedupe, no backend-envelope unwrapping. Do those in your adapter layer.
 
 ## Types
 

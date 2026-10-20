@@ -2,7 +2,12 @@
 // browser, calling a server on another origin. Covers what differs from Node:
 // CORS preflights, opaque redirects, cookies, streaming bodies.
 import { arthron, isArthronError } from "arthron";
-import { retry, timeout } from "arthron/plugins";
+import {
+  retry,
+  timeout,
+  type UploadProgressEvent,
+  uploadProgress,
+} from "arthron/plugins";
 import { describe, expect, inject, it } from "vitest";
 
 type Echo = {
@@ -151,5 +156,116 @@ describe("arthron in the browser", () => {
       .json<Echo>();
     expect(without.cookie).toBeNull();
     expect(included.cookie).toBe("sid=abc");
+  });
+});
+
+describe("uploadProgress in the browser", () => {
+  const uploads = arthron({
+    baseURL: inject("server"),
+    use: [uploadProgress()],
+  });
+
+  it("reports upload progress and keeps the Blob's type", async () => {
+    const events: UploadProgressEvent[] = [];
+    const file = new Blob([new Uint8Array(8 * 1024 * 1024)], {
+      type: "application/octet-stream",
+    });
+    const echo = await uploads
+      .post("/echo", file, {
+        meta: { onUploadProgress: (e) => events.push(e) },
+      })
+      .json<Echo>();
+    expect(echo.size).toBe(8 * 1024 * 1024);
+    expect(echo.contentType).toBe("application/octet-stream");
+    expect(events.length).toBeGreaterThanOrEqual(1);
+    expect(events.at(-1)?.progress).toBe(1);
+  });
+
+  it("leaves a call without the callback on fetch", async () => {
+    const events = [];
+    for await (const e of uploads.get("/sse").sse()) events.push(e);
+    expect(events).toHaveLength(3);
+  });
+
+  it("retries a 503 and reports a 404 as ArthronError", async () => {
+    const onUploadProgress = () => {};
+    const retried = await uploads
+      .use(retry({ methods: ["POST"], delay: () => 0 }))
+      .post("/flaky", "x", {
+        params: { id: `upload-${Math.random()}` },
+        meta: { onUploadProgress },
+      })
+      .json();
+    expect(retried).toEqual({ attempts: 2 });
+    const err = await uploads
+      .post("/missing", "x", { meta: { onUploadProgress } })
+      .catch((e: unknown) => e);
+    expect(isArthronError(err) && err.status).toBe(404);
+    expect(isArthronError(err) && err.detail).toBe("no such user");
+  });
+
+  it("times out with TimeoutError", async () => {
+    const err = await uploads
+      .use(timeout(100))
+      .post("/slow", "x", { meta: { onUploadProgress: () => {} } })
+      .catch((e: unknown) => e);
+    expect((err as Error).name).toBe("TimeoutError");
+  });
+
+  it("refuses redirect: manual with a TypeError before sending", async () => {
+    const err = await uploads
+      .post("/echo", "x", {
+        redirect: "manual",
+        meta: { onUploadProgress: () => {} },
+      })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TypeError);
+    expect((err as Error).message).toMatch(
+      /onUploadProgress cannot be combined/,
+    );
+  });
+
+  it("reports a 0-byte body as complete", async () => {
+    const events: UploadProgressEvent[] = [];
+    await uploads.post("/echo", new Blob([]), {
+      meta: { onUploadProgress: (e) => events.push(e) },
+    });
+    expect(events.at(-1)).toEqual({ loaded: 0, total: 0, progress: 1 });
+    expect(events.some((e) => Number.isNaN(e.progress))).toBe(false);
+  });
+
+  it("rejects an aborted upload with its reason and reports nothing after", async () => {
+    const controller = new AbortController();
+    const reason = new Error("cancelled");
+    const events: UploadProgressEvent[] = [];
+    let afterAbort = 0;
+    const call = uploads
+      .post("/echo", new Blob([new Uint8Array(8 * 1024 * 1024)]), {
+        signal: controller.signal,
+        meta: {
+          onUploadProgress: (e) => {
+            events.push(e);
+            if (controller.signal.aborted) afterAbort += 1;
+          },
+        },
+      })
+      .catch((e: unknown) => e);
+    controller.abort(reason);
+    expect(await call).toBe(reason);
+    expect(afterAbort).toBe(0);
+  });
+
+  it("rejects with the callback's own error", async () => {
+    const boom = new RangeError("boom");
+    const err = await uploads
+      .post("/echo", new Blob([new Uint8Array(1024 * 1024)]), {
+        meta: {
+          onUploadProgress: () => {
+            throw boom;
+          },
+        },
+      })
+      .catch((e: unknown) => e);
+    expect(err).toBe(boom);
   });
 });

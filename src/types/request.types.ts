@@ -15,12 +15,20 @@ export interface RequestContext {
   init: Omit<RequestInit, "headers"> & { headers: Record<string, string> };
   /** Per-call settings for plugins (`RequestOptions.meta`); never sent. */
   meta: ArthronMeta;
+  /**
+   * The fetch this attempt is sent with — the client's `fetch`, else the
+   * global one. Always set on contexts arthron creates; replace it to change
+   * the transport for this attempt, wrap it to observe. Optional so a
+   * context you build yourself stays valid.
+   */
+  fetch?: typeof fetch;
 }
 
 /**
  * Per-call settings for plugins, passed as `api.get(path, { meta })` and
  * carried next to `init` — never sent to fetch. The built-in plugins read
- * `bearerAuth`, `retry` and `timeout`; your own add keys by augmentation:
+ * `bearerAuth`, `onUploadProgress`, `retry` and `timeout`; your own add keys
+ * by augmentation:
  *
  * ```ts
  * declare module "arthron" {
@@ -34,11 +42,29 @@ export interface ArthronMeta {
    * on its 401 — for the login and token-refresh endpoints.
    */
   bearerAuth?: false;
+  /**
+   * Upload progress for this call, with `uploadProgress()` on the client.
+   * Never called without that plugin or without a body, nor where progress
+   * cannot be had: a client with an injected `fetch`, another plugin's
+   * transport, Deno, Bun, Cloudflare Workers, a service worker, or a
+   * `ReadableStream` body in a browser — those calls are sent as usual.
+   */
+  onUploadProgress?: (event: UploadProgressEvent) => void;
   /** `false` turns `retry()` off for this call; an object overrides its options. */
   retry?: false | Omit<RetryOptions, "sleep">;
   /** Deadline for this call in ms, overriding `timeout(ms)`. `Infinity` lifts it. */
   timeout?: number;
 }
+
+/** One step of an upload, as `meta.onUploadProgress` receives it. */
+export type UploadProgressEvent = {
+  /** Bytes sent so far. */
+  loaded: number;
+  /** Bytes in the whole body; `undefined` when it cannot be known (a stream without content-length). */
+  total: number | undefined;
+  /** `loaded / total`, from 0 to 1; `undefined` when `total` is. */
+  progress: number | undefined;
+};
 
 export type RetryOptions = {
   /** Number of retries after the first attempt. Default 2 (3 requests total). */

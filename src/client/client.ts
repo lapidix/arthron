@@ -88,7 +88,14 @@ export function arthron(config: ArthronConfig = {}): Arthron {
       return toArthronPromise(
         runPipeline(
           resolved.use,
-          { url, init: requestInit, meta: { ...meta } },
+          {
+            url,
+            init: requestInit,
+            meta: { ...meta },
+            // Read per call: a global patched after the client was created
+            // (msw's `server.listen()`, for one) is still honoured.
+            fetch: resolved.fetch ?? globalThis.fetch,
+          },
           (ctx) => send(resolved, ctx, throwOn),
         ),
         init.signal,

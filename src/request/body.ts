@@ -16,7 +16,7 @@ const RAW_TAGS = new Set([
  * `Symbol.toStringTag`, not `instanceof`: a body from another realm or a
  * polyfill (formdata-node, fetch-blob) must not be JSON-encoded into `{}`.
  */
-const tagOf = (value: unknown): string =>
+export const tagOf = (value: unknown): string =>
   Object.prototype.toString.call(value).slice(8, -1);
 
 export function isReadableStream(value: unknown): value is ReadableStream {

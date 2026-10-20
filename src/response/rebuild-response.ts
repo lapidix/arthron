@@ -13,16 +13,20 @@ export function rebuildResponse(
     statusText: original.statusText,
     headers: original.headers,
   });
-  return withFetchedFields(rebuilt, original);
+  const { url, redirected, type } = original;
+  return withFields(rebuilt, { url, redirected, type });
 }
 
-/** Copy the fields the constructor resets — onto `clone()`s as well. */
-function withFetchedFields(target: Response, from: Response): Response {
+/** The fields a fetched Response has and the constructor resets. */
+export type FetchedFields = Pick<Response, "url" | "redirected" | "type">;
+
+/** Set those fields on `target` — and on its `clone()`s as well. */
+export function withFields(target: Response, fields: FetchedFields): Response {
   const clone = target.clone.bind(target);
   return Object.defineProperties(target, {
-    url: { value: from.url },
-    redirected: { value: from.redirected },
-    type: { value: from.type },
-    clone: { value: () => withFetchedFields(clone(), from) },
+    url: { value: fields.url },
+    redirected: { value: fields.redirected },
+    type: { value: fields.type },
+    clone: { value: () => withFields(clone(), fields) },
   });
 }
