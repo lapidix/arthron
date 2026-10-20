@@ -3,7 +3,8 @@
 A `fetch` client you assemble from plugins.
 
 ```ts
-import { arthron, logging, retry, timeout } from "arthron";
+import { arthron } from "arthron";
+import { logging, retry, timeout } from "arthron/plugins";
 
 const api = arthron({
   baseURL: "https://api.example.com",
@@ -168,6 +169,8 @@ middleware 1
 Every attempt starts from a fresh copy of the context, so a header set by an interceptor on attempt one does not leak into attempt two. `ctx.init.headers` is always a plain record with lowercased names, restored to that shape after every request interceptor, so `{ ...ctx.init.headers, name: value }` is safe.
 
 ### Built in
+
+The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging, retry, timeout } from "arthron/plugins"`. They are plain plugins — anything they do, yours can. `logging`, `retry` and `timeout` are also exported from `arthron` itself, as they were in 1.0; those exports are deprecated and go in the next major.
 
 #### `retry(options)`
 

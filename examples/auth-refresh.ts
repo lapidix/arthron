@@ -4,7 +4,8 @@
 // between concurrent 401s, and redoes each call once. The refresh endpoint
 // goes through the same client with `meta: { bearerAuth: false }`: no token is
 // attached, and a 401 from it is thrown instead of waiting on itself.
-import { arthron, bearerAuth } from "../src";
+import { arthron } from "../src";
+import { bearerAuth } from "../src/plugins";
 
 const API = "https://api.example.com";
 

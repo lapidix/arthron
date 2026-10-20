@@ -16,11 +16,13 @@ A deprecated API keeps working, is marked `@deprecated` with what to use instead
 
 ### Added
 
+- `arthron/plugins`, where the built-in plugins and their option types now live: `import { bearerAuth, logging, retry, timeout } from "arthron/plugins"`. The main entry keeps the core.
 - `bearerAuth({ origin, token, refresh? })`: Bearer tokens with a refresh on 401, built in. The token goes to `origin` only; concurrent 401s share one refresh, a call whose token was already replaced retries without refreshing, and each call is redone once. `meta: { bearerAuth: false }` skips it for one call — the login and refresh endpoints. It replaces the auth-refresh recipe, which `examples/auth-refresh.ts` now shows with the built-in.
 - `timeout({ total?, idle? })`. `timeout({ idle: 30_000 })` bounds only the silence of a stream, without the `Infinity` that `timeout(Infinity, { idle })` needed; `timeout(ms)` is unchanged.
 
 ### Deprecated
 
+- `logging`, `retry` and `timeout` (and `LogEvent`, `LoggingOptions`, `TimeoutOptions`) from `arthron` — import them from `arthron/plugins`. They are the same functions and keep working until the next major.
 - `timeout(ms, { idle })` — use `timeout({ total: ms, idle })`. It keeps working and goes in the next major.
 
 ## [1.0.1] — 2026-10-19

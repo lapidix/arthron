@@ -2,7 +2,8 @@
 // OpenAI endpoint, OpenAI itself) and print tokens as they arrive.
 //
 // Run: npx tsx examples/llm-stream.ts
-import { arthron, isArthronError, retry, timeout } from "../src";
+import { arthron, isArthronError } from "../src";
+import { retry, timeout } from "../src/plugins";
 
 const api = arthron({
   baseURL: process.env.LLM_BASE_URL ?? "http://localhost:8000/v1",

@@ -7,6 +7,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const esm = await import("../dist/index.mjs");
 const cjs = require("../dist/index.cjs");
+const esmPlugins = await import("../dist/plugins.mjs");
+const cjsPlugins = require("../dist/plugins.cjs");
 
 const assert = (cond, msg) => {
   if (!cond) {
@@ -21,6 +23,16 @@ assert(typeof cjs.arthron === "function", "CJS entry exports arthron()");
 assert(
   Object.keys(esm).sort().join() === Object.keys(cjs).sort().join(),
   "ESM and CJS export the same names",
+);
+assert(
+  typeof esmPlugins.retry === "function" &&
+    Object.keys(esmPlugins).sort().join() ===
+      Object.keys(cjsPlugins).sort().join(),
+  "arthron/plugins loads, with the same names in ESM and CJS",
+);
+assert(
+  esm.retry === esmPlugins.retry && cjs.timeout === cjsPlugins.timeout,
+  "the deprecated main-entry plugins are the arthron/plugins functions",
 );
 
 const crossCopy = await cjs
@@ -106,7 +118,8 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const baseURL = `http://127.0.0.1:${server.address().port}`;
 
 try {
-  const { arthron, bearerAuth, retry, timeout, isArthronError } = esm;
+  const { arthron, isArthronError } = esm;
+  const { bearerAuth, retry, timeout } = esmPlugins;
   const api = arthron({
     baseURL,
     use: [retry({ delay: () => 0 }), timeout(500)],
