@@ -25,13 +25,20 @@ function cloneBody(body: BodyInit): BodyInit {
  * again (retry) must not see the previous attempt's changes, so every attempt
  * starts from a fresh copy of the headers and of a FormData/URLSearchParams body.
  */
-function cloneContext({ url, init, meta }: RequestContext): RequestContext {
+function cloneContext({
+  url,
+  init,
+  meta,
+  fetch,
+}: RequestContext): RequestContext {
   const copy: RequestContext["init"] = {
     ...init,
     headers: toHeaderRecord(init.headers),
   };
   if (init.body) copy.body = cloneBody(init.body);
-  return { url, init: copy, meta: { ...meta } };
+  const out: RequestContext = { url, init: copy, meta: { ...meta } };
+  if (fetch) out.fetch = fetch;
+  return out;
 }
 
 /**
@@ -43,12 +50,16 @@ function normalize(
   ctx: RequestContext,
   previous: RequestContext,
 ): RequestContext {
-  return {
+  const out: RequestContext = {
     ...ctx,
     init: { ...ctx.init, headers: toHeaderRecord(ctx.init.headers) },
-    // A plugin that builds a fresh `{ url, init }` must not lose the call's meta.
+    // A plugin that builds a fresh `{ url, init }` must not lose the call's
+    // meta, nor the fetch it is sent with.
     meta: ctx.meta ?? previous.meta,
   };
+  const fetch = ctx.fetch ?? previous.fetch;
+  if (fetch) out.fetch = fetch;
+  return out;
 }
 
 /**
@@ -139,10 +150,14 @@ export async function runPipeline(
   ): Promise<Response> => {
     const middleware = middlewares[index];
     if (!middleware) return attempt(input);
-    // A middleware that builds a fresh `{ url, init }` keeps the call's meta.
-    const res = await middleware(input, (next) =>
-      dispatch(index + 1, { ...next, meta: next.meta ?? input.meta }),
-    );
+    // A middleware that builds a fresh `{ url, init }` keeps the call's meta
+    // and fetch.
+    const res = await middleware(input, (next) => {
+      const ctx: RequestContext = { ...next, meta: next.meta ?? input.meta };
+      const fetch = next.fetch ?? input.fetch;
+      if (fetch) ctx.fetch = fetch;
+      return dispatch(index + 1, ctx);
+    });
     return returned(
       res,
       "a middleware",

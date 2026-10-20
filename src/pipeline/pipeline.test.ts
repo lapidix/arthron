@@ -378,6 +378,50 @@ describe("runPipeline", () => {
     ).rejects.toThrow(/a middleware resolved with undefined — return/);
   });
 
+  it("keeps ctx.fetch across interceptors and middleware that build a fresh context", async () => {
+    const f = (async () => jsonResponse({})) as unknown as typeof fetch;
+    const seen: unknown[] = [];
+    await runPipeline(
+      [
+        { request: (c) => ({ url: c.url, init: c.init, meta: c.meta }) },
+        {
+          middleware: (c, next) =>
+            next({ url: c.url, init: c.init, meta: c.meta }),
+        },
+      ],
+      { ...ctx(), fetch: f },
+      async (c) => {
+        seen.push(c.fetch);
+        return jsonResponse({});
+      },
+    );
+    expect(seen).toEqual([f]);
+  });
+
+  it("lets a request interceptor replace ctx.fetch for one attempt", async () => {
+    const f = (async () => jsonResponse({})) as unknown as typeof fetch;
+    const g = (async () => jsonResponse({})) as unknown as typeof fetch;
+    const seen: unknown[] = [];
+    let attempt = 0;
+    await runPipeline(
+      [
+        {
+          middleware: async (c, next) => {
+            await next(c);
+            return next(c);
+          },
+          request: (c) => (++attempt === 1 ? { ...c, fetch: g } : c),
+        },
+      ],
+      { ...ctx(), fetch: f },
+      async (c) => {
+        seen.push(c.fetch);
+        return jsonResponse({});
+      },
+    );
+    expect(seen).toEqual([g, f]);
+  });
+
   it("works with zero plugins", async () => {
     expect((await runPipeline([], ctx(), ok)).ok).toBe(true);
   });

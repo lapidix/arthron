@@ -146,6 +146,7 @@ type RequestContext = {
   url: string;
   init: Omit<RequestInit, "headers"> & { headers: Record<string, string> }; // lowercase names
   meta: ArthronMeta; // per-call plugin settings, never sent
+  fetch?: typeof fetch; // the fetch this attempt is sent with — replace it to change the transport, wrap it to observe
 };
 ```
 

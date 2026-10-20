@@ -68,7 +68,7 @@ type Plugin = {
   response?: (res, ctx) => Response;           // per successful attempt; body is single-use, clone() to peek
   error?: (err: ArthronError, ctx) => ArthronError; // per failed attempt; return value is always thrown
 };
-type RequestContext = { url: string; init: Omit<RequestInit, "headers"> & { headers: Record<string, string> }; meta: ArthronMeta }; // headers: lowercase record, re-normalized after each request interceptor — spreading is safe
+type RequestContext = { url: string; init: Omit<RequestInit, "headers"> & { headers: Record<string, string> }; meta: ArthronMeta; fetch?: typeof fetch }; // fetch: the fetch this attempt uses (client's, else global) — a plugin may replace or wrap it per attempt; send still makes every ArthronError. headers: lowercase record, re-normalized after each request interceptor — spreading is safe
 // meta: per-call plugin settings from api.get(path, { meta }), never sent. Built-ins read meta.bearerAuth (false), meta.retry (false | options) and meta.timeout (ms).
 // Add keys: declare module "arthron" { interface ArthronMeta { skipTrace?: boolean } }
 ```

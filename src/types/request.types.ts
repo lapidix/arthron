@@ -15,6 +15,13 @@ export interface RequestContext {
   init: Omit<RequestInit, "headers"> & { headers: Record<string, string> };
   /** Per-call settings for plugins (`RequestOptions.meta`); never sent. */
   meta: ArthronMeta;
+  /**
+   * The fetch this attempt is sent with — the client's `fetch`, else the
+   * global one. Always set on contexts arthron creates; replace it to change
+   * the transport for this attempt, wrap it to observe. Optional so a
+   * context you build yourself stays valid.
+   */
+  fetch?: typeof fetch;
 }
 
 /**
