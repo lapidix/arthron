@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { arthron } from "../../client/client";
 import { runPipeline } from "../../pipeline/pipeline";
 import { fakeFetch, jsonResponse } from "../../testkit/fetch.testkit";
@@ -99,6 +99,42 @@ describe("uploadProgress against a real server", () => {
   });
   afterAll(() => {
     server.close();
+  });
+  beforeEach(() => {
+    hits = 0;
+  });
+
+  it("rejects with the callback's own error, untouched and not retried", async () => {
+    hits = 1; // past the server's one-off 503
+    const boom = new RangeError("boom");
+    const seen: unknown[] = [];
+    const api = arthron({
+      baseURL: base,
+      headers: { authorization: "Bearer new" },
+      use: [
+        retry({ methods: ["PUT"], delay: () => 0 }),
+        {
+          error: (e) => {
+            seen.push(e);
+            return e;
+          },
+        },
+        uploadProgress(),
+      ],
+    });
+    const before = hits;
+    const err = await api
+      .put("/u", new Blob([new Uint8Array(300_000)]), {
+        meta: {
+          onUploadProgress: () => {
+            throw boom;
+          },
+        },
+      })
+      .catch((e: unknown) => e);
+    expect(err).toBe(boom);
+    expect(seen).toEqual([]);
+    expect(hits - before).toBeLessThanOrEqual(1);
   });
 
   it("uploads with progress through retry and bearerAuth, keeping content-length", async () => {
