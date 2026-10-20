@@ -1,5 +1,10 @@
+import {
+  type FetchedFields,
+  withFields,
+} from "../../response/rebuild-response";
 import type { UploadProgressEvent } from "../../types/request.types";
 import { progressEvent } from "./progress-event";
+import { headersOf, urlOf } from "./request-parts";
 
 const NULL_BODY_STATUSES = new Set([101, 204, 205, 304]);
 
@@ -16,6 +21,28 @@ export function parseResponseHeaders(raw: string): Headers {
 }
 
 /**
+ * What fetch would report for this response. XHR gives only the final URL;
+ * the request URL is normalized (case, default port, no fragment) before
+ * comparing, so writing it differently is not a redirect.
+ */
+export function responseFields(
+  requestUrl: string,
+  responseURL: string,
+  pageHref: string | undefined,
+): FetchedFields {
+  const requested = new URL(requestUrl, pageHref);
+  requested.hash = "";
+  const final = new URL(responseURL || requested.href, pageHref);
+  const sameOrigin =
+    pageHref !== undefined && final.origin === new URL(pageHref).origin;
+  return {
+    url: final.href,
+    redirected: final.href !== requested.href,
+    type: sameOrigin ? "basic" : "cors",
+  };
+}
+
+/**
  * A fetch over XMLHttpRequest, for the one thing fetch cannot do in a
  * browser: report upload progress. It honours what an arthron attempt
  * carries — method, headers, body, `credentials: "include"`, `signal` — and
@@ -28,7 +55,7 @@ export function xhrFetch(
 ): typeof fetch {
   return ((input: RequestInfo | URL, init: RequestInit = {}) =>
     new Promise<Response>((resolve, reject) => {
-      const url = String(input);
+      const url = urlOf(input);
       const { signal } = init;
       if (signal?.aborted) return reject(signal.reason);
 
@@ -82,11 +109,11 @@ export function xhrFetch(
           statusText: xhr.statusText,
           headers,
         });
-        Object.defineProperties(res, {
-          url: { value: xhr.responseURL },
-          redirected: { value: xhr.responseURL !== url },
-        });
-        settle(() => resolve(res));
+        const page = (globalThis as { location?: { href?: string } }).location
+          ?.href;
+        settle(() =>
+          resolve(withFields(res, responseFields(url, xhr.responseURL, page))),
+        );
       };
       xhr.onerror = xhr.ontimeout = () =>
         settle(() => reject(new TypeError("Network request failed")));
@@ -94,9 +121,7 @@ export function xhrFetch(
       xhr.open(init.method ?? "GET", url);
       xhr.responseType = "arraybuffer";
       if (init.credentials === "include") xhr.withCredentials = true;
-      for (const [name, value] of Object.entries(
-        (init.headers ?? {}) as Record<string, string>,
-      )) {
+      for (const [name, value] of Object.entries(headersOf(input, init))) {
         xhr.setRequestHeader(name, value);
       }
       xhr.send((init.body ?? null) as XMLHttpRequestBodyInit | null);

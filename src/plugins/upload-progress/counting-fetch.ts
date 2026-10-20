@@ -1,6 +1,7 @@
 import { tagOf } from "../../request/body";
 import type { UploadProgressEvent } from "../../types/request.types";
 import { progressEvent } from "./progress-event";
+import { headersOf } from "./request-parts";
 
 /**
  * The most one progress step covers. Chunks are cut to it whatever their
@@ -92,14 +93,7 @@ export function countingFetch(
   onProgress: (event: UploadProgressEvent) => void,
 ): typeof fetch {
   return (async (input: RequestInfo | URL, init: RequestInit = {}) => {
-    // Any header shape, lowercased — a plugin wrapping this fetch may pass
-    // Headers, or a Request whose own headers init then extends.
-    const merged = new Headers(
-      input instanceof Request ? input.headers : undefined,
-    );
-    for (const [name, value] of new Headers(init.headers))
-      merged.set(name, value);
-    const headers: Record<string, string> = Object.fromEntries(merged);
+    const headers = headersOf(input, init);
     const source = await sourceOf(init.body, headers);
     if (!source) return base(input, init);
     const { total, type } = source;
