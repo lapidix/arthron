@@ -5,7 +5,7 @@ import * as plugins from "./index";
 describe("arthron/plugins surface", () => {
   it("exports exactly the documented values", () => {
     expect(Object.keys(plugins).sort()).toEqual(
-      ["bearerAuth", "logging", "retry", "timeout"].sort(),
+      ["bearerAuth", "logging", "retry", "timeout", "uploadProgress"].sort(),
     );
   });
   it("the deprecated main-entry plugins are the same functions", () => {
