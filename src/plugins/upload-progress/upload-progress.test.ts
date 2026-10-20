@@ -73,6 +73,32 @@ describe("uploadProgress", () => {
   });
 });
 
+describe("uploadProgress keeps argument errors", () => {
+  it("rejects a malformed URL with a TypeError, not a retried network error", async () => {
+    let attempts = 0;
+    const api = arthron({
+      use: [
+        retry({
+          methods: ["PUT"],
+          delay: () => 0,
+          onRetry: () => {
+            attempts += 1;
+          },
+        }),
+        uploadProgress(),
+      ],
+    });
+    const err = await api
+      .put("http://exa mple.test/x", "hello", {
+        meta: { onUploadProgress: () => {} },
+      })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TypeError);
+    expect((err as Error).message).toMatch(/arthron: cannot send PUT/);
+    expect(attempts).toBe(0);
+  });
+});
+
 describe("uploadProgress against a real server", () => {
   let base = "";
   let hits = 0;

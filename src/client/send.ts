@@ -66,10 +66,12 @@ export async function send(
   // created (msw's `server.listen()`, for one) must still be honoured.
   const fetchImpl = ctx.fetch ?? resolved.fetch ?? globalThis.fetch;
   // Here rather than before the pipeline, so it sees the URL the request
-  // interceptors produced. Only for the global fetch itself: an injected or
-  // wrapped one owns its rules. A TypeError is not an ArthronError: retry
-  // and error interceptors leave it alone.
-  if (fetchImpl === globalThis.fetch) {
+  // interceptors produced. Whenever the client relies on the runtime's fetch
+  // — also when a plugin wrapped or swapped it for this attempt (upload
+  // progress) — but not for an injected fetch, which owns its URL rules. A
+  // TypeError is not an ArthronError: retry and error interceptors leave it
+  // alone.
+  if (resolved.fetch === undefined) {
     const method = ctx.init.method ?? "GET";
     assertSendable(ctx.url, method);
     assertStreamable(ctx.url, method, ctx.init.body);
