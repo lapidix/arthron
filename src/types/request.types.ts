@@ -47,6 +47,16 @@ export interface ArthronMeta {
   timeout?: number;
 }
 
+/** One step of an upload, as `meta.onUploadProgress` receives it. */
+export type UploadProgressEvent = {
+  /** Bytes sent so far. */
+  loaded: number;
+  /** Bytes in the whole body; `undefined` when it cannot be known (a stream without content-length). */
+  total: number | undefined;
+  /** `loaded / total`, from 0 to 1; `undefined` when `total` is. */
+  progress: number | undefined;
+};
+
 export type RetryOptions = {
   /** Number of retries after the first attempt. Default 2 (3 requests total). */
   retries?: number;
