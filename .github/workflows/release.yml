@@ -9,12 +9,12 @@ name: Release
 #
 # Two human gates: the `npm` environment needs a reviewer's approval before
 # this job runs, and the staged version goes live only once a maintainer
-# approves it with 2FA — on npmjs.com, or `npm stage list arthron` then
-# `npm stage approve <stage-id>`.
+# approves it with 2FA — `pnpm release:approve`, or on npmjs.com.
 #
 # Once staged, a second job drafts the GitHub Release with the version's
-# CHANGELOG.md entry as notes. Publish the draft after approving the stage, so
-# the repo's "Latest" release is never ahead of npm.
+# CHANGELOG.md entry as notes. `pnpm release:approve` publishes the draft once
+# the version is on npm (run it after approving on npmjs.com too), so the
+# repo's "Latest" release is never ahead of npm.
 on:
   push:
     tags: ["v*"]
