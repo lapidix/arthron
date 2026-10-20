@@ -4,12 +4,19 @@ import {
   type ArthronPromise,
   arthron,
   isArthronError,
-  retry,
+  // Deprecated, still exported until the next major.
+  logging as legacyLogging,
   SchemaError,
   type SseEvent,
   type StandardSchemaV1,
-  timeout,
 } from "arthron";
+import {
+  type BearerAuthOptions,
+  bearerAuth,
+  type RetryOptions,
+  retry,
+  timeout,
+} from "arthron/plugins";
 
 declare module "arthron" {
   interface ArthronMeta {
@@ -34,9 +41,28 @@ const api = arthron({
   baseURL: "https://api.example.com",
   credentials: "include",
   headers: { authorization: "Bearer token" },
-  use: [retry({ retries: 2 }), timeout(5_000)],
+  use: [
+    legacyLogging({ enabled: false }),
+    retry({ retries: 2 } satisfies RetryOptions),
+    timeout(5_000),
+    timeout({ idle: 30_000 }),
+  ],
   throwOn: (res) => res.status >= 500,
 });
+
+const authOptions: BearerAuthOptions = {
+  origin: ["https://api.example.com"],
+  token: async () => null,
+  refresh: async () => {
+    await authed.post("/token/refresh", undefined, {
+      meta: { bearerAuth: false },
+    });
+  },
+};
+const authed = api.use(bearerAuth(authOptions));
+
+// @ts-expect-error meta.bearerAuth only turns auth off
+authed.get("/x", { meta: { bearerAuth: true } });
 
 export async function run(): Promise<void> {
   const pending: ArthronPromise = api.get("/users/{id}", {

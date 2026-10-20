@@ -3,18 +3,19 @@
 A `fetch` client you assemble from plugins.
 
 ```ts
-import { arthron, logging, retry, timeout } from "arthron";
+import { arthron } from "arthron";
+import { logging, retry, timeout } from "arthron/plugins";
 
 const api = arthron({
   baseURL: "https://api.example.com",
-  use: [logging(), timeout(10_000), retry()],
+  use: [logging(), timeout(10_000), retry()], // 10 s for the whole call, retries included
 });
 
 const user = await api.get("/me").json<User>();
 ```
 
 - **Plain `Response` in, plain `Response` out.** No wrapper type to learn. `.json<T>()` and friends are there when you want the body.
-- **Two kinds of plugin, kept apart by the types.** Middleware wraps the request and controls the flow — it can call `next` again to retry. Interceptors transform one value and return it; they cannot retry, skip, or swallow. Auth refresh, retry, timeouts, logging, and anything that reacts to how a call ended (error pages, domain errors) are middleware. Headers, trace ids and per-attempt error details are interceptors.
+- **A plugin holds middleware and interceptors, kept apart by the types.** Middleware wraps the call and controls the flow — it can call `next` again to retry, or not at all. Interceptors transform one value and return it; they cannot retry, skip, or swallow. Retry, timeouts, logging, auth refresh, and anything that reacts to how a call ended (error pages, domain errors) are middleware. Headers, trace ids and per-attempt error details are interceptors. One plugin can use both: `bearerAuth` sets the header in an interceptor and refreshes in middleware.
 - **One error type, two causes.** `ArthronError` means the server said no (`!response.ok`) or the network failed (`status: 0`). Everything else — cancellation, a bug in a plugin — is rethrown as-is.
 - Zero dependencies. ESM and CJS. TypeScript types included, for TypeScript 5.0+. Node 22+ and browsers.
 
@@ -118,15 +119,15 @@ A request that is aborted or times out rejects with the abort reason — `AbortE
 
 ### Derive clients
 
-Clients are immutable. `use` and `extend` return a new client and leave the original alone.
+Clients are immutable. `use`, `extend` and `without` return a new client and leave the original alone — so keep what they return. `api.use(plugin)` on its own line does nothing.
 
 ```ts
 const base = arthron({ baseURL: API, use: [logging(), retry()] });
-const authed = base.use(auth()); // base + auth
+const authed = base.use(bearerAuth({ origin: API, token })); // base + auth
 const admin = authed.extend({ headers: { "x-role": "admin" } }); // authed + header
 ```
 
-`extend` shallow-merges the config, merges headers case-insensitively (child wins), and adds plugins the way `use` does: a plugin whose `name` is already there replaces it in place — so `streaming = base.use(timeout(120_000))` loosens the inherited `timeout`, and a second `retry()` does not multiply attempts — while unnamed plugins append. `without("retry")` returns a client without that plugin. The built-ins are named `retry`, `timeout` and `logging`.
+`extend` shallow-merges the config, merges headers case-insensitively (child wins), and adds plugins the way `use` does: a plugin whose `name` is already there replaces it in place — so `streaming = base.use(timeout(120_000))` loosens the inherited `timeout`, and a second `retry()` does not multiply attempts — while unnamed plugins append. `without("retry")` returns a client without that plugin. The built-ins are named `bearerAuth`, `retry`, `timeout` and `logging`.
 
 ## Plugins
 
@@ -148,14 +149,17 @@ type RequestContext = {
 };
 ```
 
-How one request runs:
+How one request runs, with `use: [m1, m2]`:
 
 ```
-middleware 1
-  middleware 2
-    attempt ─ request interceptors → fetch → response interceptors
-                                           ↘ error interceptors → throw
+call → m1 (before next) → m2 (before next) ─┐
+                                             │  attempt — runs again each time a middleware calls next again
+                                             │  request interceptors → fetch → response interceptors
+                                             │                              ↘ error interceptors → throw
+call ← m1 (after next)  ← m2 (after next)  ←─┘
 ```
+
+A middleware is called once. `await next(ctx)` runs everything inside it and resumes the same call with the result — or the error, to `catch`. Request interceptors are not the outermost layer, as axios users may expect: they run inside every middleware, on every attempt. That is why a retry sends a refreshed token or a new trace id without extra code, and why a `timeout` also bounds a slow interceptor.
 
 | | Middleware | Interceptor |
 |---|---|---|
@@ -168,6 +172,29 @@ middleware 1
 Every attempt starts from a fresh copy of the context, so a header set by an interceptor on attempt one does not leak into attempt two. `ctx.init.headers` is always a plain record with lowercased names, restored to that shape after every request interceptor, so `{ ...ctx.init.headers, name: value }` is safe.
 
 ### Built in
+
+The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging, retry, timeout } from "arthron/plugins"`. They are plain plugins — anything they do, yours can. `logging`, `retry` and `timeout` are also exported from `arthron` itself, as they were in 1.0; those exports are deprecated and go in the next major.
+
+| plugin | slots | per call |
+|---|---|---|
+| `bearerAuth` | request interceptor (the header) + middleware (refresh on 401) | `meta: { bearerAuth: false }` |
+| `retry` | middleware | `meta: { retry: false \| options }` |
+| `timeout` | middleware | `meta: { timeout: ms }` |
+| `logging` | middleware | — |
+
+Order is meaning: the first plugin is outermost. A good default:
+
+```ts
+use: [logging(), bearerAuth(…), timeout(10_000), retry()]
+```
+
+`logging` first logs each call once — its start, and its end with the total time, retries included. A `timeout` before `retry` bounds the whole call; after it, each attempt — and a timed-out attempt is not retried. `bearerAuth` sets its header on every attempt wherever it sits. Anything that should see only the final outcome — an error page, mapping to domain errors — goes before `retry`.
+
+Plugins with the same name replace each other, so a second `timeout()` takes the first one's place instead of adding a deadline. For both a total and a per-attempt deadline, rename one:
+
+```ts
+use: [{ ...timeout(30_000), name: "callTimeout" }, retry(), timeout(10_000)] // 30 s in all, 10 s per attempt
+```
 
 #### `retry(options)`
 
@@ -187,11 +214,13 @@ Honours `Retry-After` (seconds or HTTP date). Never retries a `ReadableStream` b
 
 Opting a non-idempotent method in (`methods: ["POST"]`) means a network failure is retried too, and a dropped connection may already have reached the server. Where a duplicate would hurt — a payment, an LLM completion you pay for — keep retries to statuses: `shouldRetry: (e) => (isArthronError(e) && e.status === 0 ? false : undefined)`. Per call, `meta: { retry: false }` turns it off and `meta: { retry: { retries: 5 } }` overrides any option but `sleep`.
 
-#### `timeout(ms, { idle? })`
+#### `timeout(ms)` / `timeout({ total?, idle? })`
 
 Aborts the attempt after `ms`, counted until the body has been fully read — a server that sends headers and then stalls still trips it. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore. Combines with a `signal` you pass yourself. `Infinity` means no deadline. The timer never keeps a Node process alive on its own. Per call, `meta: { timeout: 120_000 }` replaces the deadline (`Infinity` lifts it).
 
-A total deadline also cuts off a stream that is still flowing. For streams, bound the silence instead: `timeout(Infinity, { idle: 30_000 })` aborts only after 30 s without data — waiting for headers or between chunks — however long the stream runs. Both can be combined: `timeout(600_000, { idle: 30_000 })`.
+A total deadline also cuts off a stream that is still flowing. For streams, bound the silence instead: `timeout({ idle: 30_000 })` aborts only after 30 s without data — waiting for headers or between chunks — however long the stream runs. Both can be combined: `timeout({ total: 600_000, idle: 30_000 })`; `timeout(ms)` is `timeout({ total: ms })`. Options with neither are a `TypeError`.
+
+`timeout(ms, { idle })` still works but is deprecated; it goes in the next major.
 
 ```ts
 arthron({ use: [retry(), timeout(5_000)] }); // 5 s per attempt — a timed-out attempt is not retried
@@ -214,54 +243,70 @@ arthron({ use: [timeout(5_000), retry()] }); // 5 s for all attempts together
 
 Query strings and `user:pass@` are never printed. Cancellations are not logged.
 
+#### `bearerAuth(options)`
+
+Bearer tokens, with a refresh on 401.
+
+```ts
+const api = arthron({
+  baseURL: API,
+  use: [
+    bearerAuth({
+      origin: API,
+      token: () => session.accessToken,
+      refresh: async () => {
+        const res = await api.post("/token/refresh", undefined, { meta: { bearerAuth: false } }).json<{ access_token: string }>();
+        session.accessToken = res.access_token;
+      },
+    }),
+  ],
+});
+```
+
+| option | default | |
+|---|---|---|
+| `origin` | required | a URL or several; only their origins count, so `baseURL` works as is. Anything that is not an http(s) URL is a `TypeError` |
+| `token` | required | `() => string \| null \| undefined`, or a promise of one; read on every attempt. No token, no header |
+| `refresh` | — | `() => Promise<void>`, called after a 401; then the call is redone once. Without it, a 401 is thrown as is |
+
+The token goes to `origin` only — never to a CDN or a URL taken from a response body. Concurrent 401s share one refresh: with refresh-token rotation, parallel refreshes would revoke each other and log the user out. A call whose token was already replaced by another call's refresh retries without refreshing again. A second 401 is thrown, and so is a failed refresh — every call waiting on it rejects with the error `refresh` threw, so that is the place to send the user to a login page. The 401 of a `ReadableStream` body is thrown without a refresh: the first try has read the stream, so there is nothing to resend.
+
+Per call, `meta: { bearerAuth: false }` sends no token and never refreshes. Use it for the login and refresh endpoints: a refresh request that went through `bearerAuth()` would, on its own 401, wait for itself.
+
+The token is treated as opaque: to refresh a JWT ahead of its `exp`, do it inside `token()`. It is not for cookie sessions: it tells whether another call already refreshed by comparing the `authorization` header a call sent with the current one, and an httpOnly cookie cannot be read to compare.
+
 ### Write your own
 
 `definePlugin`, `defineMiddleware` and `defineInterceptor.{request,response,error}` are identity functions that give you the parameter types without annotations.
+
+**`return await next(ctx)` inside `try`.** Without `await`, the promise is returned before it settles, and the `catch` never sees its error.
+
+**Per attempt or per call.** A request interceptor runs on every attempt, so it fits a value that must be fresh each time: a token, a signature with a timestamp, a span id. A value that must be the same on every attempt — an idempotency key, so the server can tell a retry from a second payment — is set once, by a middleware placed before `retry()`:
+
+```ts
+const idempotent = defineMiddleware((ctx, next) =>
+  next({ ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, "idempotency-key": crypto.randomUUID() } } }),
+);
+// A client of its own, so the order is exactly this: the key first, then retry.
+const payments = arthron({ baseURL: API, use: [{ name: "idempotency", middleware: idempotent }, retry({ methods: ["POST"] })] });
+```
+
+(`api.use(…)` would not do here if `api` already has a `retry()`: the new one takes the old one's place, which may be before the key.)
 
 **Per-call settings.** `api.get(path, { meta })` hands `meta` to every plugin as `ctx.meta` and never sends it. Declare your own keys once and they are typed everywhere:
 
 ```ts
 declare module "arthron" {
   interface ArthronMeta {
-    skipAuth?: boolean;
+    skipTrace?: boolean;
   }
 }
 
-api.use({ request: (ctx) => (ctx.meta.skipAuth ? ctx : withToken(ctx)) });
-api.get("/health", { meta: { skipAuth: true } });
+const traced = api.use({ request: (ctx) => (ctx.meta.skipTrace ? ctx : withTraceId(ctx)) });
+traced.get("/health", { meta: { skipTrace: true } });
 ```
 
-**Refresh a session on 401, then redo the request.** The refresh is flow, so it is middleware. The header is a value, so it is a request interceptor — and because `next` re-runs the interceptors, the retried request carries the new token without extra code. Two details matter in production: concurrent 401s must share one refresh (with refresh-token rotation, parallel refreshes revoke each other), and the token must only go to your API's origin. Tested in [`examples/auth-refresh.ts`](examples/auth-refresh.ts).
-
-```ts
-import { definePlugin, isArthronError } from "arthron";
-
-export const auth = (store: { token: () => string | null; refresh: () => Promise<void> }, origin: string) => {
-  let refreshing: Promise<void> | undefined;
-  const bearer = () => (store.token() ? `Bearer ${store.token()}` : undefined);
-  return definePlugin({
-    name: "auth",
-    request: (ctx) => {
-      const value = bearer();
-      if (!value || new URL(ctx.url).origin !== origin) return ctx;
-      return { ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, authorization: value } } };
-    },
-    middleware: async (ctx, next) => {
-      try {
-        return await next(ctx);
-      } catch (e) {
-        if (!isArthronError(e) || e.status !== 401) throw e;
-        // Refresh only if the failed token is still current — else another call already did.
-        if (e.request.init.headers.authorization === bearer()) {
-          refreshing ??= store.refresh().finally(() => (refreshing = undefined));
-          await refreshing; // a failed refresh rejects here: the caller sees it
-        }
-        return next(ctx);
-      }
-    },
-  });
-};
-```
+**Refresh a session on 401, then redo the request.** That is the built-in [`bearerAuth()`](#bearerauthoptions), and a model for your own: the refresh is flow, so it is middleware; the header is a value, so it is a request interceptor — and because `next` re-runs the interceptors, the redone request carries the new token without extra code. Read [`src/plugins/bearer-auth/bearer-auth.ts`](src/plugins/bearer-auth/bearer-auth.ts) before writing a variant for another scheme.
 
 **Send users to an error page.** This reacts to how the *call* ended, so it is middleware placed before `retry()`: it sees only the final result. An error interceptor would run on every failed attempt and navigate away even when the next retry succeeds. Error interceptors are for enriching the error of one attempt. Tested in [`examples/error-page.ts`](examples/error-page.ts).
 
@@ -292,7 +337,7 @@ The same shape maps errors to your own types: `catch (e) { throw toDomainError(e
 **Attach a trace id.** A one-line request interceptor.
 
 ```ts
-api.use({ request: (ctx) => ({ ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, "x-trace-id": crypto.randomUUID() } } }) });
+const traced = api.use({ request: (ctx) => ({ ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, "x-trace-id": crypto.randomUUID() } } }) });
 ```
 
 ## Reference
@@ -303,7 +348,7 @@ api.use({ request: (ctx) => ({ ...ctx, init: { ...ctx.init, headers: { ...ctx.in
 type ArthronConfig = {
   baseURL?: string;
   allowAbsoluteUrls?: boolean; // let absolute URLs leave baseURL's origin (without config headers)
-  headers?: HeadersInit | Record<string, string | null>; // null drops a header (in extend)
+  headers?: HeadersOption; // anything fetch's headers take, or a record whose null drops a header (in extend)
   fetch?: typeof fetch; // inject for tests or a polyfill; resolved per request
   use?: Plugin[];
   errorDetail?: (data: unknown, res: Response) => string | undefined; // picks ArthronError.detail out of the body
@@ -363,7 +408,7 @@ class ArthronError extends Error {
 
 - `CHANGELOG.md` lists every release and the semver rules arthron follows since 1.0.
 - `llms.txt` ships in the package — a compressed API reference meant to be read by LLM-based tools (`node_modules/arthron/llms.txt`).
-- `examples/` holds type-checked, runnable recipes: LLM streaming, auth refresh, an error page, upload/download. `examples/recipes.test.ts` keeps the auth and error-page recipes honest.
+- `examples/` holds type-checked, runnable recipes: LLM streaming, auth refresh, an error page, upload/download. `examples/recipes.test.ts` keeps the error-page recipe honest.
 - Error messages state the fix (`… — pass baseURL in arthron({ baseURL }) or use an absolute URL`).
 
 ## Security

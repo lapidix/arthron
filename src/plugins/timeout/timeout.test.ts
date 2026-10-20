@@ -278,7 +278,7 @@ describe("timeout — idle", () => {
     const api = arthron({
       baseURL: "https://a",
       fetch: drip(10, 10),
-      use: [timeout(Number.POSITIVE_INFINITY, { idle: 40 })],
+      use: [timeout({ idle: 40 })],
     });
     let events = 0;
     for await (const _ of api.get("/s").sse()) events += 1;
@@ -288,7 +288,7 @@ describe("timeout — idle", () => {
     const api = arthron({
       baseURL: "https://a",
       fetch: drip(10, 5, 2),
-      use: [timeout(Number.POSITIVE_INFINITY, { idle: 30 })],
+      use: [timeout({ idle: 30 })],
     });
     let events = 0;
     const err = await (async () => {
@@ -301,12 +301,76 @@ describe("timeout — idle", () => {
     const api = arthron({
       baseURL: "https://a",
       fetch: hangingFetch(),
-      use: [timeout(Number.POSITIVE_INFINITY, { idle: 20 })],
+      use: [timeout({ idle: 20 })],
     });
     await expect(api.get("/u")).rejects.toMatchObject({ name: "TimeoutError" });
   });
   it("rejects a bad idle value when the plugin is created", () => {
+    expect(() => timeout({ idle: -1 })).toThrow(TypeError);
+  });
+  it("still takes the deprecated timeout(ms, { idle }) form", async () => {
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: drip(10, 5, 2),
+      use: [timeout(Number.POSITIVE_INFINITY, { idle: 30 })],
+    });
+    const err = await (async () => {
+      for await (const _ of api.get("/s").sse()) {
+      }
+    })().catch((e: unknown) => e);
+    expect((err as Error).name).toBe("TimeoutError");
     expect(() => timeout(1000, { idle: -1 })).toThrow(TypeError);
+  });
+  it("applies total and idle together, whichever trips first", async () => {
+    // Flows every 10 ms for 100 ms: idle never trips, total does.
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: drip(10, 10),
+      use: [timeout({ total: 35, idle: 1000 })],
+    });
+    let events = 0;
+    const err = await (async () => {
+      for await (const _ of api.get("/s").sse()) events += 1;
+    })().catch((e: unknown) => e);
+    expect(events).toBeGreaterThan(0);
+    expect(events).toBeLessThan(10);
+    expect((err as Error).name).toBe("TimeoutError");
+  });
+});
+
+describe("timeout({ total, idle })", () => {
+  it("total is the same deadline as timeout(ms)", async () => {
+    const fetch = hangingFetch();
+    const api = arthron({
+      baseURL: "https://a",
+      fetch,
+      use: [timeout({ total: 10 })],
+    });
+    await expect(api.get("/u")).rejects.toMatchObject({ name: "TimeoutError" });
+  });
+  it("without total, meta.timeout still sets one for a call", async () => {
+    const api = arthron({
+      baseURL: "https://a",
+      fetch: hangingFetch(),
+      use: [timeout({ idle: 60_000 })],
+    });
+    await expect(
+      api.get("/u", { meta: { timeout: 10 } }),
+    ).rejects.toMatchObject({ name: "TimeoutError" });
+  });
+  it("rejects options with neither total nor idle", () => {
+    expect(() => timeout({})).toThrow(/timeout\(\{\}\) needs total or idle/);
+  });
+  it.each([{ total: Number.NaN }, { total: -1 }, { idle: 2 ** 31 }])(
+    "rejects %o with a TypeError when the plugin is created",
+    (options) => {
+      expect(() => timeout(options)).toThrow(TypeError);
+    },
+  );
+  it("takes total only through the options form", () => {
+    // @ts-expect-error the deprecated second argument has idle only
+    const misuse = () => timeout(1000, { total: 5 });
+    expect(misuse).toBeTypeOf("function");
   });
 });
 

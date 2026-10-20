@@ -7,6 +7,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const esm = await import("../dist/index.mjs");
 const cjs = require("../dist/index.cjs");
+const esmPlugins = await import("../dist/plugins.mjs");
+const cjsPlugins = require("../dist/plugins.cjs");
 
 const assert = (cond, msg) => {
   if (!cond) {
@@ -21,6 +23,16 @@ assert(typeof cjs.arthron === "function", "CJS entry exports arthron()");
 assert(
   Object.keys(esm).sort().join() === Object.keys(cjs).sort().join(),
   "ESM and CJS export the same names",
+);
+assert(
+  typeof esmPlugins.retry === "function" &&
+    Object.keys(esmPlugins).sort().join() ===
+      Object.keys(cjsPlugins).sort().join(),
+  "arthron/plugins loads, with the same names in ESM and CJS",
+);
+assert(
+  esm.retry === esmPlugins.retry && cjs.timeout === cjsPlugins.timeout,
+  "the deprecated main-entry plugins are the arthron/plugins functions",
 );
 
 const crossCopy = await cjs
@@ -84,6 +96,17 @@ const server = createServer((req, res) => {
     res.end("event: end\ndata: two\n\n");
     return;
   }
+  if (req.url === "/token") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ token: "new" }));
+    return;
+  }
+  if (req.url === "/private") {
+    const ok = req.headers.authorization === "Bearer new";
+    res.writeHead(ok ? 200 : 401, { "content-type": "application/json" });
+    res.end(JSON.stringify({ authorization: req.headers.authorization }));
+    return;
+  }
   if (req.url === "/slow") {
     setTimeout(() => res.end("{}"), 2_000);
     return;
@@ -95,7 +118,8 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const baseURL = `http://127.0.0.1:${server.address().port}`;
 
 try {
-  const { arthron, retry, timeout, isArthronError } = esm;
+  const { arthron, isArthronError } = esm;
+  const { bearerAuth, retry, timeout } = esmPlugins;
   const api = arthron({
     baseURL,
     use: [retry({ delay: () => 0 }), timeout(500)],
@@ -205,6 +229,32 @@ try {
   assert(
     tooLong instanceof RangeError,
     "a stream line past maxLineLength rejects with RangeError",
+  );
+
+  let token = "old";
+  let refreshes = 0;
+  const authed = arthron({
+    baseURL,
+    use: [
+      bearerAuth({
+        origin: baseURL,
+        token: () => token,
+        refresh: async () => {
+          refreshes += 1;
+          const r = await authed
+            .post("/token", undefined, { meta: { bearerAuth: false } })
+            .json();
+          token = r.token;
+        },
+      }),
+    ],
+  });
+  const privates = await Promise.all(
+    [1, 2, 3].map(() => authed.get("/private").json()),
+  );
+  assert(
+    refreshes === 1 && privates.every((p) => p.authorization === "Bearer new"),
+    "bearerAuth refreshes once for concurrent 401s and redoes each call",
   );
 } finally {
   server.closeAllConnections?.();

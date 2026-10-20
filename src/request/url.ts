@@ -21,6 +21,21 @@ export function redactUrl(url: string): string {
 }
 
 /**
+ * `text` with `url` redacted wherever it appears, as given or as the URL
+ * parser normalizes it — for a runtime's own message that repeats the URL.
+ */
+export function redactUrlIn(text: string, url: string): string {
+  const shown = redactUrl(url);
+  let href: string | undefined;
+  try {
+    href = new URL(url).href;
+  } catch {}
+  let out = text.split(url).join(shown);
+  if (href && href !== url) out = out.split(href).join(shown);
+  return out;
+}
+
+/**
  * `undefined` when `url` has no origin of its own. A relative baseURL takes
  * the page's origin in a browser and has none elsewhere.
  */

@@ -5,7 +5,7 @@ import {
   responseError,
 } from "../error/create-error";
 import { isReadableStream, runtimeStreamsRequestBody } from "../request/body";
-import { redactUrl } from "../request/url";
+import { redactUrl, redactUrlIn } from "../request/url";
 import type { RequestContext } from "../types/request.types";
 import type { Resolved } from "./client.types";
 
@@ -21,13 +21,13 @@ function assertSendable(url: string, method: string): void {
   try {
     new Request(url, { method });
   } catch (cause) {
-    const shown = redactUrl(url);
     // fetch's own message repeats the full URL, query included.
-    const reason = (cause instanceof Error ? cause.message : String(cause))
-      .split(url)
-      .join(shown);
+    const reason = redactUrlIn(
+      cause instanceof Error ? cause.message : String(cause),
+      url,
+    );
     throw new TypeError(
-      `arthron: cannot send ${method} ${shown} (${reason}) — use an absolute URL or a baseURL with a scheme (https://…), and a valid HTTP method`,
+      `arthron: cannot send ${method} ${redactUrl(url)} (${reason}) — use an absolute URL or a baseURL with a scheme (https://…), and a valid HTTP method`,
       { cause },
     );
   }

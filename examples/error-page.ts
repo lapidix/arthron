@@ -4,7 +4,8 @@
 // is middleware placed before retry(): it sees only the final result. An
 // error interceptor would run on every failed attempt — navigating away even
 // when the next retry succeeds.
-import { arthron, definePlugin, isArthronError, retry } from "../src";
+import { arthron, definePlugin, isArthronError } from "../src";
+import { retry } from "../src/plugins";
 
 export const errorRedirect = (navigate: (to: string) => void) =>
   definePlugin({

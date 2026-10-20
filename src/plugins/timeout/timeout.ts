@@ -66,13 +66,39 @@ function deadlineTimer(
   return timer;
 }
 
+/** `timeout(ms)`, `timeout({ total, idle })` or the deprecated `timeout(ms, { idle })`, checked. */
+function settle(
+  first: number | TimeoutOptions,
+  second: Pick<TimeoutOptions, "idle">,
+): { ms: number; idle: number | undefined } {
+  if (typeof first === "number") {
+    checkDeadline(first, `timeout(${first})`);
+    const { idle } = second;
+    if (idle !== undefined) {
+      checkDeadline(idle, `timeout(…, { idle: ${idle} })`);
+    }
+    return { ms: first, idle };
+  }
+  const { total, idle } = first;
+  if (total === undefined && idle === undefined) {
+    throw new TypeError(
+      "arthron: timeout({}) needs total or idle — e.g. timeout({ total: 10_000 }) or timeout({ idle: 30_000 })",
+    );
+  }
+  if (total !== undefined) checkDeadline(total, `timeout({ total: ${total} })`);
+  if (idle !== undefined) checkDeadline(idle, `timeout({ idle: ${idle} })`);
+  return { ms: total ?? Number.POSITIVE_INFINITY, idle };
+}
+
 /**
  * Abort the request when it takes longer than `ms` — counted from the start
  * of the attempt until the body has been fully read, so a server that sends
- * headers and then stalls still trips it. With `idle`, also abort once no
- * data has arrived for that long. Rejects with a `TimeoutError` (a
- * `DOMException`, like `AbortSignal.timeout()` would give); it is not an
- * `ArthronError`, so error interceptors and `retry` leave it alone.
+ * headers and then stalls still trips it. `timeout({ idle })` instead aborts
+ * once no data has arrived for that long, and never cuts off a stream that
+ * keeps flowing; `timeout({ total, idle })` does both. Rejects with a
+ * `TimeoutError` (a `DOMException`, like `AbortSignal.timeout()` would give);
+ * it is not an `ArthronError`, so error interceptors and `retry` leave it
+ * alone.
  *
  * A call can change the total deadline with `meta.timeout`.
  *
@@ -80,10 +106,18 @@ function deadlineTimer(
  * since the idle one restarts — joined to the caller's signal with
  * `AbortSignal.any`.
  */
-export function timeout(ms: number, options: TimeoutOptions = {}): Plugin {
-  checkDeadline(ms, `timeout(${ms})`);
-  const { idle } = options;
-  if (idle !== undefined) checkDeadline(idle, `timeout(…, { idle: ${idle} })`);
+export function timeout(ms: number): Plugin;
+export function timeout(options: TimeoutOptions): Plugin;
+/** @deprecated Use `timeout({ total: ms, idle })`; this form goes in the next major. */
+export function timeout(
+  ms: number,
+  options: Pick<TimeoutOptions, "idle">,
+): Plugin;
+export function timeout(
+  first: number | TimeoutOptions,
+  second: Pick<TimeoutOptions, "idle"> = {},
+): Plugin {
+  const { ms, idle } = settle(first, second);
   return {
     name: "timeout",
     middleware: async (ctx, next) => {

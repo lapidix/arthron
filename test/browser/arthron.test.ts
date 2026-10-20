@@ -1,7 +1,8 @@
 // The built package (dist/index.mjs, through the `arthron` link) in a real
 // browser, calling a server on another origin. Covers what differs from Node:
 // CORS preflights, opaque redirects, cookies, streaming bodies.
-import { arthron, isArthronError, retry, timeout } from "arthron";
+import { arthron, isArthronError } from "arthron";
+import { retry, timeout } from "arthron/plugins";
 import { describe, expect, inject, it } from "vitest";
 
 type Echo = {

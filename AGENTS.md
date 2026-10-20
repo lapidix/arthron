@@ -28,15 +28,16 @@ Node 22+ for everything — the dev toolchain and the runtime (`engines`). CI ru
 - **Interceptors transform, middleware controls flow.** Do not add a way for an interceptor to retry, skip, or swallow. Flow-control features are middleware (see `src/plugins/retry/`, `timeout/`).
 - **Clients are immutable.** `use`/`extend` return new instances; never mutate `resolved` after construction.
 - **Return native `Response`.** Do not introduce a response wrapper type. Body helpers live on `ArthronPromise` (`src/response/arthron-promise.ts`).
-- **Public surface is pinned** by `src/index.test.ts` ("exports exactly the documented values"). Adding an export means updating that list, `README.md`, and `llms.txt` in the same change.
+- **Public surface is pinned** by `src/index.test.ts` and `src/plugins/index.test.ts` ("exports exactly the documented values"). Adding an export means updating that list, `README.md`, and `llms.txt` in the same change. Built-in plugins are exported from `arthron/plugins` only; `logging`, `retry` and `timeout` stay on the main entry as deprecated aliases until 2.0.
 - **Error messages say what to do** (`… — pass baseURL in arthron({ baseURL }) or use an absolute URL`). Keep that style.
-- `examples/*.ts` are type-checked (`tsconfig.json` includes them) and import from `../src`. Keep them compiling. `examples/recipes.test.ts` runs the auth and error-page recipes.
+- `examples/*.ts` are type-checked (`tsconfig.json` includes them) and import from `../src`. Keep them compiling. `examples/recipes.test.ts` runs the error-page recipe.
 
 ## Layout
 
 ```
 src/
-  index.ts      the only public entry — explicit named exports, no `export *`
+  index.ts      the `arthron` entry — explicit named exports, no `export *`
+  plugins/index.ts  the `arthron/plugins` entry (plugins/package.json at the root resolves it for node10)
   client/       arthron() — client.ts (request assembly, use/extend/without),
                 send.ts (the one place a failure becomes an ArthronError),
                 resolve-config.ts (config resolution, plugins by name)
@@ -45,7 +46,7 @@ src/
   response/     arthron-promise.ts (.json/.sse/… helpers), stream-parser.ts (SSE / NDJSON),
                 schema-validation.ts, rebuild-response.ts
   error/        arthron-error.ts (ArthronError, isArthronError), create-error.ts (responseError, networkError …)
-  plugins/      one folder per plugin: retry/, timeout/, logging/ ({name}.ts, {name}.types.ts, tests)
+  plugins/      one folder per plugin: bearer-auth/, retry/, timeout/, logging/ ({name}.ts, {name}.types.ts, tests)
   types/        types used by two or more folders: request.types (RequestContext, ArthronMeta, …),
                 plugin.types (Plugin, Middleware, interceptors), response.types (ArthronPromise, SSE, schema, …)
   testkit/      fakeFetch, jsonResponse — for tests only

@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "main": "../dist/plugins.cjs",
+  "module": "../dist/plugins.mjs",
+  "types": "../dist/plugins.d.cts"
+}

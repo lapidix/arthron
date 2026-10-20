@@ -336,6 +336,48 @@ describe("runPipeline", () => {
     expect(isArthronError(bug)).toBe(false);
   });
 
+  it("treats an ArthronError a plugin throws as a plugin exception", async () => {
+    // e.g. a request interceptor whose own call (a token endpoint) failed
+    const error = vi.fn((e: ArthronError) => e);
+    const inner = networkError(new Error("down"), {
+      url: "https://auth.test/token",
+      init: { headers: {} },
+      meta: {},
+    });
+    const thrower = () => {
+      throw inner;
+    };
+    await expect(
+      runPipeline([{ request: thrower }, { error }], ctx(), ok),
+    ).rejects.toBe(inner);
+    await expect(
+      runPipeline([{ response: thrower }, { error }], ctx(), ok),
+    ).rejects.toBe(inner);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it("names an interceptor or middleware that returns nothing", async () => {
+    const nothing = (() => undefined) as never;
+    await expect(
+      runPipeline([{ request: nothing }], ctx(), ok),
+    ).rejects.toThrow(/a request interceptor returned undefined — return/);
+    await expect(
+      runPipeline([{ response: nothing }], ctx(), ok),
+    ).rejects.toThrow(/a response interceptor returned undefined — return/);
+    const failed = networkError(new Error("down"), ctx());
+    const err = await runPipeline([{ error: nothing }], ctx(), async () => {
+      throw failed;
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TypeError);
+    expect((err as Error).message).toMatch(
+      /an error interceptor returned undefined — return/,
+    );
+    expect((err as Error).cause).toBe(failed);
+    await expect(
+      runPipeline([{ middleware: async () => undefined as never }], ctx(), ok),
+    ).rejects.toThrow(/a middleware resolved with undefined — return/);
+  });
+
   it("works with zero plugins", async () => {
     expect((await runPipeline([], ctx(), ok)).ok).toBe(true);
   });

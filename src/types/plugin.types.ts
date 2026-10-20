@@ -34,7 +34,8 @@ export interface Plugin {
   /**
    * Identity within a client: `use`/`extend` replace the plugin of the same
    * name in place, `without(name)` removes it. The built-ins are named
-   * "retry", "timeout" and "logging". Leave it out to always append.
+   * "bearerAuth", "logging", "retry" and "timeout". Leave it out to always
+   * append.
    */
   name?: string;
   middleware?: Middleware;
