@@ -721,7 +721,14 @@ describe("arthron — ctx.fetch", () => {
     const api = arthron({
       baseURL: "https://a",
       fetch,
-      use: [{ request: (ctx) => (seen.push(ctx.fetch), ctx) }],
+      use: [
+        {
+          request: (ctx) => {
+            seen.push(ctx.fetch);
+            return ctx;
+          },
+        },
+      ],
     });
     await api.get("/u");
     expect(seen).toEqual([fetch]);
