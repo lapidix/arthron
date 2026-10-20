@@ -25,7 +25,6 @@ export type {
   HeadersOption,
   QueryParams,
   RequestContext,
-  RetryOptions,
 } from "./types/request.types";
 export type {
   ArthronPromise,

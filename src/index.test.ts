@@ -24,6 +24,8 @@ describe("public surface", () => {
     expectTypeOf<import("./").LoggingOptions>().not.toBeNever();
     // @ts-expect-error import TimeoutOptions from "arthron/plugins"
     expectTypeOf<import("./").TimeoutOptions>().not.toBeNever();
+    // @ts-expect-error import RetryOptions from "arthron/plugins"
+    expectTypeOf<import("./").RetryOptions>().not.toBeNever();
   });
   it("define helpers are identity and infer types", () => {
     const m: Middleware = async (_c, next) => next(_c);
