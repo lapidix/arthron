@@ -1,5 +1,5 @@
 import { isReadableStream } from "../request/body";
-import { redactUrl } from "../request/url";
+import { redactUrl, redactUrlIn } from "../request/url";
 import { rebuildResponse } from "../response/rebuild-response";
 import type { RequestContext } from "../types/request.types";
 import type { ErrorDetailResolver } from "../types/response.types";
@@ -141,8 +141,11 @@ export function networkError(
   cause: unknown,
   request: RequestContext,
 ): ArthronError {
+  // Some runtimes' messages repeat the URL, query and userinfo included.
   const reason =
-    cause instanceof Error && cause.message ? cause.message : "network error";
+    cause instanceof Error && cause.message
+      ? redactUrlIn(cause.message, request.url)
+      : "network error";
   const hint = isReadableStream(request.init.body) ? STREAM_BODY_HINT : "";
   return new ArthronError({
     message: `${describeRequest(request)} failed: ${reason}${hint}`,

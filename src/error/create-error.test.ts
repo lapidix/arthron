@@ -111,6 +111,18 @@ describe("networkError", () => {
       "GET https://a/x failed: network error",
     );
   });
+  it("keeps the query and userinfo out when the runtime's message names the URL", () => {
+    // Deno, for one: "error sending request for url (…)".
+    const url = "https://u:pw@a/x?token=s3cret";
+    const err = networkError(
+      new TypeError(`error sending request for url (${url})`),
+      { url, init: { method: "GET", headers: {} }, meta: {} },
+    );
+    expect(err.message).toBe(
+      "GET https://a/x failed: error sending request for url (https://a/x)",
+    );
+    expect(JSON.stringify(err)).not.toContain("s3cret");
+  });
   it("says why a ReadableStream body fails in a browser and what to send instead", () => {
     const streaming = {
       ...req,
