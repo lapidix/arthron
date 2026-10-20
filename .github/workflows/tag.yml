@@ -1,4 +1,4 @@
-name: Tag
+name: Tag release
 
 # Tags a release when its version lands on main, so the tag can never point
 # at a commit whose package.json says something else. A push to main that
@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 jobs:
-  tag:
+  tag-release:
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the tag
