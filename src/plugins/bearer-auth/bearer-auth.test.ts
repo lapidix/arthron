@@ -5,7 +5,7 @@ import { runPipeline } from "../../pipeline/pipeline";
 import { fakeFetch, jsonResponse } from "../../testkit/fetch.testkit";
 import type { RequestContext } from "../../types/request.types";
 import { retry } from "../retry/retry";
-import { auth } from "./auth";
+import { bearerAuth } from "./bearer-auth";
 
 const API = "https://api.test";
 const sentAuth = (fetch: { calls: { init: RequestInit }[] }) =>
@@ -36,9 +36,11 @@ const setup = () => {
   return { session, refresh, fetch, calls };
 };
 
-describe("auth", () => {
-  it("is named auth", () => {
-    expect(auth({ origin: API, token: () => "t" }).name).toBe("auth");
+describe("bearerAuth", () => {
+  it("is named bearerAuth", () => {
+    expect(bearerAuth({ origin: API, token: () => "t" }).name).toBe(
+      "bearerAuth",
+    );
   });
 
   it("sends the token as a Bearer authorization header", async () => {
@@ -46,7 +48,7 @@ describe("auth", () => {
     const api = arthron({
       baseURL: API,
       fetch,
-      use: [auth({ origin: API, token: () => "abc" })],
+      use: [bearerAuth({ origin: API, token: () => "abc" })],
     });
     await api.get("/me");
     expect(sentAuth(fetch)).toEqual(["Bearer abc"]);
@@ -63,7 +65,7 @@ describe("auth", () => {
       fetch,
       use: [
         retry({ sleep: async () => {} }),
-        auth({ origin: API, token: async () => `t${++n}` }),
+        bearerAuth({ origin: API, token: async () => `t${++n}` }),
       ],
     });
     await api.get("/me");
@@ -76,7 +78,7 @@ describe("auth", () => {
       const api = arthron({
         baseURL: API,
         fetch,
-        use: [auth({ origin: API, token: () => token })],
+        use: [bearerAuth({ origin: API, token: () => token })],
       });
       await api.get("/me");
       expect(sentAuth(fetch)).toEqual([undefined]);
@@ -90,7 +92,7 @@ describe("auth", () => {
       allowAbsoluteUrls: true,
       fetch,
       use: [
-        auth({
+        bearerAuth({
           origin: [`${API}/v1/`, "https://files.test"],
           token: () => "abc",
         }),
@@ -111,7 +113,7 @@ describe("auth", () => {
   it("sends no token when the URL is not absolute", async () => {
     const seen: RequestContext[] = [];
     await runPipeline(
-      [auth({ origin: API, token: () => "abc" })],
+      [bearerAuth({ origin: API, token: () => "abc" })],
       { url: "/relative", init: { headers: {} }, meta: {} },
       async (ctx) => {
         seen.push(ctx);
@@ -126,7 +128,7 @@ describe("auth", () => {
     const api = arthron({
       baseURL: API,
       fetch,
-      use: [auth({ origin: API, token: () => session.current, refresh })],
+      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     const out = await Promise.all(
       Array.from({ length: 5 }, () => api.get("/me").json()),
@@ -149,7 +151,7 @@ describe("auth", () => {
     const api = arthron({
       baseURL: API,
       fetch,
-      use: [auth({ origin: API, token: () => session.current, refresh })],
+      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     expect(await api.get("/me").json()).toEqual({ ok: 1 });
     expect(session.refreshes).toBe(0);
@@ -169,7 +171,7 @@ describe("auth", () => {
     const api = arthron({
       baseURL: API,
       fetch,
-      use: [auth({ origin: API, token: () => session.current, refresh })],
+      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     await api.get("/me");
     expect(session.refreshes).toBe(1);
@@ -182,7 +184,7 @@ describe("auth", () => {
     const api = arthron({
       baseURL: API,
       fetch,
-      use: [auth({ origin: API, token: () => session.current, refresh })],
+      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     const err = await api.get("/me").catch((e: unknown) => e);
     expect(isArthronError(err) && err.status).toBe(401);
@@ -195,7 +197,7 @@ describe("auth", () => {
     const api = arthron({
       baseURL: API,
       fetch,
-      use: [auth({ origin: API, token: () => "abc" })],
+      use: [bearerAuth({ origin: API, token: () => "abc" })],
     });
     await expect(api.get("/me")).rejects.toMatchObject({ status: 401 });
     expect(fetch.calls).toHaveLength(1);
@@ -207,7 +209,7 @@ describe("auth", () => {
     const api = arthron({
       baseURL: API,
       fetch,
-      use: [auth({ origin: API, token: () => session.current, refresh })],
+      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     const body = new ReadableStream({
       start: (controller) => controller.close(),
@@ -225,7 +227,7 @@ describe("auth", () => {
     const api = arthron({
       baseURL: API,
       fetch,
-      use: [auth({ origin: API, token: () => session.current, refresh })],
+      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     await expect(api.get("/me")).rejects.toMatchObject({ status: 403 });
     expect(session.refreshes).toBe(0);
@@ -239,7 +241,7 @@ describe("auth", () => {
       baseURL: API,
       allowAbsoluteUrls: true,
       fetch,
-      use: [auth({ origin: API, token: () => session.current, refresh })],
+      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     await expect(api.get("https://other.test/x")).rejects.toMatchObject({
       status: 401,
@@ -255,7 +257,7 @@ describe("auth", () => {
       baseURL: API,
       fetch,
       use: [
-        auth({
+        bearerAuth({
           origin: API,
           token: () => "old",
           refresh: async () => {
@@ -281,7 +283,7 @@ describe("auth", () => {
       baseURL: API,
       fetch,
       use: [
-        auth({
+        bearerAuth({
           origin: API,
           token: () => "old",
           refresh: async () => {
@@ -296,22 +298,22 @@ describe("auth", () => {
     expect(refreshes).toBe(2);
   });
 
-  it("skips a call with meta.auth: false — no token, no refresh", async () => {
+  it("skips a call with meta.bearerAuth: false — no token, no refresh", async () => {
     const { session, refresh } = setup();
     const fetch = fakeFetch(jsonResponse({}, { status: 401 }));
     const api = arthron({
       baseURL: API,
       fetch,
-      use: [auth({ origin: API, token: () => session.current, refresh })],
+      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     await expect(
-      api.post("/login", {}, { meta: { auth: false } }),
+      api.post("/login", {}, { meta: { bearerAuth: false } }),
     ).rejects.toMatchObject({ status: 401 });
     expect(sentAuth(fetch)).toEqual([undefined]);
     expect(session.refreshes).toBe(0);
   });
 
-  it("can refresh through the client it is on, with meta.auth: false", async () => {
+  it("can refresh through the client it is on, with meta.bearerAuth: false", async () => {
     let current = "old";
     const fetch = (async (url: string, init: RequestInit) => {
       if (url.endsWith("/token")) return jsonResponse({ token: "new" });
@@ -324,12 +326,12 @@ describe("auth", () => {
       baseURL: API,
       fetch,
       use: [
-        auth({
+        bearerAuth({
           origin: API,
           token: () => current,
           refresh: async () => {
             const res = await api
-              .post("/token", {}, { meta: { auth: false } })
+              .post("/token", {}, { meta: { bearerAuth: false } })
               .json<{ token: string }>();
             current = res.token;
           },
@@ -341,10 +343,12 @@ describe("auth", () => {
 
   it("rejects an origin that is not an http(s) URL", () => {
     for (const origin of ["api.test", "", "mailto:a@b.test"]) {
-      expect(() => auth({ origin, token: () => "t" })).toThrow(
-        /auth\(\{ origin \}\) needs an http\(s\) URL/,
+      expect(() => bearerAuth({ origin, token: () => "t" })).toThrow(
+        /bearerAuth\(\{ origin \}\) needs an http\(s\) URL/,
       );
     }
-    expect(() => auth({ origin: [], token: () => "t" })).toThrow(TypeError);
+    expect(() => bearerAuth({ origin: [], token: () => "t" })).toThrow(
+      TypeError,
+    );
   });
 });

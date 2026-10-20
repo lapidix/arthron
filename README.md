@@ -122,11 +122,11 @@ Clients are immutable. `use` and `extend` return a new client and leave the orig
 
 ```ts
 const base = arthron({ baseURL: API, use: [logging(), retry()] });
-const authed = base.use(auth({ origin: API, token })); // base + auth
+const authed = base.use(bearerAuth({ origin: API, token })); // base + auth
 const admin = authed.extend({ headers: { "x-role": "admin" } }); // authed + header
 ```
 
-`extend` shallow-merges the config, merges headers case-insensitively (child wins), and adds plugins the way `use` does: a plugin whose `name` is already there replaces it in place — so `streaming = base.use(timeout(120_000))` loosens the inherited `timeout`, and a second `retry()` does not multiply attempts — while unnamed plugins append. `without("retry")` returns a client without that plugin. The built-ins are named `auth`, `retry`, `timeout` and `logging`.
+`extend` shallow-merges the config, merges headers case-insensitively (child wins), and adds plugins the way `use` does: a plugin whose `name` is already there replaces it in place — so `streaming = base.use(timeout(120_000))` loosens the inherited `timeout`, and a second `retry()` does not multiply attempts — while unnamed plugins append. `without("retry")` returns a client without that plugin. The built-ins are named `bearerAuth`, `retry`, `timeout` and `logging`.
 
 ## Plugins
 
@@ -214,7 +214,7 @@ arthron({ use: [timeout(5_000), retry()] }); // 5 s for all attempts together
 
 Query strings and `user:pass@` are never printed. Cancellations are not logged.
 
-#### `auth(options)`
+#### `bearerAuth(options)`
 
 Bearer tokens, with a refresh on 401.
 
@@ -222,11 +222,11 @@ Bearer tokens, with a refresh on 401.
 const api = arthron({
   baseURL: API,
   use: [
-    auth({
+    bearerAuth({
       origin: API,
       token: () => session.accessToken,
       refresh: async () => {
-        const res = await api.post("/token/refresh", undefined, { meta: { auth: false } }).json<{ access_token: string }>();
+        const res = await api.post("/token/refresh", undefined, { meta: { bearerAuth: false } }).json<{ access_token: string }>();
         session.accessToken = res.access_token;
       },
     }),
@@ -242,9 +242,9 @@ const api = arthron({
 
 The token goes to `origin` only — never to a CDN or a URL taken from a response body. Concurrent 401s share one refresh: with refresh-token rotation, parallel refreshes would revoke each other and log the user out. A call whose token was already replaced by another call's refresh retries without refreshing again. A second 401 is thrown, and so is a failed refresh — every call waiting on it rejects with the error `refresh` threw, so that is the place to send the user to a login page. The 401 of a `ReadableStream` body is thrown without a refresh: the first try has read the stream, so there is nothing to resend.
 
-Per call, `meta: { auth: false }` sends no token and never refreshes. Use it for the login and refresh endpoints: a refresh request that went through `auth()` would, on its own 401, wait for itself.
+Per call, `meta: { bearerAuth: false }` sends no token and never refreshes. Use it for the login and refresh endpoints: a refresh request that went through `bearerAuth()` would, on its own 401, wait for itself.
 
-The token is treated as opaque: to refresh a JWT ahead of its `exp`, do it inside `token()`.
+The token is treated as opaque: to refresh a JWT ahead of its `exp`, do it inside `token()`. It is not for cookie sessions: it tells whether another call already refreshed by comparing the `authorization` header a call sent with the current one, and an httpOnly cookie cannot be read to compare.
 
 ### Write your own
 
@@ -263,7 +263,7 @@ api.use({ request: (ctx) => (ctx.meta.skipTrace ? ctx : withTraceId(ctx)) });
 api.get("/health", { meta: { skipTrace: true } });
 ```
 
-**Refresh a session on 401, then redo the request.** That is the built-in [`auth()`](#authoptions), and a model for your own: the refresh is flow, so it is middleware; the header is a value, so it is a request interceptor — and because `next` re-runs the interceptors, the redone request carries the new token without extra code. Read [`src/plugins/auth/auth.ts`](src/plugins/auth/auth.ts) before writing a variant for another scheme.
+**Refresh a session on 401, then redo the request.** That is the built-in [`bearerAuth()`](#bearerauthoptions), and a model for your own: the refresh is flow, so it is middleware; the header is a value, so it is a request interceptor — and because `next` re-runs the interceptors, the redone request carries the new token without extra code. Read [`src/plugins/bearer-auth/bearer-auth.ts`](src/plugins/bearer-auth/bearer-auth.ts) before writing a variant for another scheme.
 
 **Send users to an error page.** This reacts to how the *call* ended, so it is middleware placed before `retry()`: it sees only the final result. An error interceptor would run on every failed attempt and navigate away even when the next retry succeeds. Error interceptors are for enriching the error of one attempt. Tested in [`examples/error-page.ts`](examples/error-page.ts).
 

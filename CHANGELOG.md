@@ -16,7 +16,7 @@ A deprecated API keeps working, is marked `@deprecated` with what to use instead
 
 ### Added
 
-- `auth({ origin, token, refresh? })`: Bearer tokens with a refresh on 401, built in. The token goes to `origin` only; concurrent 401s share one refresh, a call whose token was already replaced retries without refreshing, and each call is redone once. `meta: { auth: false }` skips it for one call — the login and refresh endpoints. It replaces the auth-refresh recipe, which `examples/auth-refresh.ts` now shows with the built-in.
+- `bearerAuth({ origin, token, refresh? })`: Bearer tokens with a refresh on 401, built in. The token goes to `origin` only; concurrent 401s share one refresh, a call whose token was already replaced retries without refreshing, and each call is redone once. `meta: { bearerAuth: false }` skips it for one call — the login and refresh endpoints. It replaces the auth-refresh recipe, which `examples/auth-refresh.ts` now shows with the built-in.
 
 ## [1.0.1] — 2026-10-19
 

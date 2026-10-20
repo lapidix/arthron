@@ -45,7 +45,7 @@ src/
   response/     arthron-promise.ts (.json/.sse/… helpers), stream-parser.ts (SSE / NDJSON),
                 schema-validation.ts, rebuild-response.ts
   error/        arthron-error.ts (ArthronError, isArthronError), create-error.ts (responseError, networkError …)
-  plugins/      one folder per plugin: auth/, retry/, timeout/, logging/ ({name}.ts, {name}.types.ts, tests)
+  plugins/      one folder per plugin: bearer-auth/, retry/, timeout/, logging/ ({name}.ts, {name}.types.ts, tests)
   types/        types used by two or more folders: request.types (RequestContext, ArthronMeta, …),
                 plugin.types (Plugin, Middleware, interceptors), response.types (ArthronPromise, SSE, schema, …)
   testkit/      fakeFetch, jsonResponse — for tests only

@@ -1,4 +1,4 @@
-export type AuthOptions = {
+export type BearerAuthOptions = {
   /**
    * Where the token may go: a URL, or several. Only their origins count, so
    * your `baseURL` works as is. A request anywhere else — a CDN, a URL taken
@@ -15,7 +15,7 @@ export type AuthOptions = {
    * 401s share one refresh, and a call whose token was already replaced
    * retries without one. Throw when the refresh fails — every waiting call
    * rejects with that error. Requests the refresh makes through the same
-   * client need `meta: { auth: false }`. Without `refresh`, or for a
+   * client need `meta: { bearerAuth: false }`. Without `refresh`, or for a
    * `ReadableStream` body (already read, so it cannot be resent), a 401 is
    * thrown as is.
    */

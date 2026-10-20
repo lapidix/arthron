@@ -2,9 +2,9 @@
 // against the packed package; it is never run.
 import {
   type ArthronPromise,
-  type AuthOptions,
   arthron,
-  auth,
+  type BearerAuthOptions,
+  bearerAuth,
   isArthronError,
   retry,
   SchemaError,
@@ -40,17 +40,19 @@ const api = arthron({
   throwOn: (res) => res.status >= 500,
 });
 
-const authOptions: AuthOptions = {
+const authOptions: BearerAuthOptions = {
   origin: ["https://api.example.com"],
   token: async () => null,
   refresh: async () => {
-    await authed.post("/token/refresh", undefined, { meta: { auth: false } });
+    await authed.post("/token/refresh", undefined, {
+      meta: { bearerAuth: false },
+    });
   },
 };
-const authed = api.use(auth(authOptions));
+const authed = api.use(bearerAuth(authOptions));
 
-// @ts-expect-error meta.auth only turns auth off
-authed.get("/x", { meta: { auth: true } });
+// @ts-expect-error meta.bearerAuth only turns auth off
+authed.get("/x", { meta: { bearerAuth: true } });
 
 export async function run(): Promise<void> {
   const pending: ArthronPromise = api.get("/users/{id}", {
