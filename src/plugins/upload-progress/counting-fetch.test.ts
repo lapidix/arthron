@@ -134,6 +134,46 @@ describe("countingFetch", () => {
     expect(base.got[0]?.body.length).toBe(0);
   });
 
+  it("reports nothing once the response has arrived", async () => {
+    // A server that answers early (413) while fetch is still reading.
+    let finish: (() => Promise<void>) | undefined;
+    const early = (async (
+      _input: RequestInfo | URL,
+      init: RequestInit = {},
+    ) => {
+      const reader = (init.body as ReadableStream<Uint8Array>).getReader();
+      await reader.read();
+      finish = async () => {
+        while (!(await reader.read()).done) {}
+      };
+      return new Response("too large", { status: 413 });
+    }) as typeof fetch;
+    const events: UploadProgressEvent[] = [];
+    const res = await countingFetch(early, (e) => events.push(e))(
+      "https://a/u",
+      {
+        method: "PUT",
+        body: new Uint8Array(300_000),
+        headers: {},
+      },
+    );
+    expect(res.status).toBe(413);
+    const before = events.length;
+    await finish?.();
+    expect(events.length).toBe(before);
+  });
+
+  it("takes Headers and a Request from a plugin that wraps it", async () => {
+    const base = reading();
+    await countingFetch(base, () => {})(new Request("https://a/u"), {
+      method: "PUT",
+      body: "abc",
+      headers: new Headers({ "X-Trace": "1" }),
+    });
+    expect(base.got[0]?.headers["x-trace"]).toBe("1");
+    expect(base.got[0]?.headers["content-length"]).toBe("3");
+  });
+
   it("rejects with the callback's own error", async () => {
     const boom = new RangeError("boom");
     const call = countingFetch(reading(), () => {

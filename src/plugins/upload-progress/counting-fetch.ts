@@ -92,7 +92,14 @@ export function countingFetch(
   onProgress: (event: UploadProgressEvent) => void,
 ): typeof fetch {
   return (async (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const headers = { ...(init.headers as Record<string, string> | undefined) };
+    // Any header shape, lowercased — a plugin wrapping this fetch may pass
+    // Headers, or a Request whose own headers init then extends.
+    const merged = new Headers(
+      input instanceof Request ? input.headers : undefined,
+    );
+    for (const [name, value] of new Headers(init.headers))
+      merged.set(name, value);
+    const headers: Record<string, string> = Object.fromEntries(merged);
     const source = await sourceOf(init.body, headers);
     if (!source) return base(input, init);
     const { total, type } = source;
@@ -107,8 +114,11 @@ export function countingFetch(
     // What is left of a chunk longer than SLICE.
     let rest: Uint8Array | undefined;
     let reported = false;
+    // Once the response is in, the server has answered: no more progress.
+    let answered = false;
     let failure: { error: unknown } | undefined;
     const report = () => {
+      if (answered) return;
       reported = true;
       try {
         onProgress(progressEvent(loaded, total));
@@ -145,12 +155,14 @@ export function countingFetch(
       { highWaterMark: 0 },
     );
     try {
-      return await base(input, {
+      const res = await base(input, {
         ...init,
         body,
         headers,
         duplex: "half",
       } as RequestInit);
+      answered = true;
+      return res;
     } catch (error) {
       throw failure ? failure.error : error;
     }
