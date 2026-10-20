@@ -33,16 +33,6 @@ function refuseForXhr(init: RequestContext["init"]): void {
 }
 
 /**
- * Does nothing by itself — only a call that passes `meta.onUploadProgress`
- * reports upload progress. On such a call it changes how that one attempt
- * is sent: over XMLHttpRequest in a browser, with a counted body in Node.
- * Every other call, on this client too, goes out exactly as before.
- *
- * Progress needs the runtime's own fetch: with an injected `fetch`, another
- * plugin's transport, or a runtime that is neither (Deno, Bun, a service
- * worker), the call is sent as usual without progress.
- */
-/**
  * The attempt with its own signal, joined to the call's. A callback that
  * throws aborts the attempt with its error: send passes an abort reason on
  * untouched, so it stays a plugin exception — not a network ArthronError
@@ -66,6 +56,16 @@ function withOwnSignal(
   return { ctx: { ...ctx, init: { ...ctx.init, signal } }, report };
 }
 
+/**
+ * Does nothing by itself — only a call that passes `meta.onUploadProgress`
+ * reports upload progress. On such a call it changes how that one attempt
+ * is sent: over XMLHttpRequest in a browser, with a counted body in Node.
+ * Every other call, on this client too, goes out exactly as before.
+ *
+ * Progress needs the runtime's own fetch: with an injected `fetch`, another
+ * plugin's transport, or a runtime that is neither (Deno, Bun, a service
+ * worker), the call is sent as usual without progress.
+ */
 export function uploadProgress(): Plugin {
   return {
     name: "uploadProgress",
