@@ -1,0 +1,66 @@
+name: Tag
+
+# Tags a release when its version lands on main, so the tag can never point
+# at a commit whose package.json says something else. A push to main that
+# changes package.json's version gets `vX.Y.Z` on that commit, and the
+# Release workflow is started on the tag.
+#
+# A tag pushed with this job's GITHUB_TOKEN does not start other workflows,
+# so Release is dispatched on the tag instead (workflow_dispatch is the
+# exception GitHub allows). It runs exactly as on a pushed tag: the `npm`
+# environment admits only `v*` tag refs and waits for a reviewer, and npm
+# only stages the version. No token is stored for any of this.
+#
+# Pushing a tag by hand still works; this job then finds it and does nothing.
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+
+permissions:
+  contents: read
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the tag
+      actions: write # dispatch release.yml
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Version
+        id: version
+        run: echo "tag=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      # A package.json change that is not a new version (a dependency bump)
+      # finds its tag already there.
+      - name: Tag exists?
+        id: exists
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" > /dev/null 2>&1; then
+            echo "$TAG already exists — nothing to do"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+      # Before tagging, so a release without notes never leaves a tag behind.
+      - name: CHANGELOG.md must have an entry for the version
+        if: steps.exists.outputs.found != 'true'
+        run: node scripts/release-notes.mjs "${TAG#v}" > /dev/null
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+      - name: Tag the commit and start Release on it
+        if: steps.exists.outputs.found != 'true'
+        run: |
+          object=$(gh api "repos/$GITHUB_REPOSITORY/git/tags" \
+            -f tag="$TAG" -f object="$GITHUB_SHA" -f type=commit \
+            -f message="arthron ${TAG#v} — see CHANGELOG.md" -q .sha)
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$object" > /dev/null
+          gh workflow run release.yml --ref "$TAG"
+          echo "Tagged $GITHUB_SHA as $TAG and started Release"
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
