@@ -22,7 +22,7 @@ const api = arthron({
       shouldRetry: (e) =>
         isArthronError(e) && e.status === 0 ? false : undefined,
     }),
-    timeout(Number.POSITIVE_INFINITY, { idle: 30_000 }),
+    timeout({ idle: 30_000 }),
   ],
 });
 

@@ -36,7 +36,7 @@ const api = arthron({
   baseURL: "https://api.example.com",
   credentials: "include",
   headers: { authorization: "Bearer token" },
-  use: [retry({ retries: 2 }), timeout(5_000)],
+  use: [retry({ retries: 2 }), timeout(5_000), timeout({ idle: 30_000 })],
   throwOn: (res) => res.status >= 500,
 });
 
