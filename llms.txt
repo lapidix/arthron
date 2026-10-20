@@ -2,7 +2,7 @@
 
 > A fetch client assembled from plugins. Returns native `Response`; middleware controls flow (can retry via `next`), interceptors transform values. Zero dependencies, ESM + CJS, Node 22+ and browsers, TypeScript 5.0+.
 
-Import: `import { arthron, retry, timeout, logging, isArthronError, SchemaError, definePlugin } from "arthron";`
+Import: `import { arthron, auth, retry, timeout, logging, isArthronError, SchemaError, definePlugin } from "arthron";`
 
 ## Create
 
@@ -69,13 +69,13 @@ type Plugin = {
   error?: (err: ArthronError, ctx) => ArthronError; // per failed attempt; return value is always thrown
 };
 type RequestContext = { url: string; init: Omit<RequestInit, "headers"> & { headers: Record<string, string> }; meta: ArthronMeta }; // headers: lowercase record, re-normalized after each request interceptor — spreading is safe
-// meta: per-call plugin settings from api.get(path, { meta }), never sent. Built-ins read meta.retry (false | options) and meta.timeout (ms).
-// Add keys: declare module "arthron" { interface ArthronMeta { skipAuth?: boolean } }
+// meta: per-call plugin settings from api.get(path, { meta }), never sent. Built-ins read meta.auth (false), meta.retry (false | options) and meta.timeout (ms).
+// Add keys: declare module "arthron" { interface ArthronMeta { skipTrace?: boolean } }
 ```
 
 Order: `middleware[0]( middleware[1]( attempt: request interceptors → fetch → response | error interceptors ) )`. Each attempt gets a fresh copy of ctx (headers, and a FormData/URLSearchParams body).
 
-`api.use(...plugins)`, `api.extend(config)` and `api.without(...names)` return NEW clients; the original is unchanged. A named plugin replaces the one with the same name at its position (built-ins: "retry", "timeout", "logging"); unnamed plugins append.
+`api.use(...plugins)`, `api.extend(config)` and `api.without(...names)` return NEW clients; the original is unchanged. A named plugin replaces the one with the same name at its position (built-ins: "auth", "retry", "timeout", "logging"); unnamed plugins append.
 
 Helpers (identity, for typing): `definePlugin(p)`, `defineMiddleware(m)`, `defineInterceptor.request(f) / .response(f) / .error(f)`.
 
@@ -83,17 +83,16 @@ Helpers (identity, for typing): `definePlugin(p)`, `defineMiddleware(m)`, `defin
 
 - `retry({ retries=2, retryOn=[408,429,500,502,503,504], methods=[GET,HEAD,OPTIONS,QUERY,PUT,DELETE], delay=(n)=>Math.random()*300*2**n /* full jitter */, maxRetryAfter=60000, shouldRetry?(error, attempt, ctx) → true|false|undefined, onRetry?(error, attempt, waitMs) })` — re-runs the whole attempt (request interceptors included). Honours Retry-After (seconds or HTTP-date). Never retries ReadableStream bodies or aborted requests, nor beyond `retries`; by default never non-ArthronErrors (shouldRetry may opt in, e.g. an inner TimeoutError). With methods: ["POST"], network errors (status 0) are retried too — refuse them with shouldRetry where a duplicate would hurt. Per call: `meta: { retry: false }` or `meta: { retry: { retries: 5 } }`. `retries` must be a whole number ≥ 0 (TypeError otherwise); waits are capped at 2^31-1 ms.
 - `timeout(ms, { idle? })` — deadline from attempt start until the body is fully read; `idle` also aborts after that many ms without data (headers or chunks), so `timeout(Infinity, { idle: 30_000 })` never cuts a flowing stream. Rejects with TimeoutError (not ArthronError; retry ignores it). Place after `retry` for per-attempt, before it for total. Per call: `meta: { timeout: ms }` (Infinity lifts it). `Infinity` = no deadline; NaN/negative/>2^31-1 → TypeError. Keeps `res.url`/`redirected`/`type` (through `clone()` too); timers are unref'd.
+- `auth({ origin, token, refresh? })` — `authorization: Bearer <token>` on every attempt, only to requests on `origin` (a URL or array; only origins count, non-http(s) → TypeError). `token: () => string | null | undefined | Promise<…>`, read per attempt; empty → no header. With `refresh: () => Promise<void>`, a 401 refreshes and redoes the call once: concurrent 401s share one refresh, a call whose token was already replaced retries without refreshing, a second 401 is thrown, a rejected refresh reaches every waiting call unchanged. Without `refresh`, 401 is thrown. Per call: `meta: { auth: false }` = no token, no refresh — required on the login/refresh requests if they use the same client (else the refresh's own 401 waits on itself). Token is opaque: refresh ahead of a JWT's exp inside `token()`.
 - `logging({ enabled=true, logger=console, onEvent?, now? })` — start/success/error lines or structured events `{ phase, method, path, status?, ms?, error? }`. Never prints query strings or userinfo. Does not log cancellations.
 
 ## Recipes
 
-Auth refresh — single flight, origin-scoped (full version: examples/auth-refresh.ts):
+Auth refresh — built in (`auth()` above; examples/auth-refresh.ts). The refresh request skips auth:
 ```ts
-const auth = (store, origin) => { let refreshing; const bearer = () => store.token() ? `Bearer ${store.token()}` : undefined; return definePlugin({
-  name: "auth",
-  request: (ctx) => !bearer() || new URL(ctx.url).origin !== origin ? ctx : { ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, authorization: bearer() } } },
-  middleware: async (ctx, next) => { try { return await next(ctx); } catch (e) { if (!isArthronError(e) || e.status !== 401) throw e; if (e.request.init.headers.authorization === bearer()) { refreshing ??= store.refresh().finally(() => (refreshing = undefined)); await refreshing; } return next(ctx); } },
-}); };
+const api = arthron({ baseURL: API, use: [auth({ origin: API, token: () => tok, refresh: async () => {
+  tok = (await api.post("/token/refresh", undefined, { meta: { auth: false } }).json<{ access_token: string }>()).access_token;
+} })] });
 ```
 
 Reacting to a call's final outcome (error page, domain error) is middleware registered BEFORE retry() — error interceptors run per attempt, including attempts a retry then recovers (see examples/error-page.ts).

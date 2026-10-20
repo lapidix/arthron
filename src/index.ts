@@ -12,6 +12,8 @@ export {
   defineMiddleware,
   definePlugin,
 } from "./pipeline/define-plugin";
+export { auth } from "./plugins/auth/auth";
+export type { AuthOptions } from "./plugins/auth/auth.types";
 export { logging } from "./plugins/logging/logging";
 export type { LogEvent, LoggingOptions } from "./plugins/logging/logging.types";
 export { retry } from "./plugins/retry/retry";

@@ -2,7 +2,9 @@
 // against the packed package; it is never run.
 import {
   type ArthronPromise,
+  type AuthOptions,
   arthron,
+  auth,
   isArthronError,
   retry,
   SchemaError,
@@ -37,6 +39,18 @@ const api = arthron({
   use: [retry({ retries: 2 }), timeout(5_000)],
   throwOn: (res) => res.status >= 500,
 });
+
+const authOptions: AuthOptions = {
+  origin: ["https://api.example.com"],
+  token: async () => null,
+  refresh: async () => {
+    await authed.post("/token/refresh", undefined, { meta: { auth: false } });
+  },
+};
+const authed = api.use(auth(authOptions));
+
+// @ts-expect-error meta.auth only turns auth off
+authed.get("/x", { meta: { auth: true } });
 
 export async function run(): Promise<void> {
   const pending: ArthronPromise = api.get("/users/{id}", {

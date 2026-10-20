@@ -84,6 +84,17 @@ const server = createServer((req, res) => {
     res.end("event: end\ndata: two\n\n");
     return;
   }
+  if (req.url === "/token") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ token: "new" }));
+    return;
+  }
+  if (req.url === "/private") {
+    const ok = req.headers.authorization === "Bearer new";
+    res.writeHead(ok ? 200 : 401, { "content-type": "application/json" });
+    res.end(JSON.stringify({ authorization: req.headers.authorization }));
+    return;
+  }
   if (req.url === "/slow") {
     setTimeout(() => res.end("{}"), 2_000);
     return;
@@ -95,7 +106,7 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const baseURL = `http://127.0.0.1:${server.address().port}`;
 
 try {
-  const { arthron, retry, timeout, isArthronError } = esm;
+  const { arthron, auth, retry, timeout, isArthronError } = esm;
   const api = arthron({
     baseURL,
     use: [retry({ delay: () => 0 }), timeout(500)],
@@ -205,6 +216,32 @@ try {
   assert(
     tooLong instanceof RangeError,
     "a stream line past maxLineLength rejects with RangeError",
+  );
+
+  let token = "old";
+  let refreshes = 0;
+  const authed = arthron({
+    baseURL,
+    use: [
+      auth({
+        origin: baseURL,
+        token: () => token,
+        refresh: async () => {
+          refreshes += 1;
+          const r = await authed
+            .post("/token", undefined, { meta: { auth: false } })
+            .json();
+          token = r.token;
+        },
+      }),
+    ],
+  });
+  const privates = await Promise.all(
+    [1, 2, 3].map(() => authed.get("/private").json()),
+  );
+  assert(
+    refreshes === 1 && privates.every((p) => p.authorization === "Bearer new"),
+    "auth refreshes once for concurrent 401s and redoes each call",
   );
 } finally {
   server.closeAllConnections?.();

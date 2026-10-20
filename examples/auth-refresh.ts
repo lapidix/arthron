@@ -1,85 +1,40 @@
-// Bearer token with silent refresh on 401.
+// Bearer token with silent refresh on 401, using the built-in `auth()`.
 //
-// The two halves live in different slots on purpose:
-// - attaching the header is a *value* change → request interceptor
-// - "refresh, then redo the request" is *flow* → middleware
-// Because `next` re-runs the request interceptors, the retried attempt picks
-// up the new token without any extra wiring.
-//
-// Two details make it safe beyond a demo:
-// - Single flight. Concurrent 401s share one refresh, and a call whose token
-//   was already replaced just retries. With refresh-token rotation, parallel
-//   refreshes would revoke each other and log the user out.
-// - Origin check. The token goes to the API's origin only, never to an
-//   absolute URL elsewhere (a CDN link, a URL from a response body).
-import { arthron, definePlugin, isArthronError } from "../src";
+// `auth()` attaches the token to the API's origin only, shares one refresh
+// between concurrent 401s, and redoes each call once. The refresh endpoint
+// goes through the same client with `meta: { auth: false }`: no token is
+// attached, and a 401 from it is thrown instead of waiting on itself.
+import { arthron, auth } from "../src";
 
-export type TokenStore = {
-  token: () => string | null;
-  /** Fetch a new token; throw when that fails — the caller sees the error. */
-  refresh: () => Promise<void>;
-};
-
-export const auth = (store: TokenStore, origin: string) => {
-  let refreshing: Promise<void> | undefined;
-  const bearer = () => {
-    const token = store.token();
-    return token ? `Bearer ${token}` : undefined;
-  };
-  return definePlugin({
-    name: "auth",
-    request: (ctx) => {
-      const value = bearer();
-      if (!value || new URL(ctx.url).origin !== origin) return ctx;
-      return {
-        ...ctx,
-        init: {
-          ...ctx.init,
-          headers: { ...ctx.init.headers, authorization: value },
-        },
-      };
-    },
-    middleware: async (ctx, next) => {
-      try {
-        return await next(ctx);
-      } catch (error) {
-        if (!isArthronError(error) || error.status !== 401) throw error;
-        // Refresh only if the token that failed is still the current one —
-        // otherwise another call has refreshed it already.
-        if (error.request.init.headers.authorization === bearer()) {
-          refreshing ??= store.refresh().finally(() => {
-            refreshing = undefined;
-          });
-          await refreshing;
-        }
-        return next(ctx);
-      }
-    },
-  });
-};
-
-// Usage — any store works; this one keeps the token in memory.
 const API = "https://api.example.com";
-let current: string | null = null;
-const api = arthron({
+
+// Any store works; this one keeps the token in memory.
+let accessToken: string | null = null;
+
+export const api = arthron({
   baseURL: API,
+  credentials: "include", // the refresh token is an httpOnly cookie
   use: [
-    auth(
-      {
-        token: () => current,
-        refresh: async () => {
-          const res = await fetch(`${API}/token/refresh`, {
-            method: "POST",
-            credentials: "include",
-          });
-          if (!res.ok) throw new Error(`token refresh failed: ${res.status}`);
-          current = ((await res.json()) as { access_token: string })
-            .access_token;
-        },
+    auth({
+      origin: API,
+      token: () => accessToken,
+      refresh: async () => {
+        // Rejects with an ArthronError when the session is gone — every
+        // waiting call sees it. Send the user to the login page from here.
+        const res = await api
+          .post("/token/refresh", undefined, { meta: { auth: false } })
+          .json<{ access_token: string }>();
+        accessToken = res.access_token;
       },
-      API,
-    ),
+    }),
   ],
 });
+
+export const login = async (username: string, password: string) => {
+  const res = await api
+    .post("/login", { username, password }, { meta: { auth: false } })
+    .json<{ access_token: string }>();
+  accessToken = res.access_token;
+};
 
 export const me = () => api.get("/me").json<{ id: string; name: string }>();

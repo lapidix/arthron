@@ -20,15 +20,20 @@ export interface RequestContext {
 /**
  * Per-call settings for plugins, passed as `api.get(path, { meta })` and
  * carried next to `init` — never sent to fetch. The built-in plugins read
- * `retry` and `timeout`; your own add keys by augmentation:
+ * `auth`, `retry` and `timeout`; your own add keys by augmentation:
  *
  * ```ts
  * declare module "arthron" {
- *   interface ArthronMeta { skipAuth?: boolean }
+ *   interface ArthronMeta { skipTrace?: boolean }
  * }
  * ```
  */
 export interface ArthronMeta {
+  /**
+   * `false` sends this call without the `auth()` token and never refreshes
+   * on its 401 — for the login and token-refresh endpoints.
+   */
+  auth?: false;
   /** `false` turns `retry()` off for this call; an object overrides its options. */
   retry?: false | Omit<RetryOptions, "sleep">;
   /** Deadline for this call in ms, overriding `timeout(ms)`. `Infinity` lifts it. */

@@ -8,6 +8,7 @@ describe("public surface", () => {
     expect(Object.keys(arthronModule).sort()).toEqual(
       [
         "ArthronError",
+        "auth",
         "defineInterceptor",
         "defineMiddleware",
         "definePlugin",

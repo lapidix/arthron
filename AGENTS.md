@@ -30,7 +30,7 @@ Node 22+ for everything — the dev toolchain and the runtime (`engines`). CI ru
 - **Return native `Response`.** Do not introduce a response wrapper type. Body helpers live on `ArthronPromise` (`src/response/arthron-promise.ts`).
 - **Public surface is pinned** by `src/index.test.ts` ("exports exactly the documented values"). Adding an export means updating that list, `README.md`, and `llms.txt` in the same change.
 - **Error messages say what to do** (`… — pass baseURL in arthron({ baseURL }) or use an absolute URL`). Keep that style.
-- `examples/*.ts` are type-checked (`tsconfig.json` includes them) and import from `../src`. Keep them compiling. `examples/recipes.test.ts` runs the auth and error-page recipes.
+- `examples/*.ts` are type-checked (`tsconfig.json` includes them) and import from `../src`. Keep them compiling. `examples/recipes.test.ts` runs the error-page recipe.
 
 ## Layout
 
@@ -45,7 +45,7 @@ src/
   response/     arthron-promise.ts (.json/.sse/… helpers), stream-parser.ts (SSE / NDJSON),
                 schema-validation.ts, rebuild-response.ts
   error/        arthron-error.ts (ArthronError, isArthronError), create-error.ts (responseError, networkError …)
-  plugins/      one folder per plugin: retry/, timeout/, logging/ ({name}.ts, {name}.types.ts, tests)
+  plugins/      one folder per plugin: auth/, retry/, timeout/, logging/ ({name}.ts, {name}.types.ts, tests)
   types/        types used by two or more folders: request.types (RequestContext, ArthronMeta, …),
                 plugin.types (Plugin, Middleware, interceptors), response.types (ArthronPromise, SSE, schema, …)
   testkit/      fakeFetch, jsonResponse — for tests only
