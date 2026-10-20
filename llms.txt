@@ -73,7 +73,7 @@ type RequestContext = { url: string; init: Omit<RequestInit, "headers"> & { head
 // Add keys: declare module "arthron" { interface ArthronMeta { skipTrace?: boolean } }
 ```
 
-Order: `middleware[0]( middleware[1]( attempt: request interceptors → fetch → response | error interceptors ) )`. Each attempt gets a fresh copy of ctx (headers, and a FormData/URLSearchParams body).
+Order: `middleware[0]( middleware[1]( attempt: request interceptors → fetch → response | error interceptors ) )` — a middleware is called once; code after `await next(ctx)` runs after the response interceptors. Inside `try`, write `return await next(ctx)` or the catch misses the error. Default order: `[logging(), bearerAuth(…), timeout(ms), retry()]` (timeout before retry = whole call, after = per attempt). Same-named plugins replace each other; for two timeouts rename one: `{ ...timeout(30_000), name: "callTimeout" }`. Values that must be fresh per attempt (token, signature) → request interceptor; the same on every attempt (idempotency key) → middleware before retry. Each attempt gets a fresh copy of ctx (headers, and a FormData/URLSearchParams body).
 
 `api.use(...plugins)`, `api.extend(config)` and `api.without(...names)` return NEW clients; the original is unchanged. A named plugin replaces the one with the same name at its position (built-ins: "bearerAuth", "retry", "timeout", "logging"); unnamed plugins append.
 
