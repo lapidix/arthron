@@ -1,5 +1,6 @@
 import { tagOf } from "../../request/body";
 import type { UploadProgressEvent } from "../../types/request.types";
+import { encodeFormData } from "./form-data";
 import { progressEvent } from "./progress-event";
 import { headersOf } from "./request-parts";
 
@@ -64,10 +65,9 @@ async function sourceOf(
         "application/x-www-form-urlencoded;charset=UTF-8",
       );
     case "FormData": {
-      // The multipart encoding is the runtime's; its length is known only once built.
-      const encoded = new Response(body as FormData);
-      const bytes = new Uint8Array(await encoded.arrayBuffer());
-      return fromBytes(bytes, encoded.headers.get("content-type"));
+      // Encoded here so its length is known while files still stream.
+      const { stream, total, type } = encodeFormData(body as FormData);
+      return { stream, total, type };
     }
     case "ReadableStream": {
       const length = Number(headers["content-length"]);

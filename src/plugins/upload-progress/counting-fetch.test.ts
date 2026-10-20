@@ -95,6 +95,33 @@ describe("countingFetch", () => {
     expect(new TextDecoder().decode(got.body)).toContain("kim");
   });
 
+  it("streams a FormData file instead of reading it before sending", async () => {
+    let readBeforeSend = false;
+    let sending = false;
+    class Watched extends File {
+      override stream() {
+        if (!sending) readBeforeSend = true;
+        return super.stream();
+      }
+    }
+    const form = new FormData();
+    form.append("file", new Watched([new Uint8Array(100_000)], "big.bin"));
+    const base = reading();
+    const watching = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      sending = true;
+      return base(input, init);
+    }) as typeof fetch;
+    await countingFetch(watching, () => {})("https://a/u", {
+      method: "POST",
+      body: form,
+      headers: {},
+    });
+    expect(readBeforeSend).toBe(false);
+    expect(base.got[0]?.headers["content-length"]).toBe(
+      String(base.got[0]?.body.length),
+    );
+  });
+
   it("reports a 0-byte body once, as complete", async () => {
     const { events } = await send(new Blob([]));
     expect(events).toEqual([{ loaded: 0, total: 0, progress: 1 }]);
