@@ -10,7 +10,7 @@ import type {
 } from "../../types/request.types";
 import { bearerAuth } from "../bearer-auth/bearer-auth";
 import { retry } from "../retry/retry";
-import { uploadProgress } from "./upload-progress";
+import { transportFor, uploadProgress, xhrRefusal } from "./upload-progress";
 
 /** What the plugin hands to send, for a context built here. */
 const sent = async (ctx: Partial<RequestContext>) => {
@@ -70,6 +70,53 @@ describe("uploadProgress", () => {
     expect(out.fetch).not.toBe(globalThis.fetch);
     expect(typeof out.fetch).toBe("function");
     expect(out.init.body).toBe(blob);
+  });
+});
+
+describe("transportFor", () => {
+  const node = { node: "22.0.0" };
+  it.each([
+    ["Node", { versions: node, hasXhr: false }, "count"],
+    [
+      "jsdom on Node",
+      { versions: node, hasXhr: true, userAgent: "Mozilla/5.0 jsdom/26" },
+      "count",
+    ],
+    ["a browser", { hasXhr: true }, "xhr"],
+    [
+      "an Electron renderer",
+      { versions: { ...node, electron: "33.0.0" }, hasXhr: true },
+      "xhr",
+    ],
+    ["Bun", { versions: { ...node, bun: "1.2.0" }, hasXhr: false }, undefined],
+    ["Deno", { versions: node, hasXhr: false, deno: true }, undefined],
+    [
+      "Cloudflare Workers",
+      { versions: node, hasXhr: false, userAgent: "Cloudflare-Workers" },
+      undefined,
+    ],
+    ["a service worker", { hasXhr: false }, undefined],
+  ] as const)("%s → %s", (_, env, expected) => {
+    expect(transportFor(env)).toBe(expected);
+  });
+});
+
+describe("xhrRefusal", () => {
+  const page = "https://app.test/page";
+  it.each([
+    [{ redirect: "manual" }, "https://api.test/u", /redirect: "manual"/],
+    [{ redirect: "error" }, "https://api.test/u", /redirect: "error"/],
+    [{ mode: "no-cors" }, "https://api.test/u", /mode: "no-cors"/],
+    [{ credentials: "omit" }, "https://app.test/u", /credentials: "omit"/],
+  ] as const)("refuses %o to %s", (init, url, message) => {
+    expect(xhrRefusal(init, url, page)).toMatch(message);
+  });
+  it.each([
+    [{}, "https://app.test/u"],
+    [{ credentials: "omit" }, "https://api.test/u"],
+    [{ credentials: "include", redirect: "follow" }, "https://app.test/u"],
+  ] as const)("lets %o to %s through", (init, url) => {
+    expect(xhrRefusal(init, url, page)).toBeUndefined();
   });
 });
 
