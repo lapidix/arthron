@@ -174,6 +174,39 @@ describe("countingFetch", () => {
     expect(base.got[0]?.headers["content-length"]).toBe("3");
   });
 
+  it("reports nothing for a read that lands after the abort", async () => {
+    const controller = new AbortController();
+    let open: (() => void) | undefined;
+    // A source whose next chunk arrives only once the gate opens.
+    const gated = new ReadableStream<Uint8Array>({
+      async pull(c) {
+        await new Promise<void>((resolve) => {
+          open = resolve;
+        });
+        c.enqueue(new Uint8Array(10));
+      },
+    });
+    const events: UploadProgressEvent[] = [];
+    const reading = (async (
+      _input: RequestInfo | URL,
+      init: RequestInit = {},
+    ) => {
+      await new Response(init.body).arrayBuffer();
+      return new Response("ok");
+    }) as typeof fetch;
+    const call = countingFetch(reading, (e) => events.push(e))("https://a/u", {
+      method: "PUT",
+      body: gated,
+      headers: {},
+      signal: controller.signal,
+    }).catch((e: unknown) => e);
+    await new Promise((r) => setTimeout(r, 5));
+    controller.abort(new Error("stop"));
+    open?.();
+    await call;
+    expect(events).toEqual([]);
+  });
+
   it("rejects with the callback's own error", async () => {
     const boom = new RangeError("boom");
     const call = countingFetch(reading(), () => {

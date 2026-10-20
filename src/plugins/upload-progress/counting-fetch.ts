@@ -130,10 +130,13 @@ export function countingFetch(
     const body = new ReadableStream<Uint8Array>(
       {
         async pull(controller) {
-          if (signal?.aborted) {
+          const stopped = async () => {
+            if (!signal?.aborted) return false;
             await reader.cancel(signal.reason).catch(() => {});
-            return controller.error(signal.reason);
-          }
+            controller.error(signal.reason);
+            return true;
+          };
+          if (await stopped()) return;
           let chunk = rest;
           if (!chunk?.byteLength) {
             const { value, done } = await reader.read();
@@ -143,6 +146,8 @@ export function countingFetch(
               return controller.close();
             }
             chunk = value;
+            // The abort may have come while that read was pending.
+            if (await stopped()) return;
           }
           rest = chunk.subarray(SLICE);
           const piece = chunk.subarray(0, SLICE);
