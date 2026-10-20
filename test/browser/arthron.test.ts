@@ -225,6 +225,36 @@ describe("uploadProgress in the browser", () => {
     );
   });
 
+  it("reports a 0-byte body as complete", async () => {
+    const events: UploadProgressEvent[] = [];
+    await uploads.post("/echo", new Blob([]), {
+      meta: { onUploadProgress: (e) => events.push(e) },
+    });
+    expect(events.at(-1)).toEqual({ loaded: 0, total: 0, progress: 1 });
+    expect(events.some((e) => Number.isNaN(e.progress))).toBe(false);
+  });
+
+  it("rejects an aborted upload with its reason and reports nothing after", async () => {
+    const controller = new AbortController();
+    const reason = new Error("cancelled");
+    const events: UploadProgressEvent[] = [];
+    let afterAbort = 0;
+    const call = uploads
+      .post("/echo", new Blob([new Uint8Array(8 * 1024 * 1024)]), {
+        signal: controller.signal,
+        meta: {
+          onUploadProgress: (e) => {
+            events.push(e);
+            if (controller.signal.aborted) afterAbort += 1;
+          },
+        },
+      })
+      .catch((e: unknown) => e);
+    controller.abort(reason);
+    expect(await call).toBe(reason);
+    expect(afterAbort).toBe(0);
+  });
+
   it("rejects with the callback's own error", async () => {
     const boom = new RangeError("boom");
     const err = await uploads

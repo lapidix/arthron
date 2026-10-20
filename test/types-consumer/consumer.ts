@@ -66,6 +66,17 @@ const authed = api.use(bearerAuth(authOptions));
 // @ts-expect-error meta.bearerAuth only turns auth off
 authed.get("/x", { meta: { bearerAuth: true } });
 
+// A plugin may read, wrap or replace the fetch an attempt is sent with.
+const observed = api.use({
+  request: (ctx) => {
+    const sendWith: typeof fetch | undefined = ctx.fetch;
+    return sendWith
+      ? { ...ctx, fetch: (input, init) => sendWith(input, init) }
+      : ctx;
+  },
+});
+void observed;
+
 const uploads = api.use(uploadProgress());
 uploads.post("/f", new Blob([]), {
   meta: {

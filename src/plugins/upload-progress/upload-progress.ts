@@ -103,8 +103,10 @@ function withOwnSignal(
  * Every other call, on this client too, goes out exactly as before.
  *
  * Progress needs the runtime's own fetch: with an injected `fetch`, another
- * plugin's transport, or a runtime that is neither (Deno, Bun, a service
- * worker), the call is sent as usual without progress.
+ * plugin's transport, or a runtime that is neither (Deno, Bun, Cloudflare
+ * Workers, a service worker), the call is sent as usual without progress.
+ * Put it last in `use`: the call's signal carries a throwing callback's
+ * error, and an interceptor after it that replaces the signal would cut it.
  */
 export function uploadProgress(): Plugin {
   return {

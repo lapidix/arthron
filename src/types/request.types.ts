@@ -44,7 +44,10 @@ export interface ArthronMeta {
   bearerAuth?: false;
   /**
    * Upload progress for this call, with `uploadProgress()` on the client.
-   * Without that plugin, or without a body, it is never called.
+   * Never called without that plugin or without a body, nor where progress
+   * cannot be had: a client with an injected `fetch`, another plugin's
+   * transport, Deno, Bun, Cloudflare Workers, a service worker, or a
+   * `ReadableStream` body in a browser — those calls are sent as usual.
    */
   onUploadProgress?: (event: UploadProgressEvent) => void;
   /** `false` turns `retry()` off for this call; an object overrides its options. */

@@ -294,11 +294,11 @@ The event: `loaded` (bytes sent), `total` (bytes in the body, `undefined` when u
 
 How that call is sent depends on where it runs:
 
-- **Browser:** over `XMLHttpRequest`, the only browser API that reports upload progress. On another origin, the upload listener makes every such call send a CORS preflight — an S3 bucket's CORS rules must allow the method and headers. The response arrives whole: `.sse()` / `.ndjson()` are not live on that call. `redirect: "manual" | "error"` and `mode: "no-cors"`, which XHR cannot honour, are refused with a `TypeError`. A `ReadableStream` body is sent as usual, without progress.
-- **Node:** with `fetch` as usual, the body counted as it is read, in steps of at most 64 KiB. `content-length` and the content type a `Blob` would set are kept, so an S3 presigned `PUT` accepts it. A `FormData` body is built in memory first to learn its length — `PUT` a `Blob` for large files.
-- **Anywhere else** — Deno, Bun, a service worker — and on a client with an injected `fetch` or another plugin's transport: sent as usual, without progress.
+- **Browser:** over `XMLHttpRequest`, the only browser API that reports upload progress. On another origin, the upload listener makes every such call send a CORS preflight — an S3 bucket's CORS rules must allow the method and headers. The response arrives whole: `.sse()` / `.ndjson()` are not live on that call. What XHR cannot honour and would change the call is refused with a `TypeError` before sending: `redirect: "manual" | "error"`, `mode: "no-cors"`, and `credentials: "omit"` to the page's own origin (XHR always sends its cookies there). What only tunes fetch — `cache`, `priority`, `referrerPolicy`, `integrity`, `keepalive` — is ignored on that call. A `ReadableStream` body is sent as usual, without progress.
+- **Node:** with `fetch` as usual, the body counted as it is read, in steps of at most 64 KiB. `content-length` and the content type a `Blob` would set are kept, so an S3 presigned `PUT` accepts it. A `FormData` body is encoded with its length known up front, its files streamed rather than read into memory. jsdom on Node counts the same way.
+- **Anywhere else** — Deno, Bun, Cloudflare Workers, an Electron main process, a service worker — and on a client with an injected `fetch` or another plugin's transport: sent as usual, without progress.
 
-A callback that throws fails the call with its own error, untouched: not an `ArthronError`, not retried.
+A callback that throws fails the call with its own error, untouched: not an `ArthronError`, not retried. Put `uploadProgress()` last in `use`: a request interceptor after it that replaces `init.signal` would cut that path, and the error would come back as a network failure.
 
 ### Write your own
 
