@@ -2,7 +2,7 @@
 
 > A fetch client assembled from plugins. Returns native `Response`; middleware controls flow (can retry via `next`), interceptors transform values. Zero dependencies, ESM + CJS, Node 22+ and browsers, TypeScript 5.0+.
 
-Import: `import { arthron, isArthronError, SchemaError, definePlugin } from "arthron";` and the built-in plugins `import { bearerAuth, retry, timeout, logging, uploadProgress } from "arthron/plugins";` (also exported from "arthron" as deprecated aliases until the next major, bearerAuth excepted).
+Import: `import { arthron, isArthronError, SchemaError, definePlugin } from "arthron";` and the built-in plugins `import { bearerAuth, retry, timeout, logging, uploadProgress } from "arthron/plugins";` (only there — not from "arthron").
 
 ## Create
 

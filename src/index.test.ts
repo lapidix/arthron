@@ -13,12 +13,17 @@ describe("public surface", () => {
         "definePlugin",
         "arthron",
         "isArthronError",
-        "logging",
-        "retry",
         "SchemaError",
-        "timeout",
       ].sort(),
     );
+  });
+  it("leaves the plugins' types to arthron/plugins", () => {
+    // @ts-expect-error import LogEvent from "arthron/plugins"
+    expectTypeOf<import("./").LogEvent>().not.toBeNever();
+    // @ts-expect-error import LoggingOptions from "arthron/plugins"
+    expectTypeOf<import("./").LoggingOptions>().not.toBeNever();
+    // @ts-expect-error import TimeoutOptions from "arthron/plugins"
+    expectTypeOf<import("./").TimeoutOptions>().not.toBeNever();
   });
   it("define helpers are identity and infer types", () => {
     const m: Middleware = async (_c, next) => next(_c);

@@ -174,7 +174,7 @@ Every attempt starts from a fresh copy of the context, so a header set by an int
 
 ### Built in
 
-The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging, retry, timeout, uploadProgress } from "arthron/plugins"`. They are plain plugins — anything they do, yours can. `logging`, `retry` and `timeout` are also exported from `arthron` itself, as they were in 1.0; those exports are deprecated and go in the next major.
+The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging, retry, timeout, uploadProgress } from "arthron/plugins"`. They are plain plugins — anything they do, yours can.
 
 | plugin | slots | per call |
 |---|---|---|

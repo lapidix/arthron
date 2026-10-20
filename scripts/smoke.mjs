@@ -31,8 +31,8 @@ assert(
   "arthron/plugins loads, with the same names in ESM and CJS",
 );
 assert(
-  esm.retry === esmPlugins.retry && cjs.timeout === cjsPlugins.timeout,
-  "the deprecated main-entry plugins are the arthron/plugins functions",
+  !("retry" in esm) && !("timeout" in cjs),
+  "the built-in plugins come from arthron/plugins only",
 );
 
 const crossCopy = await cjs

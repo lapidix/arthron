@@ -4,8 +4,6 @@ import {
   type ArthronPromise,
   arthron,
   isArthronError,
-  // Deprecated, still exported until the next major.
-  logging as legacyLogging,
   SchemaError,
   type SseEvent,
   type StandardSchemaV1,
@@ -13,6 +11,7 @@ import {
 import {
   type BearerAuthOptions,
   bearerAuth,
+  logging,
   type RetryOptions,
   retry,
   timeout,
@@ -44,7 +43,7 @@ const api = arthron({
   credentials: "include",
   headers: { authorization: "Bearer token" },
   use: [
-    legacyLogging({ enabled: false }),
+    logging({ enabled: false }),
     retry({ retries: 2 } satisfies RetryOptions),
     timeout(5_000),
     timeout({ idle: 30_000 }),
