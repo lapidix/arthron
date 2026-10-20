@@ -52,6 +52,14 @@ describe("countingFetch", () => {
     expect(got.headers["content-type"]).toBe("application/octet-stream");
   });
 
+  it("reports a large Blob in 64 KiB steps, however it is chunked", async () => {
+    // Node hands an in-memory Blob over as a single chunk.
+    const { events } = await send(new Blob([new Uint8Array(200_000)]));
+    expect(events.map((e) => e.loaded)).toEqual([
+      65_536, 131_072, 196_608, 200_000,
+    ]);
+  });
+
   it("keeps a content-type the caller set", async () => {
     const blob = new Blob(["x"], { type: "image/png" });
     const { got } = await send(blob, {

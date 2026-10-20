@@ -2,7 +2,11 @@ import { tagOf } from "../../request/body";
 import type { UploadProgressEvent } from "../../types/request.types";
 import { progressEvent } from "./progress-event";
 
-/** How much of an in-memory body each read hands over. */
+/**
+ * The most one progress step covers. Chunks are cut to it whatever their
+ * source: Node hands an in-memory Blob over as a single chunk, which would
+ * jump from 0 to 100%.
+ */
 const SLICE = 64 * 1024;
 
 type Source = {
@@ -12,22 +16,14 @@ type Source = {
   type: string | undefined;
 };
 
-function sliced(bytes: Uint8Array): ReadableStream<Uint8Array> {
-  let offset = 0;
-  return new ReadableStream<Uint8Array>(
-    {
-      pull(controller) {
-        if (offset >= bytes.byteLength) return controller.close();
-        controller.enqueue(bytes.subarray(offset, offset + SLICE));
-        offset += SLICE;
-      },
-    },
-    { highWaterMark: 0 },
-  );
-}
-
 const fromBytes = (bytes: Uint8Array, type?: string | null): Source => ({
-  stream: sliced(bytes),
+  // One chunk; the counting stream cuts it into SLICE-sized steps.
+  stream: new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  }),
   total: bytes.byteLength,
   type: type ?? undefined,
 });
@@ -108,6 +104,8 @@ export function countingFetch(
     const signal = init.signal;
     const reader = source.stream.getReader();
     let loaded = 0;
+    // What is left of a chunk longer than SLICE.
+    let rest: Uint8Array | undefined;
     let reported = false;
     let failure: { error: unknown } | undefined;
     const report = () => {
@@ -126,15 +124,21 @@ export function countingFetch(
             await reader.cancel(signal.reason).catch(() => {});
             return controller.error(signal.reason);
           }
-          const { value, done } = await reader.read();
-          if (done) {
-            // An empty body still says it is done, once.
-            if (!reported) report();
-            return controller.close();
+          let chunk = rest;
+          if (!chunk?.byteLength) {
+            const { value, done } = await reader.read();
+            if (done) {
+              // An empty body still says it is done, once.
+              if (!reported) report();
+              return controller.close();
+            }
+            chunk = value;
           }
-          loaded += value.byteLength;
+          rest = chunk.subarray(SLICE);
+          const piece = chunk.subarray(0, SLICE);
+          loaded += piece.byteLength;
           report();
-          controller.enqueue(value);
+          controller.enqueue(piece);
         },
         cancel: (reason) => reader.cancel(reason),
       },
