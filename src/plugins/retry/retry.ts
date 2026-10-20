@@ -52,11 +52,7 @@ function byDefault(
   return thrown.status === 0 || settings.retryOn.includes(thrown.status);
 }
 
-/**
- * Retry on network errors and the configured statuses by calling `next`
- * again — the whole attempt (request interceptors included) is re-run.
- * Only `ArthronError` is considered; cancellation and plugin bugs pass through.
- */
+/** `RetryOptions` with defaults filled in, ready for one call. */
 type Settings = {
   retries: number;
   retryOn: readonly number[];
