@@ -52,6 +52,25 @@ function normalize(
 }
 
 /**
+ * A plugin written in JS (or with a cast) that forgets to return would hand
+ * `undefined` on — and an error interceptor's would be what the caller
+ * catches. Name the plugin slot instead.
+ */
+function returned<T>(
+  value: T | null | undefined,
+  who: string,
+  what: string,
+  cause?: unknown,
+  verb = "returned",
+): T {
+  if (value != null) return value;
+  throw new TypeError(
+    `arthron: ${who} ${verb} ${value} — return ${what}`,
+    cause === undefined ? undefined : { cause },
+  );
+}
+
+/**
  * Owns the order of one request.
  *
  * Middleware wraps the whole call, outermost first in registration order.
@@ -78,30 +97,58 @@ export async function runPipeline(
 
   const attempt = async (input: RequestContext): Promise<Response> => {
     let current = cloneContext(input);
+    for (const interceptor of request) {
+      const next = returned(
+        await interceptor(current),
+        "a request interceptor",
+        "the context (ctx or a changed copy)",
+      );
+      current = normalize(next, current);
+    }
+    let res: Response;
     try {
-      for (const interceptor of request) {
-        current = normalize(await interceptor(current), current);
-      }
-      let res = await send(current);
-      for (const interceptor of response) res = await interceptor(res, current);
-      return res;
+      res = await send(current);
     } catch (thrown) {
+      // Only send's failures are this request's: an ArthronError a plugin
+      // throws (its own call failed) is a plugin exception like any other.
       if (!isArthronError(thrown)) throw thrown;
       let err = thrown;
-      for (const interceptor of error) err = await interceptor(err, current);
+      for (const interceptor of error) {
+        err = returned(
+          await interceptor(err, current),
+          "an error interceptor",
+          "the error (err or a changed one)",
+          thrown,
+        );
+      }
       throw err;
     }
+    for (const interceptor of response) {
+      res = returned(
+        await interceptor(res, current),
+        "a response interceptor",
+        "the Response (res or a new one)",
+      );
+    }
+    return res;
   };
 
-  const dispatch = (
+  const dispatch = async (
     index: number,
     input: RequestContext,
   ): Promise<Response> => {
     const middleware = middlewares[index];
     if (!middleware) return attempt(input);
     // A middleware that builds a fresh `{ url, init }` keeps the call's meta.
-    return middleware(input, (next) =>
+    const res = await middleware(input, (next) =>
       dispatch(index + 1, { ...next, meta: next.meta ?? input.meta }),
+    );
+    return returned(
+      res,
+      "a middleware",
+      "the Response, usually `return next(ctx)`",
+      undefined,
+      "resolved with",
     );
   };
   return dispatch(0, ctx);
