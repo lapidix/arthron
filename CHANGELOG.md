@@ -12,6 +12,13 @@ From 1.0.0 arthron follows [Semantic Versioning](https://semver.org/):
 
 A deprecated API keeps working, is marked `@deprecated` with what to use instead, is listed here, and is removed only in the next major.
 
+## [Unreleased]
+
+### Added
+
+- `uploadProgress()` in `arthron/plugins`: upload progress per call, `meta: { onUploadProgress: ({ loaded, total, progress }) => … }`. It does nothing by itself; only a call that passes the callback changes. In a browser that call goes over `XMLHttpRequest`; in Node the body is counted as `fetch` reads it, keeping `content-length` so S3 presigned uploads work.
+- `RequestContext.fetch`: the fetch an attempt is sent with — the client's, else the global one. A plugin can replace it for one attempt or wrap it; failures still become `ArthronError` in one place.
+
 ## [1.1.0] — 2026-10-20
 
 ### Added

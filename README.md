@@ -127,7 +127,7 @@ const authed = base.use(bearerAuth({ origin: API, token })); // base + auth
 const admin = authed.extend({ headers: { "x-role": "admin" } }); // authed + header
 ```
 
-`extend` shallow-merges the config, merges headers case-insensitively (child wins), and adds plugins the way `use` does: a plugin whose `name` is already there replaces it in place — so `streaming = base.use(timeout(120_000))` loosens the inherited `timeout`, and a second `retry()` does not multiply attempts — while unnamed plugins append. `without("retry")` returns a client without that plugin. The built-ins are named `bearerAuth`, `retry`, `timeout` and `logging`.
+`extend` shallow-merges the config, merges headers case-insensitively (child wins), and adds plugins the way `use` does: a plugin whose `name` is already there replaces it in place — so `streaming = base.use(timeout(120_000))` loosens the inherited `timeout`, and a second `retry()` does not multiply attempts — while unnamed plugins append. `without("retry")` returns a client without that plugin. The built-ins are named `bearerAuth`, `logging`, `retry`, `timeout` and `uploadProgress`.
 
 ## Plugins
 
@@ -174,7 +174,7 @@ Every attempt starts from a fresh copy of the context, so a header set by an int
 
 ### Built in
 
-The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging, retry, timeout } from "arthron/plugins"`. They are plain plugins — anything they do, yours can. `logging`, `retry` and `timeout` are also exported from `arthron` itself, as they were in 1.0; those exports are deprecated and go in the next major.
+The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging, retry, timeout, uploadProgress } from "arthron/plugins"`. They are plain plugins — anything they do, yours can. `logging`, `retry` and `timeout` are also exported from `arthron` itself, as they were in 1.0; those exports are deprecated and go in the next major.
 
 | plugin | slots | per call |
 |---|---|---|
@@ -182,6 +182,7 @@ The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging,
 | `retry` | middleware | `meta: { retry: false \| options }` |
 | `timeout` | middleware | `meta: { timeout: ms }` |
 | `logging` | middleware | — |
+| `uploadProgress` | request interceptor (picks the transport) | `meta: { onUploadProgress }` — only calls that pass it |
 
 Order is meaning: the first plugin is outermost. A good default:
 
@@ -275,6 +276,29 @@ The token goes to `origin` only — never to a CDN or a URL taken from a respons
 Per call, `meta: { bearerAuth: false }` sends no token and never refreshes. Use it for the login and refresh endpoints: a refresh request that went through `bearerAuth()` would, on its own 401, wait for itself.
 
 The token is treated as opaque: to refresh a JWT ahead of its `exp`, do it inside `token()`. It is not for cookie sessions: it tells whether another call already refreshed by comparing the `authorization` header a call sent with the current one, and an httpOnly cookie cannot be read to compare.
+
+#### `uploadProgress()`
+
+Does nothing by itself — only a call that passes `meta.onUploadProgress` reports progress. Every other call, on the same client too, goes out exactly as before.
+
+```ts
+const api = arthron({ baseURL: API, use: [retry(), uploadProgress()] }); // last in use
+
+await api.get("/me"); // as usual
+await api.post("/files", file, {
+  meta: { onUploadProgress: ({ loaded, total, progress }) => setBar(progress) }, // this call only
+});
+```
+
+The event: `loaded` (bytes sent), `total` (bytes in the body, `undefined` when unknown — a stream without `content-length`), `progress` (`loaded / total` from 0 to 1, `undefined` with `total`). Progress counts what was handed to the network, so it reaches 1 a moment before the server has it all; the response arriving is the end. Each attempt counts from 0 again, so a retried upload starts the bar over.
+
+How that call is sent depends on where it runs:
+
+- **Browser:** over `XMLHttpRequest`, the only browser API that reports upload progress. On another origin, the upload listener makes every such call send a CORS preflight — an S3 bucket's CORS rules must allow the method and headers. The response arrives whole: `.sse()` / `.ndjson()` are not live on that call. `redirect: "manual" | "error"` and `mode: "no-cors"`, which XHR cannot honour, are refused with a `TypeError`. A `ReadableStream` body is sent as usual, without progress.
+- **Node:** with `fetch` as usual, the body counted as it is read, in steps of at most 64 KiB. `content-length` and the content type a `Blob` would set are kept, so an S3 presigned `PUT` accepts it. A `FormData` body is built in memory first to learn its length — `PUT` a `Blob` for large files.
+- **Anywhere else** — Deno, Bun, a service worker — and on a client with an injected `fetch` or another plugin's transport: sent as usual, without progress.
+
+A callback that throws fails the call with its own error, untouched: not an `ArthronError`, not retried.
 
 ### Write your own
 
