@@ -16,6 +16,12 @@ async function* lines(
   maxLineLength: number,
 ): AsyncGenerator<string> {
   if (!response.body) return;
+  const checked = (line: string): string => {
+    if (line.length <= maxLineLength) return line;
+    throw new RangeError(
+      `arthron: a stream line is longer than ${maxLineLength} characters — pass a larger maxLineLength to .sse() / .ndjson() if that is expected`,
+    );
+  };
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   const breaks = /\r\n|\r|\n/g;
@@ -34,16 +40,13 @@ async function* lines(
       let start = 0;
       breaks.lastIndex = 0;
       for (let m = breaks.exec(text); m; m = breaks.exec(text)) {
-        yield pending + text.slice(start, m.index);
+        yield checked(pending + text.slice(start, m.index));
         pending = "";
         start = breaks.lastIndex;
       }
-      pending += text.slice(start);
-      if (pending.length > maxLineLength) {
-        throw new RangeError(
-          `arthron: a stream line is longer than ${maxLineLength} characters — pass a larger maxLineLength to .sse() / .ndjson() if that is expected`,
-        );
-      }
+      // Checked before the break arrives too, so a line without one cannot
+      // grow without bound.
+      pending = checked(pending + text.slice(start));
       if (done) break;
     }
     if (pending) yield pending;

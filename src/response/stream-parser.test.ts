@@ -160,6 +160,27 @@ describe("stream limits", () => {
     ).rejects.toThrow(/maxLineLength/);
     expect(seen.cancelled).toBe(true);
   });
+  it("rejects a long line however the body is chunked", async () => {
+    // One chunk holding the whole line and its break.
+    await expect(
+      collect(
+        parseNdjson(stream(`"${"a".repeat(60)}"\n`), { maxLineLength: 50 }),
+      ),
+    ).rejects.toThrow(/maxLineLength/);
+    // The end of a line carried over from the chunk before.
+    await expect(
+      collect(
+        parseNdjson(stream(`"${"a".repeat(40)}`, `${"a".repeat(20)}"\n`), {
+          maxLineLength: 50,
+        }),
+      ),
+    ).rejects.toThrow(/maxLineLength/);
+    expect(
+      await collect(
+        parseNdjson(stream(`"${"a".repeat(48)}"\n`), { maxLineLength: 50 }),
+      ),
+    ).toEqual(["a".repeat(48)]);
+  });
   it("rejects an SSE event whose data outgrows maxEventSize", async () => {
     const { seen, response } = tracked(
       "data: 0123456789\n",
