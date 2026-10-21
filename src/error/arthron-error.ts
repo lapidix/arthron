@@ -75,9 +75,11 @@ export class ArthronError extends Error {
 
   /** `instanceof ArthronError` holds for an error from any copy of the package. */
   static override [Symbol.hasInstance](value: unknown): boolean {
+    // biome-ignore-start lint/complexity/noThisInStatic: `this` is the class on the right of instanceof; naming ArthronError instead would make every subclass match every ArthronError
     return this === ArthronError
       ? isArthronError(value)
       : Function.prototype[Symbol.hasInstance].call(this, value);
+    // biome-ignore-end lint/complexity/noThisInStatic: see above
   }
 
   /** What serializers see: no headers, no request body, no query or userinfo. */
