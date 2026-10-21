@@ -15,7 +15,8 @@ export type BearerAuthOptions = {
     | undefined
     | Promise<string | null | undefined>;
   /**
-   * Gets a new access token after a 401; the call is then redone once.
+   * Refreshes the session after a 401, so the next `accessTokenFn()`
+   * returns the new token; the call is then redone once.
    * Concurrent 401s share one refresh, and a call whose token was already
    * replaced retries without one. Throw when the refresh fails — every waiting call
    * rejects with that error. A request it starts through the same client

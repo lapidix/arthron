@@ -124,10 +124,10 @@ function withOwnSignal(
  * is sent: over XMLHttpRequest in a browser, with a counted body in Node.
  * Every other call, on this client too, goes out exactly as before.
  *
- * Progress needs the runtime's own fetch: with an injected `fetch`, another
+ * Progress needs the runtime's own fetch: with a client `fetchFn`, another
  * plugin's fetchFn, or a runtime that is neither (Deno, Bun, Cloudflare
  * Workers, a service worker), the call is sent as usual without progress.
- * Put it last in `use`: the call's signal carries a throwing callback's
+ * Put it last in `plugins`: the call's signal carries a throwing callback's
  * error, and an interceptor after it that replaces the signal would cut it.
  */
 export function uploadProgress(): Plugin {
