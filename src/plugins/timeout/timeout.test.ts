@@ -4,7 +4,7 @@ import { arthron } from "../../client/client";
 import { isArthronError } from "../../error/arthron-error";
 import { fakeFetch, jsonResponse } from "../../testkit/fetch.testkit";
 import type { Plugin } from "../../types/plugin.types";
-import { retryWith } from "../retry/retry";
+import { retryWithSleep } from "../retry/retry";
 import { timeout } from "./timeout";
 
 /** A fetch that never answers on its own but honours the signal. */
@@ -83,7 +83,7 @@ describe("timeout", () => {
     const api = arthron({
       baseURL: "https://a",
       fetchFn: fetch,
-      plugins: [retryWith({}, async () => {}), timeout(10)],
+      plugins: [retryWithSleep({}, async () => {}), timeout(10)],
     });
     await expect(api.get("/u")).rejects.toMatchObject({ name: "TimeoutError" });
     expect(fetch.calls).toHaveLength(1);
@@ -294,7 +294,7 @@ describe("timeout while reading an error body", () => {
     const api = arthron({
       baseURL: "https://a",
       fetchFn: stalled,
-      plugins: [retryWith({}, async () => {}), timeout(20)],
+      plugins: [retryWithSleep({}, async () => {}), timeout(20)],
     });
     const err = await api.get("/u").catch((e: unknown) => e);
     expect((err as Error).name).toBe("TimeoutError");

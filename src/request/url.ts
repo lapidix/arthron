@@ -105,13 +105,15 @@ export function leavesBase(baseURL: string | undefined, path: string): boolean {
   return base === undefined || originOf(path) !== base;
 }
 
-function toQueryString(params: QueryParams | undefined): string {
-  if (!params) return "";
-  if (Object.prototype.toString.call(params) === "[object URLSearchParams]") {
-    return params.toString();
+function toQueryString(queryParams: QueryParams | undefined): string {
+  if (!queryParams) return "";
+  if (
+    Object.prototype.toString.call(queryParams) === "[object URLSearchParams]"
+  ) {
+    return queryParams.toString();
   }
   const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
+  for (const [key, value] of Object.entries(queryParams)) {
     for (const item of Array.isArray(value) ? value : [value]) {
       if (item === null || item === undefined) continue;
       // `String({})` is "[object Object]" and a Date prints in local time —
@@ -173,7 +175,7 @@ export function fillPath(
 export function resolveUrl(
   baseURL: string | undefined,
   path: string,
-  params?: QueryParams,
+  queryParams?: QueryParams,
   allowed?: ReadonlySet<string>,
 ): string {
   let url: string;
@@ -214,7 +216,7 @@ export function resolveUrl(
     }
     url = `${baseURL.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
   }
-  const query = toQueryString(params);
+  const query = toQueryString(queryParams);
   if (!query) return url;
   // The query goes before any #fragment, or the server never sees it.
   const hash = url.indexOf("#");

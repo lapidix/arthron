@@ -18,7 +18,7 @@ function guardBody(
   let onAbort = () => {};
   // The listener goes when the body does: left on a signal joined to the
   // caller's, it would keep this reader alive as long as the caller's signal.
-  const settle = () => {
+  const release = () => {
     signal.removeEventListener("abort", onAbort);
     finish();
   };
@@ -35,11 +35,11 @@ function guardBody(
       try {
         chunk = await reader.read();
       } catch (error) {
-        settle();
+        release();
         throw error;
       }
       if (chunk.done) {
-        settle();
+        release();
         controller.close();
         return;
       }
@@ -47,7 +47,7 @@ function guardBody(
       controller.enqueue(chunk.value);
     },
     cancel(reason) {
-      settle();
+      release();
       return reader.cancel(reason);
     },
   });
@@ -77,7 +77,7 @@ function deadlineTimer(
 }
 
 /** `timeout(ms)` or `timeout({ total, idle })`, checked. */
-function settle(first: number | TimeoutOptions): {
+function resolveTimeoutOptions(first: number | TimeoutOptions): {
   ms: number;
   idle: number | undefined;
 } {
@@ -147,7 +147,7 @@ export function timeout(
       "arthron: timeout(ms, { idle }) was removed in 2.0 — pass one object, timeout({ total: ms, idle })",
     );
   }
-  const base = settle(first);
+  const base = resolveTimeoutOptions(first);
   return {
     pluginName: "timeout",
     middleware: async (ctx, next) => {

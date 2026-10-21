@@ -10,7 +10,7 @@ import type {
 } from "../../types/request.types";
 import { bearerAuth } from "../bearer-auth/bearer-auth";
 import { retry } from "../retry/retry";
-import { transportFor, uploadProgress, xhrRefusal } from "./upload-progress";
+import { uploadModeFor, uploadProgress, xhrRefusal } from "./upload-progress";
 
 /** What the plugin hands to send, for a context built here. */
 const sent = async (ctx: Partial<RequestContext>) => {
@@ -84,14 +84,14 @@ describe("uploadProgress", () => {
   });
 });
 
-describe("transportFor", () => {
+describe("uploadModeFor", () => {
   const node = { node: "22.0.0" };
   it.each([
-    ["Node", { versions: node, hasXhr: false }, "count"],
+    ["Node", { versions: node, hasXhr: false }, "countedFetch"],
     [
       "jsdom on Node",
       { versions: node, hasXhr: true, userAgent: "Mozilla/5.0 jsdom/26" },
-      "count",
+      "countedFetch",
     ],
     ["a browser", { hasXhr: true }, "xhr"],
     [
@@ -108,7 +108,7 @@ describe("transportFor", () => {
     ],
     ["a service worker", { hasXhr: false }, undefined],
   ] as const)("%s → %s", (_, env, expected) => {
-    expect(transportFor(env)).toBe(expected);
+    expect(uploadModeFor(env)).toBe(expected);
   });
 });
 

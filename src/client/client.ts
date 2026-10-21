@@ -11,7 +11,11 @@ import type {
   RequestOptions,
   RequestOptionsWithMethod,
 } from "./client.types";
-import { addPlugins, fetchDefaults, resolveConfig } from "./resolve-config";
+import {
+  addPlugins,
+  fetchDefaults,
+  resolveClientOptions,
+} from "./resolve-options";
 import { send } from "./send";
 
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
@@ -43,13 +47,13 @@ const REPLACED_PER_CALL = {
 export function arthron(
   clientOptions: ArthronClientOptions = {},
 ): ArthronClient {
-  const resolved = resolveConfig(clientOptions);
+  const resolved = resolveClientOptions(clientOptions);
   const initDefaults = fetchDefaults(resolved);
   // Checked here, so a bad entry fails when the client is created.
   const allowed = resolved.allowedOrigins && originSet(resolved.allowedOrigins);
   const pipeline = createPipeline(resolved.plugins);
 
-  const dispatch = (
+  const call = (
     path: string,
     method: string,
     rawBody: unknown,
@@ -121,31 +125,31 @@ export function arthron(
     }
   };
 
-  const derive = (next: Partial<ArthronClientOptions>): ArthronClient => {
+  const derive = (changes: Partial<ArthronClientOptions>): ArthronClient => {
     const merged: ArthronClientOptions = {
       ...resolved,
-      ...next,
-      headers: mergeHeaders(resolved.headers, next.headers),
-      plugins: addPlugins(resolved.plugins, next.plugins ?? []),
+      ...changes,
+      headers: mergeHeaders(resolved.headers, changes.headers),
+      plugins: addPlugins(resolved.plugins, changes.plugins ?? []),
     };
     return arthron(merged);
   };
 
   return {
     get: (path, requestOptions = {}) =>
-      dispatch(path, "GET", undefined, requestOptions),
+      call(path, "GET", undefined, requestOptions),
     delete: (path, requestOptions = {}) =>
-      dispatch(path, "DELETE", undefined, requestOptions),
+      call(path, "DELETE", undefined, requestOptions),
     head: (path, requestOptions = {}) =>
-      dispatch(path, "HEAD", undefined, requestOptions),
+      call(path, "HEAD", undefined, requestOptions),
     post: (path, body, requestOptions = {}) =>
-      dispatch(path, "POST", body, requestOptions),
+      call(path, "POST", body, requestOptions),
     put: (path, body, requestOptions = {}) =>
-      dispatch(path, "PUT", body, requestOptions),
+      call(path, "PUT", body, requestOptions),
     patch: (path, body, requestOptions = {}) =>
-      dispatch(path, "PATCH", body, requestOptions),
+      call(path, "PATCH", body, requestOptions),
     query: (path, body, requestOptions = {}) =>
-      dispatch(path, "QUERY", body, requestOptions),
+      call(path, "QUERY", body, requestOptions),
     request: (path, requestOptions: RequestOptionsWithMethod) => {
       const { method, body, ...rest } = requestOptions;
       if (!method) {
@@ -157,10 +161,10 @@ export function arthron(
           ),
         );
       }
-      return dispatch(path, method, body, rest);
+      return call(path, method, body, rest);
     },
     use: (...plugins) => derive({ plugins }),
-    extend: (next) => derive(next),
+    extend: (changes) => derive(changes),
     without: (...pluginNames) =>
       arthron({
         ...resolved,

@@ -160,7 +160,10 @@ export interface ArthronClient {
 }
 
 /** `ArthronClientOptions` after `resolveClientOptions`: headers as one record, plugins de-duplicated by pluginName. Internal. */
-export type Resolved = Omit<ArthronClientOptions, "headers" | "plugins"> & {
+export type ResolvedClientOptions = Omit<
+  ArthronClientOptions,
+  "headers" | "plugins"
+> & {
   headers: Record<string, string>;
   plugins: readonly Plugin[];
 };

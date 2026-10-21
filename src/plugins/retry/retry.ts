@@ -63,7 +63,8 @@ function byDefault(
   method: string,
   settings: Settings,
 ): boolean {
-  if (!settings.allowed.has(method) || !isArthronError(thrown)) return false;
+  if (!settings.allowedMethods.has(method) || !isArthronError(thrown))
+    return false;
   return thrown.status === 0 || settings.statuses.includes(thrown.status);
 }
 
@@ -71,7 +72,7 @@ function byDefault(
 type Settings = {
   retries: number;
   statuses: readonly number[];
-  allowed: Set<string>;
+  allowedMethods: Set<string>;
   delayFn: (attempt: number, error: unknown) => number;
   maxRetryAfter: number;
   shouldRetry: RetryOptions["shouldRetry"];
@@ -82,7 +83,7 @@ type Settings = {
 const REPLACED = { delay: "delayFn", retryOn: "statuses" } as const;
 
 /** Defaults filled in and `retries` checked — `attempt >= NaN` is never true, so an unset env var would retry forever. */
-function settle(
+function resolveRetryOptions(
   options: RetryOptions,
   where: "retry()" | "meta.retry",
 ): Settings {
@@ -118,11 +119,11 @@ function settle(
       `arthron: ${where} retries: ${retries} needs a whole number ≥ 0 — e.g. retries: 2`,
     );
   }
-  const allowed = new Set(methods.map((m) => m.toUpperCase()));
+  const allowedMethods = new Set(methods.map((m) => m.toUpperCase()));
   return {
     retries,
     statuses,
-    allowed,
+    allowedMethods,
     delayFn,
     maxRetryAfter,
     shouldRetry,
@@ -137,12 +138,12 @@ function settle(
  * A call can turn it off or override its options with `meta.retry`.
  */
 export function retry(options: RetryOptions = {}): Plugin {
-  return retryWith(options, defaultSleep);
+  return retryWithSleep(options, defaultSleep);
 }
 
 /** `retry()` with the wait injected — for this package's tests; `arthron/plugins` does not export it. */
-export function retryWith(options: RetryOptions, sleep: Sleep): Plugin {
-  const base = settle(options, "retry()");
+export function retryWithSleep(options: RetryOptions, sleep: Sleep): Plugin {
+  const base = resolveRetryOptions(options, "retry()");
 
   return {
     pluginName: "retry",
@@ -150,7 +151,7 @@ export function retryWith(options: RetryOptions, sleep: Sleep): Plugin {
       const override = ctx.meta?.retry;
       if (override === false) return next(ctx);
       const settings = override
-        ? settle({ ...options, ...override }, "meta.retry")
+        ? resolveRetryOptions({ ...options, ...override }, "meta.retry")
         : base;
       const method = (ctx.init.method ?? "GET").toUpperCase();
       const resendable = !isReadableStream(ctx.init.body);

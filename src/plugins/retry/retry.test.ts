@@ -3,7 +3,7 @@ import { arthron } from "../../client/client";
 import { fakeFetch, jsonResponse } from "../../testkit/fetch.testkit";
 import type { RetryOptions } from "../../types/request.types";
 import { timeout } from "../timeout/timeout";
-import { retry, retryWith } from "./retry";
+import { retry, retryWithSleep } from "./retry";
 
 const sleepSpy = () => vi.fn(async (_ms: number) => {});
 const err = (status: number, headers?: Record<string, string>) =>
@@ -16,7 +16,7 @@ const make = (
   arthron({
     baseURL: "https://a",
     fetchFn: fetch,
-    plugins: [retryWith(opts, sleep)],
+    plugins: [retryWithSleep(opts, sleep)],
   });
 type Sleep = (ms: number) => Promise<void>;
 
@@ -115,7 +115,7 @@ describe("retry", () => {
       baseURL: "https://a",
       fetchFn: fetch,
       plugins: [
-        retryWith({}, sleepSpy()),
+        retryWithSleep({}, sleepSpy()),
         {
           pluginName: "p95",
           requestInterceptor: () => {
@@ -313,7 +313,7 @@ describe("retry", () => {
         baseURL: "https://a",
         fetchFn: hangsOnce,
         plugins: [
-          retryWith(
+          retryWithSleep(
             {
               shouldRetry: (e) =>
                 (e as Error).name === "TimeoutError" ? true : undefined,

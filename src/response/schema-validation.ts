@@ -27,12 +27,12 @@ export class SchemaMismatchError extends Error {
   }
 }
 
-/** Validate `data`; resolve with the schema's output or reject with a SchemaMismatchError. */
+/** Validate `body`; resolve with the schema's output or reject with a SchemaMismatchError. */
 export async function validate<S extends ArthronSchema>(
   schema: S,
-  data: unknown,
+  body: unknown,
 ): Promise<ArthronSchema.Infer<S>> {
-  const result = await schema["~standard"].validate(data);
+  const result = await schema["~standard"].validate(body);
   if (result.issues) throw new SchemaMismatchError(result.issues);
   return result.value as ArthronSchema.Infer<S>;
 }

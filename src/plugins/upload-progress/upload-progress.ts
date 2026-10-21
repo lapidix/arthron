@@ -15,13 +15,16 @@ type Runtime = {
 };
 
 /**
- * How a progress call can be sent here. Node first — jsdom on Node has an
- * XMLHttpRequest too, but Node's fetch is the real transport there. Bun,
+ * How a progress call can be sent here: a counted body on the runtime's
+ * fetch, or XMLHttpRequest. Node first — jsdom on Node has an
+ * XMLHttpRequest too, but Node's own fetch sends the requests there. Bun,
  * Deno, Electron and Cloudflare Workers also expose `process.versions.node`;
  * only Node was shown to keep content-length on a counted body, and an
  * Electron renderer has XHR.
  */
-export function transportFor(runtime: Runtime): "count" | "xhr" | undefined {
+export function uploadModeFor(
+  runtime: Runtime,
+): "countedFetch" | "xhr" | undefined {
   const { versions, hasXhr, userAgent, deno } = runtime;
   const node =
     Boolean(versions?.node) &&
@@ -29,7 +32,7 @@ export function transportFor(runtime: Runtime): "count" | "xhr" | undefined {
     !versions?.electron &&
     !deno &&
     userAgent !== "Cloudflare-Workers";
-  if (node) return "count";
+  if (node) return "countedFetch";
   return hasXhr ? "xhr" : undefined;
 }
 
@@ -143,9 +146,9 @@ export function uploadProgress(): Plugin {
       const { body } = ctx.init;
       if (!onProgress || body === undefined || body === null) return ctx;
       if (ctx.fetchFn !== globalThis.fetch) return ctx;
-      const transport = transportFor(currentRuntime());
-      if (!transport) return ctx;
-      if (transport === "xhr") {
+      const uploadMode = uploadModeFor(currentRuntime());
+      if (!uploadMode) return ctx;
+      if (uploadMode === "xhr") {
         const page = (globalThis as { location?: { href?: string } }).location
           ?.href;
         const refusal = xhrRefusal(ctx.init, ctx.url, page);
@@ -157,11 +160,11 @@ export function uploadProgress(): Plugin {
         // XHR cannot send a stream; it goes out as usual, without progress.
         if (isReadableStream(body)) return ctx;
       }
-      const { ctx: next, report } = withOwnSignal(ctx, onProgress);
+      const { ctx: withSignal, report } = withOwnSignal(ctx, onProgress);
       return {
-        ...next,
+        ...withSignal,
         fetchFn:
-          transport === "xhr"
+          uploadMode === "xhr"
             ? xhrFetch(report)
             : countingFetch(ctx.fetchFn, report),
       };

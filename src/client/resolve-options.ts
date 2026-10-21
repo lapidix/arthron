@@ -2,7 +2,10 @@ import { checkPlugin } from "../pipeline/create-plugin";
 import { toHeaderRecord } from "../request/headers";
 import { httpOrigin, withoutSecrets } from "../request/url";
 import type { Plugin } from "../types/plugin.types";
-import type { ArthronClientOptions, Resolved } from "./client.types";
+import type {
+  ArthronClientOptions,
+  ResolvedClientOptions,
+} from "./client.types";
 
 /**
  * Option keys that configure arthron itself; every other key is a fetch
@@ -62,7 +65,7 @@ export function addPlugins(
 type FetchDefaults = Omit<ArthronClientOptions, keyof typeof OWN_KEYS>;
 
 /** The fetch defaults in a config: every set key that is not arthron's own. */
-export function fetchDefaults(config: Resolved): FetchDefaults {
+export function fetchDefaults(config: ResolvedClientOptions): FetchDefaults {
   return Object.fromEntries(
     Object.entries(config).filter(
       ([key, value]) => value !== undefined && !(key in OWN_KEYS),
@@ -71,7 +74,9 @@ export function fetchDefaults(config: Resolved): FetchDefaults {
 }
 
 /** Normalize once so `extend` can merge headers and add plugins cheaply. */
-export function resolveConfig(config: ArthronClientOptions): Resolved {
+export function resolveClientOptions(
+  config: ArthronClientOptions,
+): ResolvedClientOptions {
   for (const key of PER_CALL_ONLY) {
     if ((config as Record<string, unknown>)[key] !== undefined) {
       throw new TypeError(
@@ -111,7 +116,7 @@ export function resolveConfig(config: ArthronClientOptions): Resolved {
       "arthron: config headers go to baseURL's origin only, and this client has allowedOrigins but no baseURL — set baseURL, or pass these headers per call",
     );
   }
-  const resolved: Resolved = {
+  const resolved: ResolvedClientOptions = {
     ...rest,
     headers: record,
     plugins: addPlugins([], plugins ?? []),

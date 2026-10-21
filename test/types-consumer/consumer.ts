@@ -73,9 +73,9 @@ authed.get("/x", { meta: { bearerAuth: true } });
 const observed = api.use({
   pluginName: "observe",
   requestInterceptor: (ctx) => {
-    const sendWith: typeof fetch | undefined = ctx.fetchFn;
-    return sendWith
-      ? { ...ctx, fetchFn: (input, init) => sendWith(input, init) }
+    const inner: typeof fetch | undefined = ctx.fetchFn;
+    return inner
+      ? { ...ctx, fetchFn: (input, init) => inner(input, init) }
       : ctx;
   },
 });

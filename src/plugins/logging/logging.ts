@@ -33,11 +33,11 @@ export function logging(options: LoggingOptions = {}): Plugin {
       'arthron: logging\'s now option left the public options in 2.0 — mock performance.now in tests (vi.spyOn(performance, "now"))',
     );
   }
-  return loggingWith(options, () => performance.now());
+  return loggingWithClock(options, () => performance.now());
 }
 
 /** `logging()` with the clock injected — for this package's tests; `arthron/plugins` does not export it. */
-export function loggingWith(
+export function loggingWithClock(
   options: LoggingOptions,
   now: () => number,
 ): Plugin {
