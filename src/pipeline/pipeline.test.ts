@@ -268,7 +268,7 @@ describe("runPipeline", () => {
         status: 599,
         statusText: "",
         headers: e.headers,
-        data: e.data,
+        payload: e.payload,
         request: e.request,
       });
     await expect(

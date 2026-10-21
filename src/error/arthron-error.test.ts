@@ -42,7 +42,7 @@ describe("ArthronError keeps request secrets out of serialization", () => {
     expect(JSON.parse(json)).toMatchObject({
       name: "ArthronError",
       message: "POST https://api.test/login failed with 401",
-      serverMessage: "nope",
+      description: "nope",
       status: 401,
       method: "POST",
       url: "https://api.test/login",

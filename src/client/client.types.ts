@@ -4,7 +4,10 @@ import type {
   HeadersOption,
   QueryParams,
 } from "../types/request.types";
-import type { ResponsePromise, ServerMessageFn } from "../types/response.types";
+import type {
+  DescriptionExtractor,
+  ResponsePromise,
+} from "../types/response.types";
 
 /**
  * The methods arthron knows by name; any other string is sent as written.
@@ -93,12 +96,12 @@ export interface ArthronClientOptions extends FetchDefaults {
   /** Plugins, outermost first. A named one replaces an earlier one of that name. */
   plugins?: Plugin[];
   /**
-   * Gives `ArthronError.serverMessage` from the error response's body, for an
-   * API that puts its message somewhere else:
-   * `(body) => body.errors?.[0]?.msg`. Default: the body's `message`, else
+   * Extracts `ArthronError.description` from a failed response's payload, for
+   * an API that puts it somewhere else: `(payload) => payload.errors?.[0]?.msg`.
+   * Called only for failed responses. Default: the payload's `message`, else
    * `error` (a string), else `error.message`, else `detail`.
    */
-  serverMessageFn?: ServerMessageFn;
+  extractDescription?: DescriptionExtractor;
   /**
    * Which non-ok responses reject with an ArthronError — return `false` to
    * get the Response instead (a 404 that is data, say). An ok response never

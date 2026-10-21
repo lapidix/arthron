@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { jsonResponse } from "../testkit/fetch.testkit";
 import { ArthronError } from "./arthron-error";
 import {
-  defaultServerMessage,
+  defaultDescription,
   isCancellation,
   networkError,
   responseError,
@@ -14,7 +14,7 @@ const req = {
   meta: {},
 };
 
-describe("defaultServerMessage", () => {
+describe("defaultDescription", () => {
   it.each([
     [{ message: "m" }, "m"],
     [{ error: "e" }, "e"],
@@ -26,22 +26,22 @@ describe("defaultServerMessage", () => {
     ["plain text", undefined],
     [undefined, undefined],
   ])("%j → %j", (data, expected) => {
-    expect(defaultServerMessage(data)).toBe(expected);
+    expect(defaultDescription(data)).toBe(expected);
   });
 });
 
 describe("responseError", () => {
-  it("writes its own message and keeps the server's text in serverMessage", async () => {
+  it("writes its own message and keeps the server's text in description", async () => {
     const err = await responseError(
       jsonResponse({ message: "nope" }, { status: 400, statusText: "Bad" }),
       req,
     );
     expect(err).toBeInstanceOf(ArthronError);
     expect(err.message).toBe("GET https://a/x failed with 400 Bad");
-    expect(err.serverMessage).toBe("nope");
+    expect(err.description).toBe("nope");
     expect(err.status).toBe(400);
     expect(err.statusText).toBe("Bad");
-    expect(err.data).toEqual({ message: "nope" });
+    expect(err.payload).toEqual({ message: "nope" });
     expect(err.response?.status).toBe(400);
     expect(err.request).toBe(req);
   });
@@ -53,30 +53,30 @@ describe("responseError", () => {
     expect(err.response?.bodyUsed).toBe(false);
     expect(await err.response?.json()).toEqual({ message: "nope" });
   });
-  it("uses the status alone when there is no status text (HTTP/2), and no serverMessage for a plain body", async () => {
+  it("uses the status alone when there is no status text (HTTP/2), and no description for a plain body", async () => {
     const err = await responseError(new Response("boom", { status: 502 }), req);
-    expect(err.data).toBe("boom");
+    expect(err.payload).toBe("boom");
     expect(err.message).toBe("GET https://a/x failed with 502");
-    expect(err.serverMessage).toBeUndefined();
+    expect(err.description).toBeUndefined();
   });
   it("leaves data undefined for an empty body", async () => {
     const err = await responseError(new Response(null, { status: 404 }), req);
-    expect(err.data).toBeUndefined();
+    expect(err.payload).toBeUndefined();
   });
-  it("fills serverMessage from a custom serverMessageFn, or leaves it undefined", async () => {
+  it("fills description from a custom extractDescription, or leaves it undefined", async () => {
     const custom = await responseError(
       jsonResponse({ msg: "c" }, { status: 400 }),
       req,
       (d) => (d as { msg: string }).msg,
     );
-    expect(custom.serverMessage).toBe("c");
+    expect(custom.description).toBe("c");
     expect(custom.message).toBe("GET https://a/x failed with 400");
     const none = await responseError(
       jsonResponse({ msg: "c" }, { status: 400 }),
       req,
       () => undefined,
     );
-    expect(none.serverMessage).toBeUndefined();
+    expect(none.description).toBeUndefined();
   });
   it("keeps the query, userinfo and the server's text out of the message", async () => {
     const err = await responseError(
@@ -91,7 +91,7 @@ describe("responseError", () => {
       },
     );
     expect(err.message).toBe("POST https://a/x failed with 404");
-    expect(err.serverMessage).toBe("Cannot POST /internal/admin\r\nX-Fake: 1");
+    expect(err.description).toBe("Cannot POST /internal/admin\r\nX-Fake: 1");
   });
 });
 
@@ -101,7 +101,7 @@ describe("networkError", () => {
     const err = networkError(cause, req);
     expect(err.status).toBe(0);
     expect(err.message).toBe("GET https://a/x failed: fetch failed");
-    expect(err.serverMessage).toBeUndefined();
+    expect(err.description).toBeUndefined();
     expect(err.cause).toBe(cause);
     expect(err.response).toBeUndefined();
     expect([...err.headers]).toEqual([]);
@@ -167,8 +167,8 @@ describe("responseError reads at most 64 KiB of the body", () => {
   it("keeps the first 64 KiB as text, cancels the rest unread", async () => {
     const { seen, response } = source(10 * 1024 * 1024);
     const err = await responseError(response, req);
-    expect(typeof err.data).toBe("string");
-    expect((err.data as string).length).toBe(LIMIT);
+    expect(typeof err.payload).toBe("string");
+    expect((err.payload as string).length).toBe(LIMIT);
     expect(seen.cancelled).toBe(true);
     expect(seen.pulled).toBeLessThanOrEqual(LIMIT + 16 * 1024);
   });

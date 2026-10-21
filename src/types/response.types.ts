@@ -86,10 +86,10 @@ export type InferOutput<S extends StandardSchemaV1> = NonNullable<
 >["output"];
 
 /**
- * Picks the server's message out of an error response's body (parsed: JSON if
- * it parses, else the text) for `ArthronError.serverMessage`.
+ * Extracts `ArthronError.description` from a failed response's payload
+ * (parsed: JSON if it parses, else the text).
  */
-export type ServerMessageFn = (
-  body: unknown,
+export type DescriptionExtractor = (
+  payload: unknown,
   response: Response,
 ) => string | undefined;

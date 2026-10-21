@@ -2,7 +2,7 @@ import { isReadableStream } from "../request/body";
 import { redactUrl, redactUrlIn } from "../request/url";
 import { rebuildResponse } from "../response/rebuild-response";
 import type { RequestContext } from "../types/request.types";
-import type { ServerMessageFn } from "../types/response.types";
+import type { DescriptionExtractor } from "../types/response.types";
 import { ArthronError } from "./arthron-error";
 
 /**
@@ -35,14 +35,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 /** `message` → `error` (string) → `error.message` → `detail`. */
-export function defaultServerMessage(data: unknown): string | undefined {
-  if (!isRecord(data)) return undefined;
-  if (typeof data.message === "string") return data.message;
-  if (typeof data.error === "string") return data.error;
-  if (isRecord(data.error) && typeof data.error.message === "string") {
-    return data.error.message;
+export function defaultDescription(payload: unknown): string | undefined {
+  if (!isRecord(payload)) return undefined;
+  if (typeof payload.message === "string") return payload.message;
+  if (typeof payload.error === "string") return payload.error;
+  if (isRecord(payload.error) && typeof payload.error.message === "string") {
+    return payload.error.message;
   }
-  if (typeof data.detail === "string") return data.detail;
+  if (typeof payload.detail === "string") return payload.detail;
   return undefined;
 }
 
@@ -107,23 +107,23 @@ function describeRequest(request: RequestContext): string {
 export async function responseError(
   response: Response,
   request: RequestContext,
-  serverMessageFn: ServerMessageFn = defaultServerMessage,
+  extractDescription: DescriptionExtractor = defaultDescription,
 ): Promise<ArthronError> {
   const read = await readCapped(response, MAX_ERROR_BODY_BYTES);
-  const data = read && parseBody(read);
+  const payload = read && parseBody(read);
   // The body was consumed above; hand the caller a Response over what was read.
   if (read) response = rebuildResponse(response, read.bytes);
   const status = response.statusText
     ? `${response.status} ${response.statusText}`
     : String(response.status);
   return new ArthronError({
-    // arthron's own words for logs; the server's go in `serverMessage`.
+    // arthron's own words for logs; the server's go in `description`.
     message: `${describeRequest(request)} failed with ${status}`,
-    serverMessage: serverMessageFn(data, response) || undefined,
+    description: extractDescription(payload, response) || undefined,
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,
-    data,
+    payload,
     request,
     response,
   });
@@ -152,7 +152,7 @@ export function networkError(
     status: 0,
     statusText: "",
     headers: new Headers(),
-    data: undefined,
+    payload: undefined,
     request,
     cause,
   });

@@ -119,9 +119,9 @@ export async function run(): Promise<void> {
   } catch (err) {
     if (isArthronError(err)) {
       const status: number = err.status;
-      const serverMessage: string | undefined = err.serverMessage;
+      const description: string | undefined = err.description;
       void status;
-      void serverMessage;
+      void description;
     }
     if (err instanceof SchemaError) {
       const count: number = err.issues.length;

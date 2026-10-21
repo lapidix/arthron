@@ -27,11 +27,11 @@ export type {
   RequestContext,
 } from "./types/request.types";
 export type {
+  DescriptionExtractor,
   InferOutput,
   NdjsonOptions,
   ResponsePromise,
   SchemaIssue,
-  ServerMessageFn,
   SseEvent,
   SseOptions,
   StandardSchemaV1,

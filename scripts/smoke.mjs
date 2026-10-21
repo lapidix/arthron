@@ -226,7 +226,7 @@ try {
     .catch((e) => e);
   assert(
     isArthronError(huge) &&
-      huge.data.length === 64 * 1024 &&
+      huge.payload.length === 64 * 1024 &&
       (await huge.response.text()).length === 64 * 1024,
     "a 1 MB error body is read only up to 64 KiB",
   );
