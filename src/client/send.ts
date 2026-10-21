@@ -61,17 +61,17 @@ export async function send(
   ctx: RequestContext,
   throwOn: ((res: Response) => boolean) | undefined,
 ): Promise<Response> {
-  // The attempt's adapter, which a plugin may have replaced or wrapped.
+  // The attempt's fetchFn, which a plugin may have replaced or wrapped.
   // Resolved per call, not per client: a global patched after the client was
   // created (msw's `server.listen()`, for one) must still be honoured.
-  const fetchImpl = ctx.adapter ?? resolved.fetch ?? globalThis.fetch;
+  const fetchFn = ctx.fetchFn ?? resolved.fetchFn ?? globalThis.fetch;
   // Here rather than before the pipeline, so it sees the URL the request
   // interceptors produced. Whenever the client relies on the runtime's fetch
   // — also when a plugin wrapped or swapped it for this attempt (upload
   // progress) — but not for an injected fetch, which owns its URL rules. A
   // TypeError is not an ArthronError: retry and error interceptors leave it
   // alone.
-  if (resolved.fetch === undefined) {
+  if (resolved.fetchFn === undefined) {
     const method = ctx.init.method ?? "GET";
     assertSendable(ctx.url, method);
     assertStreamable(ctx.url, method, ctx.init.body);
@@ -79,7 +79,7 @@ export async function send(
   const { signal } = ctx.init;
   let res: Response;
   try {
-    res = await fetchImpl(ctx.url, ctx.init);
+    res = await fetchFn(ctx.url, ctx.init);
   } catch (thrown) {
     if (isCancellation(thrown, signal)) throw cancellationError(thrown, signal);
     throw networkError(thrown, ctx);

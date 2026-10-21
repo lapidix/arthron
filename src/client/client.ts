@@ -91,7 +91,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
             meta: { ...meta },
             // Read per call: a global patched after the client was created
             // (msw's `server.listen()`, for one) is still honoured.
-            adapter: resolved.fetch ?? globalThis.fetch,
+            fetchFn: resolved.fetchFn ?? globalThis.fetch,
           },
           (ctx) => send(resolved, ctx, throwOn),
         ),

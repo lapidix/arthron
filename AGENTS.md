@@ -20,7 +20,7 @@ Node 22+ for everything — the dev toolchain and the runtime (`engines`). CI ru
 
 ## Rules
 
-- **Tests first.** Every behaviour change starts with a failing test in the matching `*.test.ts`. Tests inject `fetch` through `ArthronConfig.fetch` (see `src/testkit/fetch.testkit.ts`: `fakeFetch`, `jsonResponse`); never stub `globalThis.fetch`.
+- **Tests first.** Every behaviour change starts with a failing test in the matching `*.test.ts`. Tests inject `fetch` through `ArthronConfig.fetchFn` (see `src/testkit/fetch.testkit.ts`: `fakeFetch`, `jsonResponse`); never stub `globalThis.fetch`.
 - **No runtime dependencies.** `dependencies` stays empty. New dev tooling must work on Node 22+.
 - **TypeScript 5.0+ for users.** The published types must pass `pnpm check:types-consumer` on every version pinned in `test/types-consumer/package.json`, the lowest being the supported minimum. Raising it is a major change. A new TypeScript release gets a new pinned version there.
 - **Node 22 APIs only in `src/`** (and what browsers ship). `AbortSignal.any` is fine; anything newer than Node 22 needs a fallback and a smoke check.

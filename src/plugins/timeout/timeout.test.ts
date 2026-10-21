@@ -24,7 +24,11 @@ const hangingFetch = () => {
 describe("timeout", () => {
   it("rejects with a TimeoutError once the deadline passes", async () => {
     const fetch = hangingFetch();
-    const api = arthron({ baseURL: "https://a", fetch, use: [timeout(10)] });
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: fetch,
+      use: [timeout(10)],
+    });
     const err = await api.get("/u").catch((e: unknown) => e);
     expect((err as Error).name).toBe("TimeoutError");
     expect(isArthronError(err)).toBe(false);
@@ -35,7 +39,7 @@ describe("timeout", () => {
     try {
       const api = arthron({
         baseURL: "https://a",
-        fetch: fakeFetch(jsonResponse({ ok: 1 })),
+        fetchFn: fakeFetch(jsonResponse({ ok: 1 })),
         use: [timeout(50)],
       });
       expect(await api.get("/u").json()).toEqual({ ok: 1 });
@@ -46,7 +50,11 @@ describe("timeout", () => {
   });
   it("still honours the caller's own signal (AbortError, not TimeoutError)", async () => {
     const fetch = hangingFetch();
-    const api = arthron({ baseURL: "https://a", fetch, use: [timeout(1000)] });
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: fetch,
+      use: [timeout(1000)],
+    });
     const ac = new AbortController();
     const pending = api
       .get("/u", { signal: ac.signal })
@@ -56,7 +64,11 @@ describe("timeout", () => {
   });
   it("rejects immediately when the caller's signal is already aborted", async () => {
     const fetch = hangingFetch();
-    const api = arthron({ baseURL: "https://a", fetch, use: [timeout(1000)] });
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: fetch,
+      use: [timeout(1000)],
+    });
     const ac = new AbortController();
     ac.abort();
     const err = await api
@@ -68,7 +80,7 @@ describe("timeout", () => {
     const fetch = hangingFetch();
     const api = arthron({
       baseURL: "https://a",
-      fetch,
+      fetchFn: fetch,
       use: [retry({ sleep: async () => {} }), timeout(10)],
     });
     await expect(api.get("/u")).rejects.toMatchObject({ name: "TimeoutError" });
@@ -85,7 +97,7 @@ describe("timeout — the response it hands back", () => {
     });
     const api = arthron({
       baseURL: "https://a",
-      fetch: fakeFetch(fetched),
+      fetchFn: fakeFetch(fetched),
       use: [timeout(1000)],
     });
     const res = await api.get("/start");
@@ -101,7 +113,7 @@ describe("timeout — the response it hands back", () => {
     try {
       const api = arthron({
         baseURL: "https://a",
-        fetch: fakeFetch(jsonResponse({})),
+        fetchFn: fakeFetch(jsonResponse({})),
         use: [timeout(30_000)],
       });
       const res = await api.get("/u");
@@ -133,7 +145,7 @@ describe("timeout — meta.timeout per call", () => {
   it("lengthens the deadline for one call", async () => {
     const api = arthron({
       baseURL: "https://a",
-      fetch: answersAfter(40),
+      fetchFn: answersAfter(40),
       use: [timeout(10)],
     });
     expect(await api.get("/u", { meta: { timeout: 1000 } }).json()).toEqual({
@@ -143,7 +155,7 @@ describe("timeout — meta.timeout per call", () => {
   it("shortens the deadline for one call", async () => {
     const api = arthron({
       baseURL: "https://a",
-      fetch: answersAfter(200),
+      fetchFn: answersAfter(200),
       use: [timeout(5000)],
     });
     await expect(
@@ -153,7 +165,7 @@ describe("timeout — meta.timeout per call", () => {
   it("Infinity lifts the deadline for one call", async () => {
     const api = arthron({
       baseURL: "https://a",
-      fetch: answersAfter(40),
+      fetchFn: answersAfter(40),
       use: [timeout(10)],
     });
     expect(
@@ -182,7 +194,7 @@ describe("timeout(ms) bounds", () => {
       })) as unknown as typeof fetch;
     const api = arthron({
       baseURL: "https://a",
-      fetch: slow,
+      fetchFn: slow,
       use: [timeout(Number.POSITIVE_INFINITY)],
     });
     expect(await api.get("/u").json()).toEqual({ ok: 1 });
@@ -215,7 +227,7 @@ describe("timeout while reading an error body", () => {
     }) as unknown as typeof fetch;
     const api = arthron({
       baseURL: "https://a",
-      fetch: stalled,
+      fetchFn: stalled,
       use: [retry({ sleep: async () => {} }), timeout(20)],
     });
     const err = await api.get("/u").catch((e: unknown) => e);
@@ -241,7 +253,7 @@ describe("timeout while streaming", () => {
       )) as unknown as typeof fetch;
     const api = arthron({
       baseURL: "https://a",
-      fetch: stalled,
+      fetchFn: stalled,
       use: [timeout(30)],
     });
     const seen: string[] = [];
@@ -277,7 +289,7 @@ describe("timeout — idle", () => {
   it("keeps a stream that is still flowing, however long it runs", async () => {
     const api = arthron({
       baseURL: "https://a",
-      fetch: drip(10, 10),
+      fetchFn: drip(10, 10),
       use: [timeout({ idle: 40 })],
     });
     let events = 0;
@@ -287,7 +299,7 @@ describe("timeout — idle", () => {
   it("aborts once no data has arrived for `idle` ms", async () => {
     const api = arthron({
       baseURL: "https://a",
-      fetch: drip(10, 5, 2),
+      fetchFn: drip(10, 5, 2),
       use: [timeout({ idle: 30 })],
     });
     let events = 0;
@@ -300,7 +312,7 @@ describe("timeout — idle", () => {
   it("counts the wait for headers as idle time too", async () => {
     const api = arthron({
       baseURL: "https://a",
-      fetch: hangingFetch(),
+      fetchFn: hangingFetch(),
       use: [timeout({ idle: 20 })],
     });
     await expect(api.get("/u")).rejects.toMatchObject({ name: "TimeoutError" });
@@ -318,7 +330,7 @@ describe("timeout — idle", () => {
     // Flows every 10 ms for 100 ms: idle never trips, total does.
     const api = arthron({
       baseURL: "https://a",
-      fetch: drip(10, 10),
+      fetchFn: drip(10, 10),
       use: [timeout({ total: 35, idle: 1000 })],
     });
     let events = 0;
@@ -336,7 +348,7 @@ describe("timeout({ total, idle })", () => {
     const fetch = hangingFetch();
     const api = arthron({
       baseURL: "https://a",
-      fetch,
+      fetchFn: fetch,
       use: [timeout({ total: 10 })],
     });
     await expect(api.get("/u")).rejects.toMatchObject({ name: "TimeoutError" });
@@ -344,7 +356,7 @@ describe("timeout({ total, idle })", () => {
   it("without total, meta.timeout still sets one for a call", async () => {
     const api = arthron({
       baseURL: "https://a",
-      fetch: hangingFetch(),
+      fetchFn: hangingFetch(),
       use: [timeout({ idle: 60_000 })],
     });
     await expect(
@@ -371,7 +383,7 @@ describe("timeout — clone() keeps the fetched fields", () => {
     });
     const api = arthron({
       baseURL: "https://a",
-      fetch: fakeFetch(fetched),
+      fetchFn: fakeFetch(fetched),
       use: [timeout(1000)],
     });
     const copy = (await api.get("/start")).clone();

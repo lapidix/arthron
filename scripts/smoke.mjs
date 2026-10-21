@@ -38,7 +38,7 @@ assert(
 const crossCopy = await cjs
   .arthron({
     baseURL: "https://copies.test",
-    fetch: async () => new Response("", { status: 500 }),
+    fetchFn: async () => new Response("", { status: 500 }),
   })
   .get("/x")
   .catch((e) => e);

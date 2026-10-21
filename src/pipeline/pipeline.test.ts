@@ -378,7 +378,7 @@ describe("runPipeline", () => {
     ).rejects.toThrow(/a middleware resolved with undefined — return/);
   });
 
-  it("keeps ctx.adapter across interceptors and middleware that build a fresh context", async () => {
+  it("keeps ctx.fetchFn across interceptors and middleware that build a fresh context", async () => {
     const f = (async () => jsonResponse({})) as unknown as typeof fetch;
     const seen: unknown[] = [];
     await runPipeline(
@@ -389,16 +389,16 @@ describe("runPipeline", () => {
             next({ url: c.url, init: c.init, meta: c.meta }),
         },
       ],
-      { ...ctx(), adapter: f },
+      { ...ctx(), fetchFn: f },
       async (c) => {
-        seen.push(c.adapter);
+        seen.push(c.fetchFn);
         return jsonResponse({});
       },
     );
     expect(seen).toEqual([f]);
   });
 
-  it("lets a request interceptor replace ctx.adapter for one attempt", async () => {
+  it("lets a request interceptor replace ctx.fetchFn for one attempt", async () => {
     const f = (async () => jsonResponse({})) as unknown as typeof fetch;
     const g = (async () => jsonResponse({})) as unknown as typeof fetch;
     const seen: unknown[] = [];
@@ -410,12 +410,12 @@ describe("runPipeline", () => {
             await next(c);
             return next(c);
           },
-          request: (c) => (++attempt === 1 ? { ...c, adapter: g } : c),
+          request: (c) => (++attempt === 1 ? { ...c, fetchFn: g } : c),
         },
       ],
-      { ...ctx(), adapter: f },
+      { ...ctx(), fetchFn: f },
       async (c) => {
-        seen.push(c.adapter);
+        seen.push(c.fetchFn);
         return jsonResponse({});
       },
     );

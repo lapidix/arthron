@@ -16,12 +16,13 @@ export interface RequestContext {
   /** Per-call settings for plugins (`RequestOptions.meta`); never sent. */
   meta: ArthronMeta;
   /**
-   * The function this attempt is sent with — the client's `fetch`, else the
-   * global one. Replace it to send this attempt another way (`uploadProgress()`
-   * sends over XMLHttpRequest), wrap it to observe. Always set on contexts
-   * arthron creates; optional so a context you build yourself stays valid.
+   * The function this attempt is sent with — the client's `fetchFn` at first,
+   * else the global `fetch`. A plugin may replace it for this attempt
+   * (`uploadProgress()` sends over XMLHttpRequest) or wrap it to observe.
+   * Always set on contexts arthron creates; optional so a context you build
+   * yourself stays valid.
    */
-  adapter?: typeof fetch;
+  fetchFn?: typeof fetch;
 }
 
 /**
@@ -46,7 +47,7 @@ export interface ArthronMeta {
    * Upload progress for this call, with `uploadProgress()` on the client.
    * Never called without that plugin or without a body, nor where progress
    * cannot be had: a client with an injected `fetch`, another plugin's
-   * adapter, Deno, Bun, Cloudflare Workers, a service worker, or a
+   * `fetchFn`, Deno, Bun, Cloudflare Workers, a service worker, or a
    * `ReadableStream` body in a browser — those calls are sent as usual.
    */
   uploadProgress?: (event: UploadProgressEvent) => void;

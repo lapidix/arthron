@@ -82,8 +82,13 @@ export interface ArthronConfig extends FetchDefaults {
   allowedOrigins?: readonly string[];
   /** Default headers. Per-call headers win, compared case-insensitively; `extend` can drop one with `null`. */
   headers?: HeadersOption;
-  /** Injection point for tests and polyfills. Defaults to `globalThis.fetch`. */
-  fetch?: typeof fetch;
+  /**
+   * The function requests are sent with: anything with fetch's signature,
+   * `(input, init) => Promise<Response>`. Default: the global `fetch`, read
+   * per call. Pass a fake in tests, a polyfill, or a framework's fetch
+   * (SvelteKit's `event.fetch`). Plugins see it as `ctx.fetchFn`.
+   */
+  fetchFn?: typeof fetch;
   use?: Plugin[];
   /** How to pick a message out of an error body. */
   errorDetail?: ErrorDetailResolver;

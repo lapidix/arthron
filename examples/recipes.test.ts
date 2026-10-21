@@ -11,7 +11,7 @@ describe("error page recipe (examples/error-page.ts)", () => {
   const make = (navs: string[], ...responses: Response[]) =>
     arthron({
       baseURL: "https://a",
-      fetch: fakeFetch(...responses),
+      fetchFn: fakeFetch(...responses),
       use: [
         errorRedirect((to) => navs.push(to)),
         retry({ sleep: async () => {} }),

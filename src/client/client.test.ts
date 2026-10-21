@@ -18,7 +18,10 @@ declare module "./client.types" {
 const make = (
   fetch = fakeFetch(jsonResponse({ ok: 1 })),
   extra: Partial<ArthronConfig> = {},
-) => ({ fetch, api: arthron({ baseURL: "https://a/v1", fetch, ...extra }) });
+) => ({
+  fetch,
+  api: arthron({ baseURL: "https://a/v1", fetchFn: fetch, ...extra }),
+});
 
 const headersOf = (init: RequestInit | undefined) =>
   init?.headers as Record<string, string>;
@@ -92,7 +95,7 @@ describe("arthron — requests", () => {
       new Request(url, init);
       return jsonResponse({});
     }) as unknown as typeof fetch;
-    const api = arthron({ baseURL: "https://a", fetch: strict });
+    const api = arthron({ baseURL: "https://a", fetchFn: strict });
     await expect(api.post("/u", new ReadableStream())).resolves.toBeInstanceOf(
       Response,
     );
@@ -142,7 +145,7 @@ describe("arthron — requests", () => {
 describe("arthron — argument errors reject instead of throwing synchronously", () => {
   it("relative path without baseURL rejects with TypeError", async () => {
     const fetch = fakeFetch(jsonResponse({}));
-    await expect(arthron({ fetch }).get("rel")).rejects.toBeInstanceOf(
+    await expect(arthron({ fetchFn: fetch }).get("rel")).rejects.toBeInstanceOf(
       TypeError,
     );
     expect(fetch.calls).toHaveLength(0);
@@ -174,7 +177,7 @@ describe("arthron — argument errors reject instead of throwing synchronously",
   it("leaves URL rules to an injected fetch — relative URLs reach one that accepts them", async () => {
     // e.g. SvelteKit's server-side `event.fetch`
     const fetch = fakeFetch(jsonResponse({ ok: 1 }));
-    const api = arthron({ baseURL: "/api", fetch });
+    const api = arthron({ baseURL: "/api", fetchFn: fetch });
     expect(await api.get("/items").json()).toEqual({ ok: 1 });
     expect(fetch.calls[0]?.url).toBe("/api/items");
   });
@@ -199,7 +202,7 @@ describe("arthron — argument errors reject instead of throwing synchronously",
   });
   it("an absolute URL on another origin rejects before fetch", async () => {
     const fetch = fakeFetch(jsonResponse({}));
-    const api = arthron({ baseURL: "https://api.test/v1", fetch });
+    const api = arthron({ baseURL: "https://api.test/v1", fetchFn: fetch });
     await expect(api.get("https://elsewhere.test/x")).rejects.toBeInstanceOf(
       TypeError,
     );
@@ -355,7 +358,7 @@ describe("arthron — config", () => {
     const fetch = fakeFetch(jsonResponse({}));
     const parent = arthron({
       baseURL: "https://a",
-      fetch,
+      fetchFn: fetch,
       cache: "no-store",
       redirect: "error",
     });
@@ -397,7 +400,7 @@ describe("arthron — config", () => {
       baseURL: "https://a",
       allowedOrigins: ["https://b"],
       headers: { a: "1" },
-      fetch,
+      fetchFn: fetch,
       use: [],
       errorDetail: () => undefined,
       throwOn: () => true,
@@ -500,7 +503,7 @@ describe("arthron — errors", () => {
         });
       }) as typeof fetch;
     const client = (fetch: typeof globalThis.fetch, extra = {}) =>
-      arthron({ baseURL: "https://a/v1", fetch, ...extra });
+      arthron({ baseURL: "https://a/v1", fetchFn: fetch, ...extra });
 
     it("rejects the request with the caller's reason", async () => {
       const reason = new Error("navigated away");
@@ -559,7 +562,7 @@ describe("arthron — immutability", () => {
 
   it("use() returns a new client and leaves the parent untouched", async () => {
     const fetch = fakeFetch(jsonResponse({}));
-    const parent = arthron({ baseURL: "https://a", fetch });
+    const parent = arthron({ baseURL: "https://a", fetchFn: fetch });
     const child = parent.use(tag("child"));
     expect(child).not.toBe(parent);
     await parent.get("/u");
@@ -573,7 +576,7 @@ describe("arthron — immutability", () => {
     const fetch = fakeFetch(jsonResponse({}));
     const parent = arthron({
       baseURL: "https://a/v1",
-      fetch,
+      fetchFn: fetch,
       headers: { "X-A": "p", "X-B": "p" },
       use: [tag("p")],
     });
@@ -588,7 +591,7 @@ describe("arthron — immutability", () => {
   });
   it("adding to the parent after extend does not affect the child", async () => {
     const fetch = fakeFetch(jsonResponse({}));
-    const parent = arthron({ baseURL: "https://a", fetch });
+    const parent = arthron({ baseURL: "https://a", fetchFn: fetch });
     const child = parent.extend({});
     parent.use(tag("late"));
     await child.get("/u");
@@ -609,7 +612,7 @@ describe("arthron — plugins by name", () => {
     const log: string[] = [];
     const base = arthron({
       baseURL: "https://a",
-      fetch: fakeFetch(jsonResponse({})),
+      fetchFn: fakeFetch(jsonResponse({})),
       use: [mark(log, "auth-v1", "auth"), mark(log, "other")],
     });
     await base.use(mark(log, "auth-v2", "auth")).get("/u");
@@ -619,7 +622,7 @@ describe("arthron — plugins by name", () => {
     const log: string[] = [];
     const base = arthron({
       baseURL: "https://a",
-      fetch: fakeFetch(jsonResponse({})),
+      fetchFn: fakeFetch(jsonResponse({})),
       use: [mark(log, "a")],
     });
     await base.use(mark(log, "b")).get("/u");
@@ -629,7 +632,7 @@ describe("arthron — plugins by name", () => {
     const fetch = fakeFetch(jsonResponse({}, { status: 503 }));
     const api = arthron({
       baseURL: "https://a",
-      fetch,
+      fetchFn: fetch,
       use: [retry({ sleep: async () => {} })],
     }).use(retry({ retries: 0 }));
     await expect(api.get("/u")).rejects.toMatchObject({ status: 503 });
@@ -639,7 +642,7 @@ describe("arthron — plugins by name", () => {
     const phases: string[] = [];
     const api = arthron({
       baseURL: "https://a",
-      fetch: fakeFetch(jsonResponse({}, { status: 503 }), jsonResponse({})),
+      fetchFn: fakeFetch(jsonResponse({}, { status: 503 }), jsonResponse({})),
       use: [logging({ enabled: false }), retry({ sleep: async () => {} })],
     }).use(logging({ onEvent: (e) => phases.push(e.phase) }));
     await api.get("/u");
@@ -657,7 +660,7 @@ describe("arthron — plugins by name", () => {
       })) as unknown as typeof fetch;
     const base = arthron({
       baseURL: "https://a",
-      fetch: slow,
+      fetchFn: slow,
       use: [timeout(5)],
     });
     await expect(base.get("/u")).rejects.toMatchObject({
@@ -669,7 +672,7 @@ describe("arthron — plugins by name", () => {
     const log: string[] = [];
     await arthron({
       baseURL: "https://a",
-      fetch: fakeFetch(jsonResponse({})),
+      fetchFn: fakeFetch(jsonResponse({})),
       use: [mark(log, "x1", "x"), mark(log, "y"), mark(log, "x2", "x")],
     }).get("/u");
     expect(log).toEqual(["x2", "y"]);
@@ -696,7 +699,7 @@ describe("arthron — which responses reject", () => {
     const fetch = fakeFetch(opaque);
     const api = arthron({
       baseURL: "https://a/v1",
-      fetch,
+      fetchFn: fetch,
       use: [retry({ sleep: async () => {} })],
     });
     expect((await api.get("/u", { mode: "no-cors" })).type).toBe("opaque");
@@ -730,17 +733,27 @@ describe("arthron — which responses reject", () => {
   });
 });
 
-describe("arthron — ctx.adapter", () => {
-  it("fills ctx.adapter with the client's fetch", async () => {
+describe("arthron — fetchFn", () => {
+  it("refuses the 1.x fetch option, naming fetchFn", () => {
+    // @ts-expect-error the option is fetchFn since 2.0
+    const old = () => arthron({ fetch: fakeFetch(jsonResponse({})) });
+    expect(old).toThrow(TypeError);
+    expect(old).toThrow(/arthron\(\{ fetchFn \}\)/);
+    // @ts-expect-error the option is fetchFn since 2.0
+    expect(() => arthron().extend({ fetch: globalThis.fetch })).toThrow(
+      /fetchFn/,
+    );
+  });
+  it("fills ctx.fetchFn with the client's fetchFn", async () => {
     const fetch = fakeFetch(jsonResponse({}));
     const seen: unknown[] = [];
     const api = arthron({
       baseURL: "https://a",
-      fetch,
+      fetchFn: fetch,
       use: [
         {
           request: (ctx) => {
-            seen.push(ctx.adapter);
+            seen.push(ctx.fetchFn);
             return ctx;
           },
         },
@@ -749,13 +762,13 @@ describe("arthron — ctx.adapter", () => {
     await api.get("/u");
     expect(seen).toEqual([fetch]);
   });
-  it("sends with the adapter a plugin put in ctx.adapter, and still makes ArthronErrors", async () => {
+  it("sends with the fetchFn a plugin put in ctx.fetchFn, and still makes ArthronErrors", async () => {
     const client = fakeFetch(jsonResponse({}));
     const swapped = fakeFetch(jsonResponse({}, { status: 500 }));
     const api = arthron({
       baseURL: "https://a",
-      fetch: client,
-      use: [{ request: (ctx) => ({ ...ctx, adapter: swapped }) }],
+      fetchFn: client,
+      use: [{ request: (ctx) => ({ ...ctx, fetchFn: swapped }) }],
     });
     const err = await api.get("/u").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ArthronError);

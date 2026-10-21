@@ -103,7 +103,7 @@ function withOwnSignal(
  * Every other call, on this client too, goes out exactly as before.
  *
  * Progress needs the runtime's own fetch: with an injected `fetch`, another
- * plugin's adapter, or a runtime that is neither (Deno, Bun, Cloudflare
+ * plugin's fetchFn, or a runtime that is neither (Deno, Bun, Cloudflare
  * Workers, a service worker), the call is sent as usual without progress.
  * Put it last in `use`: the call's signal carries a throwing callback's
  * error, and an interceptor after it that replaces the signal would cut it.
@@ -115,7 +115,7 @@ export function uploadProgress(): Plugin {
       const onProgress = ctx.meta?.uploadProgress;
       const { body } = ctx.init;
       if (!onProgress || body === undefined || body === null) return ctx;
-      if (ctx.adapter !== globalThis.fetch) return ctx;
+      if (ctx.fetchFn !== globalThis.fetch) return ctx;
       const transport = transportFor(currentRuntime());
       if (!transport) return ctx;
       if (transport === "xhr") {
@@ -133,10 +133,10 @@ export function uploadProgress(): Plugin {
       const { ctx: next, report } = withOwnSignal(ctx, onProgress);
       return {
         ...next,
-        adapter:
+        fetchFn:
           transport === "xhr"
             ? xhrFetch(report)
-            : countingFetch(ctx.adapter, report),
+            : countingFetch(ctx.fetchFn, report),
       };
     },
   };

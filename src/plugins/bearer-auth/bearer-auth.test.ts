@@ -47,7 +47,7 @@ describe("bearerAuth", () => {
     const fetch = fakeFetch(jsonResponse({}));
     const api = arthron({
       baseURL: API,
-      fetch,
+      fetchFn: fetch,
       use: [bearerAuth({ origin: API, token: () => "abc" })],
     });
     await api.get("/me");
@@ -62,7 +62,7 @@ describe("bearerAuth", () => {
     );
     const api = arthron({
       baseURL: API,
-      fetch,
+      fetchFn: fetch,
       use: [
         retry({ sleep: async () => {} }),
         bearerAuth({ origin: API, token: async () => `t${++n}` }),
@@ -77,7 +77,7 @@ describe("bearerAuth", () => {
       const fetch = fakeFetch(jsonResponse({}));
       const api = arthron({
         baseURL: API,
-        fetch,
+        fetchFn: fetch,
         use: [bearerAuth({ origin: API, token: () => token })],
       });
       await api.get("/me");
@@ -94,7 +94,7 @@ describe("bearerAuth", () => {
         "https://cdn.test",
         "http://api.test",
       ],
-      fetch,
+      fetchFn: fetch,
       use: [
         bearerAuth({
           origin: [`${API}/v1/`, "https://files.test"],
@@ -131,7 +131,7 @@ describe("bearerAuth", () => {
     const { session, refresh, fetch } = setup();
     const api = arthron({
       baseURL: API,
-      fetch,
+      fetchFn: fetch,
       use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     const out = await Promise.all(
@@ -154,7 +154,7 @@ describe("bearerAuth", () => {
     }) as unknown as typeof globalThis.fetch;
     const api = arthron({
       baseURL: API,
-      fetch,
+      fetchFn: fetch,
       use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     expect(await api.get("/me").json()).toEqual({ ok: 1 });
@@ -174,7 +174,7 @@ describe("bearerAuth", () => {
     );
     const api = arthron({
       baseURL: API,
-      fetch,
+      fetchFn: fetch,
       use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     await api.get("/me");
@@ -187,7 +187,7 @@ describe("bearerAuth", () => {
     const fetch = fakeFetch(jsonResponse({}, { status: 401 }));
     const api = arthron({
       baseURL: API,
-      fetch,
+      fetchFn: fetch,
       use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     const err = await api.get("/me").catch((e: unknown) => e);
@@ -200,7 +200,7 @@ describe("bearerAuth", () => {
     const fetch = fakeFetch(jsonResponse({}, { status: 401 }));
     const api = arthron({
       baseURL: API,
-      fetch,
+      fetchFn: fetch,
       use: [bearerAuth({ origin: API, token: () => "abc" })],
     });
     await expect(api.get("/me")).rejects.toMatchObject({ status: 401 });
@@ -212,7 +212,7 @@ describe("bearerAuth", () => {
     const fetch = fakeFetch(jsonResponse({}, { status: 401 }));
     const api = arthron({
       baseURL: API,
-      fetch,
+      fetchFn: fetch,
       use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     const body = new ReadableStream({
@@ -230,7 +230,7 @@ describe("bearerAuth", () => {
     const fetch = fakeFetch(jsonResponse({}, { status: 403 }));
     const api = arthron({
       baseURL: API,
-      fetch,
+      fetchFn: fetch,
       use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     await expect(api.get("/me")).rejects.toMatchObject({ status: 403 });
@@ -244,7 +244,7 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       allowedOrigins: ["https://other.test"],
-      fetch,
+      fetchFn: fetch,
       use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     await expect(api.get("https://other.test/x")).rejects.toMatchObject({
@@ -259,7 +259,7 @@ describe("bearerAuth", () => {
     const fetch = fakeFetch(jsonResponse({}, { status: 401 }));
     const api = arthron({
       baseURL: API,
-      fetch,
+      fetchFn: fetch,
       use: [
         bearerAuth({
           origin: API,
@@ -285,7 +285,7 @@ describe("bearerAuth", () => {
     const fetch = fakeFetch(jsonResponse({}, { status: 401 }));
     const api = arthron({
       baseURL: API,
-      fetch,
+      fetchFn: fetch,
       use: [
         bearerAuth({
           origin: API,
@@ -307,7 +307,7 @@ describe("bearerAuth", () => {
     const fetch = fakeFetch(jsonResponse({}, { status: 401 }));
     const api = arthron({
       baseURL: API,
-      fetch,
+      fetchFn: fetch,
       use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
     await expect(
@@ -328,7 +328,7 @@ describe("bearerAuth", () => {
     }) as unknown as typeof globalThis.fetch;
     const api = arthron({
       baseURL: API,
-      fetch,
+      fetchFn: fetch,
       use: [
         bearerAuth({
           origin: API,

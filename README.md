@@ -146,7 +146,7 @@ type RequestContext = {
   url: string;
   init: Omit<RequestInit, "headers"> & { headers: Record<string, string> }; // lowercase names
   meta: ArthronMeta; // per-call plugin settings, never sent
-  adapter?: typeof fetch; // the function this attempt is sent with (the client's fetch, else the global one) — replace it to send another way, wrap it to observe
+  fetchFn?: typeof fetch; // the function this attempt is sent with (the client's fetchFn, else the global fetch) — replace it to send another way, wrap it to observe
 };
 ```
 
@@ -182,7 +182,7 @@ The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging,
 | `retry` | middleware | `meta: { retry: false \| options }` |
 | `timeout` | middleware | `meta: { timeout: ms }` |
 | `logging` | middleware | — |
-| `uploadProgress` | request interceptor (picks the adapter) | `meta: { uploadProgress }` — only calls that pass it |
+| `uploadProgress` | request interceptor (swaps `ctx.fetchFn`) | `meta: { uploadProgress }` — only calls that pass it |
 
 Order is meaning: the first plugin is outermost. A good default:
 
@@ -294,7 +294,7 @@ How that call is sent depends on where it runs:
 
 - **Browser:** over `XMLHttpRequest`, the only browser API that reports upload progress. On another origin, the upload listener makes every such call send a CORS preflight — an S3 bucket's CORS rules must allow the method and headers. The response arrives whole: `.sse()` / `.ndjson()` are not live on that call. What XHR cannot honour and would change the call is refused with a `TypeError` before sending: `redirect: "manual" | "error"`, `mode: "no-cors"`, and `credentials: "omit"` to the page's own origin (XHR always sends its cookies there). What only tunes fetch — `cache`, `priority`, `referrerPolicy`, `integrity`, `keepalive` — is ignored on that call. A `ReadableStream` body is sent as usual, without progress.
 - **Node:** with `fetch` as usual, the body counted as it is read, in steps of at most 64 KiB. `content-length` and the content type a `Blob` would set are kept, so an S3 presigned `PUT` accepts it. A `FormData` body is encoded with its length known up front, its files streamed rather than read into memory. jsdom on Node counts the same way.
-- **Anywhere else** — Deno, Bun, Cloudflare Workers, an Electron main process, a service worker — and on a client with an injected `fetch` or another plugin's adapter: sent as usual, without progress.
+- **Anywhere else** — Deno, Bun, Cloudflare Workers, an Electron main process, a service worker — and on a client with its own `fetchFn`, or with another plugin's: sent as usual, without progress.
 
 A callback that throws fails the call with its own error, untouched: not an `ArthronError`, not retried. Put `uploadProgress()` last in `use`: a request interceptor after it that replaces `init.signal` would cut that path, and the error would come back as a network failure.
 
@@ -372,7 +372,7 @@ type ArthronConfig = {
   baseURL?: string;
   allowedOrigins?: string[]; // other origins absolute URLs may go to (only the origin of each URL counts; no config headers there)
   headers?: HeadersOption; // anything fetch's headers take, or a record whose null drops a header (in extend)
-  fetch?: typeof fetch; // inject for tests or a polyfill; resolved per request
+  fetchFn?: typeof fetch; // the function requests are sent with: a fake in tests, a polyfill, a framework's fetch; default the global fetch, read per request
   use?: Plugin[];
   errorDetail?: (data: unknown, res: Response) => string | undefined; // picks ArthronError.detail out of the body
   throwOn?: (res: Response) => boolean; // which non-ok responses reject (also per call)
@@ -425,7 +425,7 @@ class ArthronError extends Error {
 - **Fetch defaults are flat and only sent when set.** Config takes the same fetch options per-call calls do (`credentials`, `cache`, `redirect`, …) as defaults; a per-call value wins and `extend` overrides. Nothing is sent that you did not set — cross-origin cookies need `credentials: "include"`. `signal`, `body` and `method` are per call: a client-wide signal would fail every call once aborted.
 - **In browsers, CORS and the engine have the last word.** CI runs the built package in Chromium, Firefox and WebKit against a server on another origin. A JSON body, a custom header and `query()`'s QUERY method each make the browser send a preflight, so the API must allow them (`Access-Control-Allow-Methods: QUERY`, `Access-Control-Allow-Headers`). `retry()` reads `Retry-After` only if the API exposes it (`Access-Control-Expose-Headers: retry-after`); otherwise it waits its own delay. `redirect: "manual"` gives an opaque redirect (`status` 0, `type` `"opaqueredirect"`), returned rather than thrown. A `ReadableStream` body streams only over HTTP/2 (Chromium, WebKit), and the `ArthronError` for one sent to an HTTP/1.1 server says so. Where the browser cannot stream a request body at all (Firefox would send the text `"[object ReadableStream]"`), the call rejects with a `TypeError` before anything is sent. Either way, send a `Blob` or `ArrayBuffer` there.
 - **Response bodies are single-use.** A response interceptor that wants to inspect the body must `res.clone()`; one that changes it returns a new `Response`.
-- **Argument errors reject, they don't throw.** No `baseURL` with a relative path, a URL the global fetch cannot parse (`baseURL: "api.example.com"` without `https://`), a `BigInt` in a JSON body, a missing `method` in `request` — all surface as a rejected `TypeError` before anything is sent, never as a retried `status: 0`. An injected `fetch` is the judge of its own URLs: arthron does not pre-check them, so one that accepts relative URLs (SvelteKit's server-side `fetch`) works with `baseURL: "/api"`.
+- **Argument errors reject, they don't throw.** No `baseURL` with a relative path, a URL the global fetch cannot parse (`baseURL: "api.example.com"` without `https://`), a `BigInt` in a JSON body, a missing `method` in `request` — all surface as a rejected `TypeError` before anything is sent, never as a retried `status: 0`. A `fetchFn` you pass is the judge of its own URLs: arthron does not pre-check them, so one that accepts relative URLs (SvelteKit's server-side `fetch`) works with `baseURL: "/api"`.
 
 ## For tooling and agents
 
