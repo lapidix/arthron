@@ -37,11 +37,13 @@ const REPLACED_PER_CALL = {
 } as const;
 
 /**
- * Build a client from config. The result is immutable — `use` and `extend`
+ * Build a client from its options. The result is immutable — `use` and `extend`
  * return new clients and never touch the one they were called on.
  */
-export function arthron(config: ArthronClientOptions = {}): ArthronClient {
-  const resolved = resolveConfig(config);
+export function arthron(
+  clientOptions: ArthronClientOptions = {},
+): ArthronClient {
+  const resolved = resolveConfig(clientOptions);
   const initDefaults = fetchDefaults(resolved);
   // Checked here, so a bad entry fails when the client is created.
   const allowed = resolved.allowedOrigins && originSet(resolved.allowedOrigins);
@@ -130,15 +132,22 @@ export function arthron(config: ArthronClientOptions = {}): ArthronClient {
   };
 
   return {
-    get: (path, init = {}) => dispatch(path, "GET", undefined, init),
-    delete: (path, init = {}) => dispatch(path, "DELETE", undefined, init),
-    head: (path, init = {}) => dispatch(path, "HEAD", undefined, init),
-    post: (path, body, init = {}) => dispatch(path, "POST", body, init),
-    put: (path, body, init = {}) => dispatch(path, "PUT", body, init),
-    patch: (path, body, init = {}) => dispatch(path, "PATCH", body, init),
-    query: (path, body, init = {}) => dispatch(path, "QUERY", body, init),
-    request: (path, init: RequestOptionsWithMethod) => {
-      const { method, body, ...rest } = init;
+    get: (path, requestOptions = {}) =>
+      dispatch(path, "GET", undefined, requestOptions),
+    delete: (path, requestOptions = {}) =>
+      dispatch(path, "DELETE", undefined, requestOptions),
+    head: (path, requestOptions = {}) =>
+      dispatch(path, "HEAD", undefined, requestOptions),
+    post: (path, body, requestOptions = {}) =>
+      dispatch(path, "POST", body, requestOptions),
+    put: (path, body, requestOptions = {}) =>
+      dispatch(path, "PUT", body, requestOptions),
+    patch: (path, body, requestOptions = {}) =>
+      dispatch(path, "PATCH", body, requestOptions),
+    query: (path, body, requestOptions = {}) =>
+      dispatch(path, "QUERY", body, requestOptions),
+    request: (path, requestOptions: RequestOptionsWithMethod) => {
+      const { method, body, ...rest } = requestOptions;
       if (!method) {
         return toResponsePromise(
           Promise.reject(

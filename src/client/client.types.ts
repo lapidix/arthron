@@ -75,10 +75,11 @@ export interface ArthronClientOptions
    * Origins an absolute URL may go to besides `baseURL`'s, as URLs of which
    * only the origin counts: `["https://cdn.example.com"]`. Any other origin
    * is a TypeError, so a path from user input or an API response cannot send
-   * requests elsewhere, and config `headers` go to `baseURL`'s origin only,
-   * never to these. Without a `baseURL` this list alone limits absolute
-   * URLs, and config `headers` go to every origin on it — list only origins
-   * you would hand them to; with neither, any http(s) URL goes.
+   * requests elsewhere. Config `headers` go to `baseURL`'s origin only, never
+   * to these — calls there carry per-call headers alone. Without a
+   * `baseURL` this list alone limits absolute URLs, and config `headers`
+   * are refused (they would have nowhere to go); with neither, any http(s)
+   * URL goes, config headers included.
    */
   allowedOrigins?: readonly string[];
   /**
@@ -94,13 +95,18 @@ export interface ArthronClientOptions
    * (SvelteKit's `event.fetch`). Plugins see it as `ctx.fetchFn`.
    */
   fetchFn?: typeof fetch;
-  /** Plugins, outermost first. A named one replaces an earlier one of that name. */
+  /**
+   * Plugins, outermost first. One with the pluginName of an earlier one
+   * replaces it in place.
+   */
   plugins?: readonly Plugin[];
   /**
    * Extracts `ArthronError.description` from a failed response's payload, for
-   * an API that puts it somewhere else: `(payload) => payload.errors?.[0]?.msg`.
-   * Called only for failed responses. Default: the payload's `message`, else
-   * `error` (a string), else `error.message`, else `detail`.
+   * an API that puts it somewhere else:
+   * `(payload) => (payload as { errors?: { msg?: string }[] }).errors?.[0]?.msg`.
+   * Called only for failed responses; if it throws, the error simply has no
+   * description. Default: the payload's `message`, else `error` (a string),
+   * else `error.message`, else `detail`.
    */
   extractDescription?: DescriptionExtractor;
   /**
@@ -113,28 +119,47 @@ export interface ArthronClientOptions
 }
 
 export interface ArthronClient {
-  get(path: string, init?: RequestOptions): ResponsePromise;
-  delete(path: string, init?: RequestOptions): ResponsePromise;
-  head(path: string, init?: RequestOptions): ResponsePromise;
-  post(path: string, body?: unknown, init?: RequestOptions): ResponsePromise;
-  put(path: string, body?: unknown, init?: RequestOptions): ResponsePromise;
-  patch(path: string, body?: unknown, init?: RequestOptions): ResponsePromise;
+  get(path: string, requestOptions?: RequestOptions): ResponsePromise;
+  delete(path: string, requestOptions?: RequestOptions): ResponsePromise;
+  head(path: string, requestOptions?: RequestOptions): ResponsePromise;
+  post(
+    path: string,
+    body?: unknown,
+    requestOptions?: RequestOptions,
+  ): ResponsePromise;
+  put(
+    path: string,
+    body?: unknown,
+    requestOptions?: RequestOptions,
+  ): ResponsePromise;
+  patch(
+    path: string,
+    body?: unknown,
+    requestOptions?: RequestOptions,
+  ): ResponsePromise;
   /** RFC 10008 QUERY: safe and idempotent like GET, but the query travels in the body. */
-  query(path: string, body?: unknown, init?: RequestOptions): ResponsePromise;
+  query(
+    path: string,
+    body?: unknown,
+    requestOptions?: RequestOptions,
+  ): ResponsePromise;
   /** Any method — the extension point for verbs without their own helper. */
-  request(path: string, init: RequestOptionsWithMethod): ResponsePromise;
+  request(
+    path: string,
+    requestOptions: RequestOptionsWithMethod,
+  ): ResponsePromise;
   /**
    * New client with these plugins added: a plugin replaces the one with its
    * pluginName in place; other names append. The receiver is untouched.
    */
   use(...plugins: Plugin[]): ArthronClient;
-  /** New client with config shallow-merged, headers merged, plugins added as `use` adds them. */
-  extend(config: Partial<ArthronClientOptions>): ArthronClient;
+  /** New client with these options shallow-merged, headers merged, plugins added as `use` adds them. */
+  extend(clientOptions: Partial<ArthronClientOptions>): ArthronClient;
   /** New client without the plugins of these pluginNames. The receiver is untouched. */
   without(...pluginNames: string[]): ArthronClient;
 }
 
-/** `ArthronClientOptions` after `resolveConfig`: headers as one record, plugins de-duplicated by name. Internal. */
+/** `ArthronClientOptions` after `resolveClientOptions`: headers as one record, plugins de-duplicated by pluginName. Internal. */
 export type Resolved = Omit<ArthronClientOptions, "headers" | "plugins"> & {
   headers: Record<string, string>;
   plugins: readonly Plugin[];
