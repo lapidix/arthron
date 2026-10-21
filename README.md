@@ -38,7 +38,7 @@ const user = await api.get("/me").json<User>();
 ```
 
 - **Plain `Response` in, plain `Response` out.** No wrapper type to learn. `.json<T>()` and friends are there when you want the body.
-- **A plugin holds middleware and interceptors, kept apart by the types.** Middleware wraps the call and controls the flow — it can call `next` again to retry, or not at all. Interceptors transform one value and return it; they cannot retry, skip, or swallow. Retry, timeouts, logging, auth refresh, and anything that reacts to how a call ended (error pages, domain errors) are middleware. Headers, trace ids and per-attempt error details are interceptors. One plugin can use both: `bearerAuth` sets the header in an interceptor and refreshes in middleware.
+- **A plugin holds middleware and interceptors, kept apart by the types.** Middleware wraps the call and controls the flow — it can call `next` again to retry, or not at all. Interceptors transform one value and return it; they cannot retry, skip, or swallow. Retry, timeouts, logging, auth refresh, and anything that reacts to how a call ended (error pages, domain errors) are middleware. Headers, trace ids and enriching each attempt's error are interceptors. One plugin can use both: `bearerAuth` sets the header in an interceptor and refreshes in middleware.
 - **One error type, two causes.** `ArthronError` means the server said no (`!response.ok`) or the network failed (`status: 0`). Everything else — cancellation, a bug in a plugin — is rethrown as-is.
 - Zero dependencies. ESM and CJS. TypeScript types included, for TypeScript 5.0+. Node 22+ and browsers.
 
@@ -47,6 +47,8 @@ const user = await api.get("/me").json<User>();
 ```sh
 npm i arthron
 ```
+
+Coming from 1.x? Most old names throw a `TypeError` that names the new one; the full list is in [Moving from 1.x](CHANGELOG.md#moving-from-1x).
 
 ## Usage
 
@@ -62,7 +64,7 @@ const api = arthron({
 });
 ```
 
-Every field is optional. Without `baseURL`, only absolute URLs are accepted. With one, an absolute URL must stay on `baseURL`'s origin or one you list in `allowedOrigins: ["https://cdn.example.com"]` — and config `headers` are only sent to `baseURL`'s origin. Without a `baseURL`, `allowedOrigins` alone limits where requests go, and config `headers` go to every origin on it.
+Every field is optional. Without `baseURL`, only absolute URLs are accepted. With one, an absolute URL must stay on `baseURL`'s origin or one you list in `allowedOrigins: ["https://cdn.example.com"]` — and config `headers` are only sent to `baseURL`'s origin; calls to a listed origin carry per-call headers alone. Without a `baseURL`, `allowedOrigins` alone limits where requests go, and config `headers` are refused with a `TypeError`: they would have nowhere to go.
 
 ### Make requests
 
@@ -90,7 +92,7 @@ const stream = (await api.post("/chat", prompt)).body; // ReadableStream
 for await (const e of api.post("/chat", prompt).sse()) {} // see "Stream responses"
 ```
 
-`init` accepts everything `fetch` does (`signal`, `cache`, `headers`, …) plus `queryParams`: an object whose `null`/`undefined` values are dropped and whose arrays become repeated keys (`{ ids: [1, 2] }` → `ids=1&ids=2`), or a `URLSearchParams`. Other object values (a `Date`, a nested object) are rejected rather than sent as `[object Object]`. Put ids into the path with `pathParams`, not string interpolation: `api.get("/users/{id}", { pathParams: { id } })` encodes each value into its own segment, so an id like `../admin` or `x?role=admin` cannot change which endpoint you call (`encodeURIComponent` alone lets `..` through). A `null` (or `undefined`) header value drops a client default for that call: `api.get("/public", { headers: { authorization: null } })`.
+The request options (`requestOptions`, the last argument) accept everything `fetch` does (`signal`, `cache`, `headers`, …) plus `queryParams`: an object whose `null`/`undefined` values are dropped and whose arrays become repeated keys (`{ ids: [1, 2] }` → `ids=1&ids=2`), or a `URLSearchParams`. Other object values (a `Date`, a nested object) are rejected rather than sent as `[object Object]`. Put ids into the path with `pathParams`, not string interpolation: `api.get("/users/{id}", { pathParams: { id } })` encodes each value into its own segment, so an id like `../admin` or `x?role=admin` cannot change which endpoint you call (`encodeURIComponent` alone lets `..` through). A `null` (or `undefined`) header value drops a client default for that call: `api.get("/public", { headers: { authorization: null } })`.
 
 `query` sends the [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008) QUERY method: safe and idempotent like GET, so `retry()` repeats it by default, but the query travels in the body. Any `fetch` sends it; the server has to understand it (Node's own `http` server does from v20).
 
@@ -98,7 +100,7 @@ for await (const e of api.post("/chat", prompt).sse()) {} // see "Stream respons
 
 ```ts
 // Server-sent events — one event per `for await` step
-for await (const { event, data } of api.post("/v1/chat/completions", body).sse()) {
+for await (const { type, data } of api.post("/v1/chat/completions", body).sse()) {
   if (data === "[DONE]") break; // provider sentinel; arthron does not interpret it
   process.stdout.write(JSON.parse(data).choices[0].delta.content ?? "");
 }
@@ -107,9 +109,9 @@ for await (const { event, data } of api.post("/v1/chat/completions", body).sse()
 for await (const row of api.get("/logs").ndjson<LogRow>()) console.log(row);
 ```
 
-`.sse()` parses `text/event-stream` the way the EventSource spec does: multi-line `data:` joined with `\n`, comments ignored, dispatch on a blank line, an event the stream ends inside dropped, `lastEventId` carried across events, `retry` accepted as digits only and carried on. It does not reconnect — to resume, send `headers: { "last-event-id": e.lastEventId }` on a new request. Both helpers honour `signal` and `timeout` while the body is being read, and leaving the loop early (`break`, `return`, a throw) closes the connection.
+`.sse()` parses `text/event-stream` the way the EventSource spec does: multi-line `data:` joined with `\n`, comments ignored, dispatch on a blank line, an event the stream ends inside dropped, `lastEventId` carried across events, `retry:` accepted as digits only and carried on as `reconnectionTime` (ms). Each event has the names a browser `MessageEvent` uses: `type` (the `event:` field, `"message"` when there is none), `data`, `lastEventId`, plus `id`. It does not reconnect — to resume, send `headers: { "last-event-id": e.lastEventId }` on a new request. Both helpers honour `signal` and `timeout` while the body is being read, and leaving the loop early (`break`, `return`, a throw) closes the connection.
 
-A stream is untrusted input, so both helpers have limits: a line longer than `maxLineLength` (default 8 Mi characters), or an SSE event whose `data` outgrows `maxEventSize` (default 8 Mi), rejects the loop with a `RangeError` and closes the connection. Raise them per call if you expect bigger payloads: `.sse({ maxEventSize: 32 * 1024 * 1024 })`.
+A stream is untrusted input, so both helpers have limits: a line longer than `maxLineLength` (default 8 Mi characters), or an SSE event whose `data` outgrows `maxDataLength` (default 8 Mi characters), rejects the loop with a `RangeError` and closes the connection. Raise them per call if you expect bigger payloads: `.sse({ maxDataLength: 32 * 1024 * 1024 })`.
 
 ### Handle errors
 
@@ -125,18 +127,18 @@ try {
     e.description; // the server's description of the failure (the payload's `message` → `error` → `error.message` → `detail`, or your extractDescription), or undefined — for people
     e.message; // arthron's own: "GET https://api.example.com/users/404 failed with 404 Not Found" — for logs
     e.response; // the failed Response, still readable (up to 64 KiB of its body)
-    e.request; // what was sent (url, init) — read it directly; it is left out of logs
+    e.requestContext; // the RequestContext that was sent — url, init (method, headers), meta; read it directly, it is left out of logs
   }
 }
 ```
 
-`isArthronError(e)` and `e instanceof ArthronError` work across copies of the package — the ESM and CJS builds loaded side by side, a CJS dependency's client caught by your ESM code. `request`, `response` and `headers` are not enumerable, and `toJSON()` returns only name, message, description, status, method, a URL without query or userinfo, and `payload`. So `JSON.stringify(e)`, `console.error(e)` and error trackers never print your tokens.
+`isArthronError(e)` and `e instanceof ArthronError` work across copies of the package — the ESM and CJS builds loaded side by side, a CJS dependency's client caught by your ESM code. `requestContext`, `response` and `headers` (the response's) are not enumerable, and `toJSON()` returns only name, message, description, status, statusText, method, a URL without query or userinfo, and `payload`. So `JSON.stringify(e)`, `console.error(e)` and error trackers never print your tokens.
 
 `message` and `description` are kept apart on purpose. `message` is written by arthron — method, URL without query, status — so a log line or an error tracker says which request failed, and never carries text the server chose. `description` is the server's account of the failure: the right thing for a toast (`e.description ?? "Something went wrong"`), but untrusted — render it as text, never as HTML, and filter it if your gateway leaks internal routes in it.
 
 Not every non-ok response is a failure. An opaque response (`mode: "no-cors"`) and the 3xx of `redirect: "manual"` come back as a `Response`, since you asked for them. `throwOn` picks which other non-ok responses reject, for the client or one call: `api.get("/maybe", { throwOn: (res) => res.status !== 404 })` returns the 404 to inspect. An ok response never rejects.
 
-`.json(schema)` takes any [Standard Schema](https://standardschema.dev) — Zod, Valibot, ArkType and others — validates the body with it, and resolves with the schema's output (transforms included). A body that does not match rejects with a `SchemaError` whose `issues` list each problem and its path. It is not an `ArthronError`: the request worked, the data did not. arthron stays dependency-free; the schema library is yours.
+`.json(schema)` takes any [Standard Schema](https://standardschema.dev) — Zod, Valibot, ArkType and others, passed as is — validates the body with it, and resolves with the schema's output (transforms included). Its type is `ArthronSchema`: `StandardSchemaV1` from `@standard-schema/spec` under arthron's name, with `ArthronSchema.Infer<S>` for the output type and `ArthronSchema.Issue` for one problem. A body that does not match rejects with a `SchemaMismatchError` whose `issues` list each problem and its path. It is not an `ArthronError`: the request worked, the data did not. arthron stays dependency-free; the schema library is yours.
 
 A request that is aborted or times out rejects with the abort reason — `AbortError` / `TimeoutError`, or whatever you passed to `abort(reason)` — not an `ArthronError`.
 
@@ -146,15 +148,15 @@ Clients are immutable. `use`, `extend` and `without` return a new client and lea
 
 ```ts
 const base = arthron({ baseURL: API, plugins: [logging(), retry()] });
-const authed = base.use(bearerAuth({ origin: API, token })); // base + auth
+const authed = base.use(bearerAuth({ origin: API, accessTokenFn: () => token })); // base + auth
 const admin = authed.extend({ headers: { "x-role": "admin" } }); // authed + header
 ```
 
-`extend` shallow-merges the config, merges headers case-insensitively (child wins), and adds plugins the way `use` does: a plugin whose `pluginName` is already there replaces it in place — so `streaming = base.use(timeout(120_000))` loosens the inherited `timeout`, and a second `retry()` does not multiply attempts — while other names append. Every plugin has a `pluginName`. `without("retry")` returns a client without that plugin. The built-ins are named `bearerAuth`, `logging`, `retry`, `timeout` and `uploadProgress`.
+`extend` shallow-merges the options, merges headers case-insensitively (child wins), and adds plugins the way `use` does: a plugin whose `pluginName` is already there replaces it in place — so `streaming = base.use(timeout(120_000))` loosens the inherited `timeout`, and a second `retry()` does not multiply attempts — while other names append. `without("retry")` returns a client without that plugin. The built-ins are named `bearerAuth`, `logging`, `retry`, `timeout` and `uploadProgress`.
 
 ## Plugins
 
-A plugin is an object with any of four slots:
+A plugin is an object with a required `pluginName` and at least one of four slots:
 
 ```ts
 type Plugin = {
@@ -191,19 +193,19 @@ A middleware is called once. `await next(ctx)` runs everything inside it and res
 | Gets | `ctx` and `next` | A value: context, `Response`, or `ArthronError` |
 | Can | Call `next` again (retry), skip it, add a deadline | Return a changed value |
 | Cannot | — | Retry, skip, or stop the error from being thrown |
-| Examples | `retry`, `timeout`, `logging`, auth refresh, error pages | auth header, tracing id, per-attempt error details |
+| Examples | `retry`, `timeout`, `logging`, auth refresh, error pages | auth header, tracing id, enriching one attempt's error |
 
 Every attempt starts from a fresh copy of the context, so a header set by an interceptor on attempt one does not leak into attempt two. `ctx.init.headers` is always a plain record with lowercased names, restored to that shape after every request interceptor, so `{ ...ctx.init.headers, name: value }` is safe.
 
 ### Built in
 
-The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging, retry, timeout, uploadProgress } from "arthron/plugins"`. They are plain plugins — anything they do, yours can.
+The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging, retry, timeout, uploadProgress } from "arthron/plugins"`. So do their types: `BearerAuthOptions`, `LoggingOptions`, `LogEvent`, `RetryOptions`, `TimeoutOptions`, `UploadProgressEvent`. They are plain plugins — anything they do, yours can.
 
 | plugin | slots | per call |
 |---|---|---|
 | `bearerAuth` | request interceptor (the header) + middleware (refresh on 401) | `meta: { bearerAuth: false }` |
 | `retry` | middleware | `meta: { retry: false \| options }` |
-| `timeout` | middleware | `meta: { timeout: ms }` |
+| `timeout` | middleware | `meta: { timeout: false \| ms \| { total?, idle? } }` |
 | `logging` | middleware | — |
 | `uploadProgress` | request interceptor (swaps `ctx.fetchFn`) | `meta: { uploadProgress }` — only calls that pass it |
 
@@ -230,18 +232,18 @@ Re-runs the attempt on network failure or a retryable status. Because it re-runs
 | `retries` | `2` | retries after the first attempt (3 requests total); a whole number ≥ 0 |
 | `statuses` | `[408, 429, 500, 502, 503, 504]` | network failures (`status: 0`) are always retried |
 | `methods` | `GET HEAD OPTIONS QUERY PUT DELETE` | case-insensitive |
-| `delayFn` | `(retry) => Math.random() * 300 * 2 ** retry` | ms; `retry` counts from 0. Full jitter, so clients that failed together don't retry together |
+| `delayFn` | `(attempt) => Math.random() * 300 * 2 ** attempt` | the wait in ms; `attempt` counts from 0 (0 after the first request failed), here as in `shouldRetry` and `onRetry`. Full jitter, so clients that failed together don't retry together. Must return a finite number ≥ 0, else the call rejects with a `TypeError` |
 | `maxRetryAfter` | `60_000` | a `Retry-After` longer than this means "don't retry" |
 | `shouldRetry` | — | `(error, attempt, ctx) => boolean \| undefined`: `true` retries, `false` stops, `undefined` uses the rules above. Sees every error, an inner `TimeoutError` included |
-| `onRetry` | — | `(error, attempt, waitMs) => void`, before each wait |
+| `onRetry` | — | `(error, attempt, delay) => void`, before each wait of `delay` ms |
 
-Honours `Retry-After` (seconds or HTTP date). Never retries a `ReadableStream` body or an aborted request, and never more than `retries` times — `shouldRetry` cannot lift those.
+Honours `Retry-After` (seconds or HTTP date). Never retries a `ReadableStream` body or an aborted request, never more than `retries` times, and never past a `Retry-After` longer than `maxRetryAfter` — `shouldRetry` cannot lift those.
 
 Opting a non-idempotent method in (`methods: ["POST"]`) means a network failure is retried too, and a dropped connection may already have reached the server. Where a duplicate would hurt — a payment, an LLM completion you pay for — keep retries to statuses: `shouldRetry: (e) => (isArthronError(e) && e.status === 0 ? false : undefined)`. Per call, `meta: { retry: false }` turns it off and `meta: { retry: { retries: 5 } }` overrides any option.
 
 #### `timeout(ms)` / `timeout({ total?, idle? })`
 
-Aborts the attempt after `ms`, counted until the body has been fully read — a server that sends headers and then stalls still trips it. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore. Combines with a `signal` you pass yourself. `Infinity` means no deadline. The timer never keeps a Node process alive on its own. Per call, `meta: { timeout: 120_000 }` replaces the deadline (`Infinity` lifts it).
+Aborts the attempt after `ms`, counted until the body has been fully read — a server that sends headers and then stalls still trips it. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore. Combines with a `signal` you pass yourself. `Infinity` means no deadline. The timer never keeps a Node process alive on its own. Per call, `meta: { timeout: false }` lifts the deadlines, `meta: { timeout: 120_000 }` replaces the total one, and `meta: { timeout: { idle: 60_000 } }` replaces the parts it sets — the same shape as `meta.retry`.
 
 A total deadline also cuts off a stream that is still flowing. For streams, bound the silence instead: `timeout({ idle: 30_000 })` aborts only after 30 s without data — waiting for headers or between chunks — however long the stream runs. Both can be combined: `timeout({ total: 600_000, idle: 30_000 })`; `timeout(ms)` is `timeout({ total: ms })`. Options with neither are a `TypeError`.
 
@@ -262,7 +264,7 @@ arthron({ plugins: [timeout(5_000), retry()] }); // 5 s for all attempts togethe
 |---|---|---|
 | `enabled` | `true` | pass `process.env.NODE_ENV !== "production"` or similar — arthron never reads env |
 | `logger` | `console` | anything with `log` and `error` |
-| `onEvent` | — | receive `{ phase, method, path, status, ms, error }` instead of console lines |
+| `onEvent` | — | receive `{ phase, method, url, status, duration, error }` instead of console lines: `url` without query or userinfo, `duration` in ms |
 
 Query strings and `user:pass@` are never printed. Cancellations are not logged.
 
@@ -290,7 +292,7 @@ const api = arthron({
 |---|---|---|
 | `origin` | required | a URL or several; only their origins count, so `baseURL` works as is — a relative one (`"/api"`) is on the page's origin. Anything that is not an http(s) URL is a `TypeError` |
 | `accessTokenFn` | required | `() => string \| null \| undefined`, or a promise of one; read on every attempt. No token, no header |
-| `refreshFn` | — | `() => Promise<void>`, called after a 401; then the call is redone once. Without it, a 401 is thrown as is |
+| `refreshFn` | — | `() => Promise<void>`, called after a 401 to refresh the session, so the next `accessTokenFn()` returns the new token; then the call is redone once. Without it, a 401 is thrown as is |
 
 The token goes to `origin` only — never to a CDN or a URL taken from a response body. Concurrent 401s share one refresh: with refresh-token rotation, parallel refreshes would revoke each other and log the user out. A call whose token was already replaced by another call's refresh retries without refreshing again. A second 401 is thrown, and so is a failed refresh — every call waiting on it rejects with the error `refreshFn` threw, so that is the place to send the user to a login page. The 401 of a `ReadableStream` body is thrown without a refresh: the first try has read the stream, so there is nothing to resend.
 
@@ -307,11 +309,11 @@ const api = arthron({ baseURL: API, plugins: [retry(), uploadProgress()] }); // 
 
 await api.get("/me"); // as usual
 await api.post("/files", file, {
-  meta: { uploadProgress: ({ loaded, total, progress }) => setBar(progress) }, // this call only
+  meta: { uploadProgress: ({ fraction }) => setBar(fraction) }, // this call only
 });
 ```
 
-The event: `loaded` (bytes sent), `total` (bytes in the body, `undefined` when unknown — a stream without `content-length`), `progress` (`loaded / total` from 0 to 1, `undefined` with `total`). Progress counts what was handed to the network, so it reaches 1 a moment before the server has it all; the response arriving is the end. Each attempt counts from 0 again, so a retried upload starts the bar over.
+The event: `loaded` (bytes sent), `total` (bytes in the body, `undefined` when unknown — a stream without `content-length`), `fraction` (`loaded / total` from 0 to 1 — not a percentage — `undefined` with `total`). Progress counts what was handed to the network, so it reaches 1 a moment before the server has it all; the response arriving is the end. Each attempt counts from 0 again, so a retried upload starts the bar over.
 
 How that call is sent depends on where it runs:
 
@@ -323,7 +325,7 @@ A callback that throws fails the call with its own error, untouched: not an `Art
 
 ### Write your own
 
-`createPlugin` takes a plugin and returns it, typed without annotations and checked where you write it: a missing `pluginName`, an unknown key (a typo, or 1.x `name`), a slot that is not a function or a plugin with nothing to run is a `TypeError` that says what to write. `use` and `plugins` run the same check on plain objects. For a piece written on its own, `createMiddleware`, `createRequestInterceptor`, `createResponseInterceptor` and `createErrorInterceptor` type it the same way — `create` plus the type's name.
+`createPlugin` takes a plugin and returns it, typed without annotations and checked where you write it: a missing `pluginName`, an unknown key (a typo), a 1.x `name`, `request`, `response` or `error`, a slot that is not a function or a plugin with nothing to run is a `TypeError` that says what to write. `use` and `plugins` run the same check. A plugin is a plain object: to keep state, close over it in a function that returns `createPlugin({ … })`, as the built-ins do. For a piece written on its own, `createMiddleware`, `createRequestInterceptor`, `createResponseInterceptor` and `createErrorInterceptor` type it the same way — `create` plus the type's name.
 
 **`return await next(ctx)` inside `try`.** Without `await`, the promise is returned before it settles, and the `catch` never sees its error.
 
@@ -388,16 +390,16 @@ const traced = api.use({ pluginName: "trace", requestInterceptor: (ctx) => ({ ..
 
 ## Reference
 
-### `arthron(config)`
+### `arthron(clientOptions)`
 
 ```ts
 type ArthronClientOptions = {
   baseURL?: string;
-  allowedOrigins?: string[]; // other origins absolute URLs may go to (only the origin of each URL counts; no config headers there — without baseURL, the client's origins, config headers included)
-  headers?: HeadersOption; // anything fetch's headers take, or a record whose null drops a header (in extend)
+  allowedOrigins?: readonly string[]; // other origins absolute URLs may go to (only the origin of each URL counts); calls there get per-call headers only. Without baseURL it alone limits absolute URLs, and config headers are refused
+  headers?: HeadersInit | Record<string, string | null | undefined>; // sent to baseURL's origin only; a null value drops a header (in extend)
   fetchFn?: typeof fetch; // the function requests are sent with: a fake in tests, a polyfill, a framework's fetch; default the global fetch, read per request
-  plugins?: Plugin[]; // outermost first; one with the pluginName of an earlier one replaces it
-  extractDescription?: (payload: unknown, response: Response) => string | undefined; // extracts ArthronError.description from a failed response's payload
+  plugins?: readonly Plugin[]; // outermost first; one with the pluginName of an earlier one replaces it
+  extractDescription?: (payload: unknown, response: Response) => string | undefined; // extracts ArthronError.description from a failed response's payload; one that throws leaves it undefined
   throwOn?: (res: Response) => boolean; // which non-ok responses reject (also per call)
   // …plus any fetch option as a default: credentials, cache, redirect, mode,
   // keepalive, referrerPolicy, priority, integrity. Not body, method or signal —
@@ -408,30 +410,31 @@ type ArthronClientOptions = {
 ### Client
 
 ```ts
-get(path, init) · delete(path, init) · head(path, init)
-post(path, body, init) · put(path, body, init) · patch(path, body, init)
-query(path, body, init) // RFC 10008 QUERY
-request(path, { method, body, ...init })
-use(...plugins) → new client (same-name plugins replaced in place)
-extend(config) → new client
-without(...names) → new client without those plugins
+get(path, requestOptions) · delete(path, requestOptions) · head(path, requestOptions)
+post(path, body, requestOptions) · put(path, body, requestOptions) · patch(path, body, requestOptions)
+query(path, body, requestOptions) // RFC 10008 QUERY
+request(path, { method, body, ...requestOptions })
+use(...plugins) → new client (a plugin with the same pluginName is replaced in place)
+extend(clientOptions) → new client
+without(...pluginNames) → new client without those plugins
 ```
 
 All arguments after `path` are optional, except `method` in `request`. `request` is the way to any other verb; its `method` autocompletes the standard ones, and those go out uppercased whatever case you write them in (fetch itself leaves `"patch"` lowercase, which servers answer with 405). Other method names are sent as written.
 
-The public object types — `ArthronClientOptions`, `RequestOptions`, `RequestContext`, `ArthronMeta`, `Plugin`, `ResponsePromise`, `ArthronClient` — are interfaces, so a plugin package can add its own options with `declare module "arthron" { interface RequestOptions { … } }`.
+The public object types — `ArthronClientOptions`, `RequestOptions`, `RequestOptionsWithMethod`, `RequestContext`, `ArthronMeta`, `Plugin`, `ResponsePromise`, `ArthronClient`, `ArthronSchema` — are interfaces, so a plugin package can add its own options with `declare module "arthron" { interface RequestOptions { … } }`.
 
 ### `ArthronError`
 
 ```ts
 class ArthronError extends Error {
+  constructor(options: ArthronErrorOptions); // the fields below, for a test or a plugin that builds one
   status: number; // 0 for network failures
   statusText: string;
-  headers: Headers; // not enumerable
+  headers: Headers; // the response's headers; not enumerable
   payload: unknown; // the failed response's body, parsed (JSON, else text); undefined for a network failure
-  description?: string; // the server's description of the failure, extracted from payload; untrusted text
+  description: string | undefined; // the server's description of the failure, extracted from payload; untrusted text
   response?: Response; // absent for network failures; not enumerable
-  request: RequestContext; // not enumerable — holds credentials
+  requestContext: RequestContext; // the ctx plugins see, as sent (url, init.method, init.headers, meta) — not a fetch Request; not enumerable, holds credentials
   cause?: unknown; // the underlying error for network failures (query and userinfo redacted)
   toJSON(): { name; message; description; status; statusText; method; url; payload }; // url without query/userinfo
 }
@@ -441,14 +444,15 @@ class ArthronError extends Error {
 
 - **Fill path segments with `pathParams`.** `{name}` placeholders are encoded per segment; `""`, `.` and `..` are refused, as are missing or unused values. Without `pathParams`, braces are left alone.
 - **URLs are joined by string concatenation.** `baseURL: "https://a/v1"` + `"/users"` → `https://a/v1/users`. The `/v1` survives, unlike with `new URL()`.
-- **Absolute URLs stay on `baseURL`'s origin.** `api.get("https://other.example/x")` on a client with a `baseURL` rejects with a `TypeError`, because a path built from user input or an API response must not carry your credentials elsewhere. Same-origin absolute URLs work. List other origins in `allowedOrigins`; they get per-call headers only. A client without `baseURL` sends its config headers to every origin it lists. To call any origin, use a client without `baseURL` or `allowedOrigins`. Only `http(s)` URLs are accepted.
+- **Absolute URLs stay on `baseURL`'s origin.** `api.get("https://other.example/x")` on a client with a `baseURL` rejects with a `TypeError`, because a path built from user input or an API response must not carry your credentials elsewhere. Same-origin absolute URLs work. List other origins in `allowedOrigins`; they get per-call headers only. A client with `allowedOrigins` and no `baseURL` refuses config headers, since they would have nowhere to go. To call any origin, use a client without `baseURL` or `allowedOrigins` — and keep credentials out of its config headers, which it sends everywhere. Only `http(s)` URLs are accepted.
 - **Error bodies are read up to 64 KiB.** That is enough for any error message and keeps a huge or endless error body from filling memory. Past the limit `payload` is the raw text and the rest of the body is cancelled.
 - **Redirects follow fetch's rules.** On a redirect to another origin, fetch drops `Authorization` but keeps other headers such as `x-api-key`. Pass `redirect: "error"` (or `"manual"`) for calls that carry such keys if the server could redirect off-origin.
 - **Bodies.** `string`, `FormData`, `Blob`, `ArrayBuffer`/views, `URLSearchParams` and `ReadableStream` go through untouched — recognised by type tag, so polyfill and cross-realm instances count too. A `ReadableStream` is sent with `duplex: "half"`, which fetch requires. Anything else — including `null` — becomes JSON with `content-type: application/json`; a content type you set must be a JSON one. Bodies JSON would mangle — a `Map`, `Set`, generator, Node stream or function — are rejected with a `TypeError` that says what to pass instead. A `FormData` body is always sent without a `content-type` header, even with a JSON default, so the runtime can add the multipart boundary. `GET`/`HEAD` with a body is rejected with a `TypeError`.
-- **Fetch defaults are flat and only sent when set.** Config takes the same fetch options per-call calls do (`credentials`, `cache`, `redirect`, …) as defaults; a per-call value wins and `extend` overrides. Nothing is sent that you did not set — cross-origin cookies need `credentials: "include"`. `signal`, `body` and `method` are per call: a client-wide signal would fail every call once aborted.
+- **Fetch defaults are flat and only sent when set.** Client options take the same fetch options per-call options do (`credentials`, `cache`, `redirect`, …) as defaults; a per-call value wins and `extend` overrides. Nothing is sent that you did not set — cross-origin cookies need `credentials: "include"`. `signal`, `body` and `method` are per call: a client-wide signal would fail every call once aborted.
 - **In browsers, CORS and the engine have the last word.** CI runs the built package in Chromium, Firefox and WebKit against a server on another origin. A JSON body, a custom header and `query()`'s QUERY method each make the browser send a preflight, so the API must allow them (`Access-Control-Allow-Methods: QUERY`, `Access-Control-Allow-Headers`). `retry()` reads `Retry-After` only if the API exposes it (`Access-Control-Expose-Headers: retry-after`); otherwise it waits its own delay. `redirect: "manual"` gives an opaque redirect (`status` 0, `type` `"opaqueredirect"`), returned rather than thrown. A `ReadableStream` body streams only over HTTP/2 (Chromium, WebKit), and the `ArthronError` for one sent to an HTTP/1.1 server says so. Where the browser cannot stream a request body at all (Firefox would send the text `"[object ReadableStream]"`), the call rejects with a `TypeError` before anything is sent. Either way, send a `Blob` or `ArrayBuffer` there.
 - **Response bodies are single-use.** A response interceptor that wants to inspect the body must `res.clone()`; one that changes it returns a new `Response`.
-- **Argument errors reject, they don't throw.** No `baseURL` with a relative path, a URL the global fetch cannot parse (`baseURL: "api.example.com"` without `https://`), a `BigInt` in a JSON body, a missing `method` in `request` — all surface as a rejected `TypeError` before anything is sent, never as a retried `status: 0`. A `fetchFn` you pass is the judge of its own URLs: arthron does not pre-check them, so one that accepts relative URLs (SvelteKit's server-side `fetch`) works with `baseURL: "/api"`.
+- **Argument errors reject, they don't throw.** No `baseURL` with a relative path, a URL that does not parse (`baseURL: "api.example.com"` without `https://`), a `BigInt` in a JSON body, a missing `method` in `request` — all surface as a rejected `TypeError` before anything is sent, never as a retried `status: 0`. A `fetchFn` you pass is the judge of its own URLs: arthron does not pre-check them, so one that accepts relative URLs (SvelteKit's server-side `fetch`) works with `baseURL: "/api"`.
+- **Client options are checked when the client is created.** An http(s) `baseURL` with no host (`"https://"` from an unset variable), config `headers` with `allowedOrigins` but no `baseURL`, an `allowedOrigins` entry that is not an http(s) URL, a `fetchFn` that is not a function, a 1.x option name — `arthron()` and `extend()` throw a `TypeError` right there, before any request.
 
 ## For tooling and agents
 
