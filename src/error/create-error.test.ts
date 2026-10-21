@@ -60,7 +60,7 @@ describe("responseError", () => {
     expect(err.message).toBe("GET https://a/x failed with 502");
     expect(err.description).toBeUndefined();
   });
-  it("leaves data undefined for an empty body", async () => {
+  it("leaves payload undefined for an empty body", async () => {
     const err = await responseError(new Response(null, { status: 404 }), req);
     expect(err.payload).toBeUndefined();
   });
@@ -78,6 +78,18 @@ describe("responseError", () => {
       () => undefined,
     );
     expect(none.description).toBeUndefined();
+  });
+  it("still returns the ArthronError when extractDescription throws, without a description", async () => {
+    // An extractor written for JSON, handed a gateway's HTML page.
+    const err = await responseError(
+      new Response("<html>Bad Gateway</html>", { status: 502 }),
+      req,
+      (payload) => (payload as { errors: { msg: string }[] }).errors[0]?.msg,
+    );
+    expect(err).toBeInstanceOf(ArthronError);
+    expect(err.status).toBe(502);
+    expect(err.description).toBeUndefined();
+    expect(err.payload).toBe("<html>Bad Gateway</html>");
   });
   it("keeps the query, userinfo and the server's text out of the message", async () => {
     const err = await responseError(

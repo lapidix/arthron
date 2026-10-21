@@ -116,10 +116,18 @@ export async function responseError(
   const status = response.statusText
     ? `${response.status} ${response.statusText}`
     : String(response.status);
+  let description: string | undefined;
+  try {
+    description = extractDescription(payload, response) || undefined;
+  } catch {
+    // An extractor written for the API's JSON, handed a gateway's HTML page:
+    // the failure stays an ArthronError — status, retry and error
+    // interceptors intact — just without a description.
+  }
   return new ArthronError({
     // arthron's own words for logs; the server's go in `description`.
     message: `${describeRequest(request)} failed with ${status}`,
-    description: extractDescription(payload, response) || undefined,
+    description,
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,
