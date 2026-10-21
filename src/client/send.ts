@@ -72,7 +72,7 @@ export async function send(
   // plugin's bug would pass for a network failure — retried, status 0.
   if (typeof fetchFn !== "function") {
     throw new TypeError(
-      `arthron: ctx.fetchFn must be a function with fetch's signature, got ${fetchFn === null ? "null" : `a ${typeof fetchFn}`} — a plugin set it; return { ...ctx, fetchFn: fn }`,
+      `arthron: requestContext.fetchFn must be a function with fetch's signature, got ${fetchFn === null ? "null" : `a ${typeof fetchFn}`} — a plugin set it; return { ...requestContext, fetchFn: fn }`,
     );
   }
   // Here rather than before the pipeline, so they see the URL the request

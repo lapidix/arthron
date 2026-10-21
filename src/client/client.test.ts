@@ -662,7 +662,7 @@ describe("arthron — a plugin's fetchFn", () => {
     const err = await api.get("/u").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TypeError);
     expect((err as Error).message).toBe(
-      "arthron: ctx.fetchFn must be a function with fetch's signature, got a string — a plugin set it; return { ...ctx, fetchFn: fn }",
+      "arthron: requestContext.fetchFn must be a function with fetch's signature, got a string — a plugin set it; return { ...requestContext, fetchFn: fn }",
     );
     expect(retries).toBe(0);
     expect(fetch.calls).toHaveLength(0);

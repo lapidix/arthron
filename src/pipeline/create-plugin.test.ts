@@ -112,13 +112,40 @@ describe("createMiddleware and the create…Interceptor helpers", () => {
     expect(createMiddleware(fn)).toBe(fn);
   });
   it.each([
-    ["createMiddleware", createMiddleware],
-    ["createRequestInterceptor", createRequestInterceptor],
-    ["createResponseInterceptor", createResponseInterceptor],
-    ["createErrorInterceptor", createErrorInterceptor],
-  ] as const)("%s refuses anything but a function", (name, create) => {
+    [
+      "createMiddleware",
+      createMiddleware,
+      "createMiddleware((requestContext, next) => next(requestContext))",
+    ],
+    [
+      "createRequestInterceptor",
+      createRequestInterceptor,
+      "createRequestInterceptor((requestContext) => requestContext)",
+    ],
+    [
+      "createResponseInterceptor",
+      createResponseInterceptor,
+      "createResponseInterceptor((response) => response)",
+    ],
+    [
+      "createErrorInterceptor",
+      createErrorInterceptor,
+      "createErrorInterceptor((error) => error)",
+    ],
+  ] as const)("%s refuses anything but a function", (name, create, example) => {
     expect(() => (create as (x: unknown) => unknown)("x")).toThrow(
-      `${name} needs a function`,
+      `arthron: ${name} needs a function — e.g. ${example}`,
     );
+  });
+  it("names the parameters after the types they hold", () => {
+    expectTypeOf<Parameters<Middleware>>().toEqualTypeOf<
+      [
+        requestContext: RequestContext,
+        next: (requestContext: RequestContext) => Promise<Response>,
+      ]
+    >();
+    expectTypeOf<Parameters<ResponseInterceptor>>().toEqualTypeOf<
+      [response: Response, requestContext: RequestContext]
+    >();
   });
 });

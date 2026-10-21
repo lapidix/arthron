@@ -83,7 +83,7 @@ export function checkPlugin(plugin: unknown): asserts plugin is Plugin {
 
 /**
  * A plugin, checked where it is written and typed without annotations:
- * `createPlugin({ pluginName: "trace", requestInterceptor: (ctx) => … })`.
+ * `createPlugin({ pluginName: "trace", requestInterceptor: (requestContext) => … })`.
  */
 export function createPlugin(plugin: Plugin): Plugin {
   checkPlugin(plugin);
@@ -104,7 +104,7 @@ export const createMiddleware = (middleware: Middleware): Middleware =>
   aFunction(
     middleware,
     "createMiddleware",
-    "createMiddleware((ctx, next) => next(ctx))",
+    "createMiddleware((requestContext, next) => next(requestContext))",
   );
 
 /** A request interceptor written on its own, typed without annotations. */
@@ -114,7 +114,7 @@ export const createRequestInterceptor = (
   aFunction(
     interceptor,
     "createRequestInterceptor",
-    "createRequestInterceptor((ctx) => ctx)",
+    "createRequestInterceptor((requestContext) => requestContext)",
   );
 
 /** A response interceptor written on its own, typed without annotations. */
@@ -124,7 +124,7 @@ export const createResponseInterceptor = (
   aFunction(
     interceptor,
     "createResponseInterceptor",
-    "createResponseInterceptor((res) => res)",
+    "createResponseInterceptor((response) => response)",
   );
 
 /** An error interceptor written on its own, typed without annotations. */
@@ -134,5 +134,5 @@ export const createErrorInterceptor = (
   aFunction(
     interceptor,
     "createErrorInterceptor",
-    "createErrorInterceptor((err) => err)",
+    "createErrorInterceptor((error) => error)",
   );

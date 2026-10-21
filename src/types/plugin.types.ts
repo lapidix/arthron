@@ -4,19 +4,19 @@ import type { RequestContext } from "./request.types";
 
 /** Runs before each attempt. Returns the context to send (may be a new object). */
 export type RequestInterceptor = (
-  ctx: RequestContext,
+  requestContext: RequestContext,
 ) => RequestContext | Promise<RequestContext>;
 
 /** Runs after a successful attempt. The body is single-use — `clone()` to peek. */
 export type ResponseInterceptor = (
-  res: Response,
-  ctx: RequestContext,
+  response: Response,
+  requestContext: RequestContext,
 ) => Response | Promise<Response>;
 
 /** Runs after a failed attempt. Returns the error to throw; it is always thrown. */
 export type ErrorInterceptor = (
-  err: ArthronError,
-  ctx: RequestContext,
+  error: ArthronError,
+  requestContext: RequestContext,
 ) => ArthronError | Promise<ArthronError>;
 
 /**
@@ -26,8 +26,8 @@ export type ErrorInterceptor = (
  * failure was a cancellation or a bug in a plugin.
  */
 export type Middleware = (
-  ctx: RequestContext,
-  next: (ctx: RequestContext) => Promise<Response>,
+  requestContext: RequestContext,
+  next: (requestContext: RequestContext) => Promise<Response>,
 ) => Promise<Response>;
 
 export interface Plugin {

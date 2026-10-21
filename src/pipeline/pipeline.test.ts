@@ -562,7 +562,7 @@ describe("runPipeline", () => {
         ok,
       ),
     ).rejects.toThrow(
-      "arthron: a request interceptor set ctx.fetch, which is ctx.fetchFn since 2.0 — return { ...ctx, fetchFn }",
+      "arthron: a request interceptor set requestContext.fetch, which is requestContext.fetchFn since 2.0 — return { ...requestContext, fetchFn }",
     );
     await expect(
       runPipeline(
@@ -576,7 +576,7 @@ describe("runPipeline", () => {
         ok,
       ),
     ).rejects.toThrow(
-      "arthron: a middleware passed ctx.fetch to next, which is ctx.fetchFn since 2.0 — pass { ...ctx, fetchFn }",
+      "arthron: a middleware passed requestContext.fetch to next, which is requestContext.fetchFn since 2.0 — pass { ...requestContext, fetchFn }",
     );
   });
 

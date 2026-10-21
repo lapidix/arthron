@@ -52,9 +52,10 @@ export class ArthronError extends Error {
    */
   readonly description: string | undefined;
   /**
-   * The `RequestContext` that was sent — the `ctx` plugins see, after request
-   * interceptors: `url`, `init` (method, headers as a lowercase record, body),
-   * `meta`. Not a fetch `Request`: the method and headers are at
+   * The `RequestContext` that was sent — what plugins get as
+   * `requestContext`, after request interceptors: `url`, `init` (method,
+   * headers as a lowercase record, body), `meta`. Not a fetch `Request`: the
+   * method and headers are at
    * `requestContext.init.method` and `.init.headers`. Not enumerable: it
    * holds credentials, so `JSON.stringify`, `console.error` and error
    * trackers leave it out. Read it directly when you need it.

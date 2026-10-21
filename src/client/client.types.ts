@@ -48,7 +48,7 @@ export interface RequestOptions
   /** Settings for plugins on this call only (see `ArthronMeta`). Not sent. */
   meta?: ArthronMeta;
   /** Which non-ok responses reject on this call; overrides the client's `throwOn`. */
-  throwOn?: (res: Response) => boolean;
+  throwOn?: (response: Response) => boolean;
 }
 
 /** `request()`'s options: any method, with the same body rules as `post`. */
@@ -92,7 +92,7 @@ export interface ArthronClientOptions
    * The function requests are sent with: anything with fetch's signature,
    * `(input, init) => Promise<Response>`. Default: the global `fetch`, read
    * per call. Pass a fake in tests, a polyfill, or a framework's fetch
-   * (SvelteKit's `event.fetch`). Plugins see it as `ctx.fetchFn`.
+   * (SvelteKit's `event.fetch`). Plugins see it as `requestContext.fetchFn`.
    */
   fetchFn?: typeof fetch;
   /**
@@ -115,7 +115,7 @@ export interface ArthronClientOptions
    * rejects. Default: every non-ok response except an opaque one
    * (`mode: "no-cors"`) and the 3xx of `redirect: "manual"`.
    */
-  throwOn?: (res: Response) => boolean;
+  throwOn?: (response: Response) => boolean;
 }
 
 export interface ArthronClient {

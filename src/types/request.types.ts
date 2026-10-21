@@ -122,7 +122,7 @@ export type RetryOptions = {
   shouldRetry?: (
     error: unknown,
     attempt: number,
-    ctx: RequestContext,
+    requestContext: RequestContext,
   ) => boolean | undefined;
   /**
    * Called before each wait, for logs and metrics, with the same 0-based

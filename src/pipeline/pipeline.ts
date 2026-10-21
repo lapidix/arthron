@@ -83,7 +83,7 @@ function normalize(
 function refuseFetchField(ctx: RequestContext, problem: string, fix: string) {
   if ((ctx as { fetch?: unknown }).fetch === undefined) return;
   throw new TypeError(
-    `arthron: ${problem}, which is ctx.fetchFn since 2.0 — ${fix} { ...ctx, fetchFn }`,
+    `arthron: ${problem}, which is requestContext.fetchFn since 2.0 — ${fix} { ...requestContext, fetchFn }`,
   );
 }
 
@@ -145,11 +145,11 @@ export function createPipeline(
       const changed = returned(
         await interceptor(current),
         "a request interceptor",
-        "the context (ctx or a changed copy)",
+        "the context (requestContext or a changed copy)",
       );
       refuseFetchField(
         changed,
-        "a request interceptor set ctx.fetch",
+        "a request interceptor set requestContext.fetch",
         "return",
       );
       current = normalize(changed, current);
@@ -166,7 +166,7 @@ export function createPipeline(
         err = returned(
           await interceptor(err, current),
           "an error interceptor",
-          "the error (err or a changed one)",
+          "the error (error or a changed one)",
           thrown,
         );
       }
@@ -176,7 +176,7 @@ export function createPipeline(
       res = returned(
         await interceptor(res, current),
         "a response interceptor",
-        "the Response (res or a new one)",
+        "the Response (response or a new one)",
       );
     }
     return res;
@@ -192,7 +192,11 @@ export function createPipeline(
     // A middleware that builds a fresh `{ url, init }` keeps the call's meta
     // and fetchFn.
     const res = await middleware(input, (passed) => {
-      refuseFetchField(passed, "a middleware passed ctx.fetch to next", "pass");
+      refuseFetchField(
+        passed,
+        "a middleware passed requestContext.fetch to next",
+        "pass",
+      );
       const ctx: RequestContext = {
         ...passed,
         meta: passed.meta ?? input.meta,
@@ -204,7 +208,7 @@ export function createPipeline(
     return returned(
       res,
       "a middleware",
-      "the Response, usually `return next(ctx)`",
+      "the Response, usually `return next(requestContext)`",
       undefined,
       "resolved with",
     );
