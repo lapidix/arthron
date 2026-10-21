@@ -61,6 +61,7 @@
     "check:types-pkg": "attw --pack .",
     "check:types-consumer": "node test/types-consumer/check.mjs",
     "check:browsers": "pnpm --dir test/browser test",
+    "release:approve": "node scripts/approve-release.mjs",
     "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm check:types-pkg"
   },
   "devDependencies": {

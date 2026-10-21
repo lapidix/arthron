@@ -1,7 +1,7 @@
 name: Release
 
 # Stages a release on npm when a `vX.Y.Z` tag is pushed — by hand, or by
-# tag.yml when a new version lands on main — via npm Trusted
+# tag-release.yml when a new version lands on main — via npm Trusted
 # Publishing (OIDC) — no token in secrets. The trusted publisher on npmjs.com
 # (package arthron → Settings → Trusted Publisher) is GitHub Actions ·
 # lapidix/arthron · release.yml · environment npm, allowed to *stage* only:
@@ -9,18 +9,18 @@ name: Release
 #
 # Two human gates: the `npm` environment needs a reviewer's approval before
 # this job runs, and the staged version goes live only once a maintainer
-# approves it with 2FA — on npmjs.com, or `npm stage list arthron` then
-# `npm stage approve <stage-id>`.
+# approves it with 2FA — `pnpm release:approve`, or on npmjs.com.
 #
 # Once staged, a second job drafts the GitHub Release with the version's
-# CHANGELOG.md entry as notes. Publish the draft after approving the stage, so
-# the repo's "Latest" release is never ahead of npm.
+# CHANGELOG.md entry as notes. `pnpm release:approve` publishes the draft once
+# the version is on npm (run it after approving on npmjs.com too), so the
+# repo's "Latest" release is never ahead of npm.
 on:
   push:
     tags: ["v*"]
-  # Started by tag.yml on the tag it just created (its GITHUB_TOKEN push does
-  # not trigger `push`). Dispatched on any other ref, the `npm` environment
-  # refuses it: only `v*` tags may deploy there.
+  # Started by tag-release.yml on the tag it just created (its GITHUB_TOKEN
+  # push does not trigger `push`). Dispatched on any other ref, the `npm`
+  # environment refuses it: only `v*` tags may deploy there.
   workflow_dispatch:
 
 permissions:
