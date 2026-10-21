@@ -1,8 +1,9 @@
 /*
- * RetryOptions lives here rather than with the retry plugin: RequestContext →
- * ArthronMeta → RetryOptions → RequestContext is one cycle of types. Adding
- * `retry` to ArthronMeta by declaration merging from a separate file would
- * break that cycle, but the merge does not survive the bundled .d.ts.
+ * RetryOptions and TimeoutOptions live here rather than with their plugins:
+ * ArthronMeta names both, and RequestContext → ArthronMeta → RetryOptions →
+ * RequestContext is one cycle of types. Adding them to ArthronMeta by
+ * declaration merging from a separate file would break that cycle, but the
+ * merge does not survive the bundled .d.ts.
  */
 
 /**
@@ -53,9 +54,27 @@ export interface ArthronMeta {
   uploadProgress?: (event: UploadProgressEvent) => void;
   /** `false` turns `retry()` off for this call; an object overrides its options. */
   retry?: false | RetryOptions;
-  /** Deadline for this call in ms, overriding `timeout(ms)`. `Infinity` lifts it. */
-  timeout?: number;
+  /**
+   * `false` lifts `timeout()`'s deadlines for this call; a number replaces
+   * its `total` (ms); an object overrides the parts it sets, `total` or
+   * `idle`: `{ idle: 30_000 }` keeps the configured total.
+   */
+  timeout?: false | number | TimeoutOptions;
 }
+
+export type TimeoutOptions = {
+  /**
+   * Abort after this many ms in all, counted until the body has been fully
+   * read — the same deadline as `timeout(ms)`. Default: none.
+   */
+  total?: number;
+  /**
+   * Abort when no data has arrived for this many ms — while waiting for the
+   * headers and between body chunks. Unlike `total`, a stream that keeps
+   * flowing is never cut off: `timeout({ idle: 30_000 })`.
+   */
+  idle?: number;
+};
 
 /** One step of an upload, as `meta.uploadProgress` receives it. */
 export type UploadProgressEvent = {

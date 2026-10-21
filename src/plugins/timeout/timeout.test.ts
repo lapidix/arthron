@@ -198,6 +198,48 @@ describe("timeout — meta.timeout per call", () => {
         .json(),
     ).toEqual({ ok: 1 });
   });
+  it("false lifts both deadlines for one call, like meta.retry: false", async () => {
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: answersAfter(40),
+      plugins: [timeout({ total: 10, idle: 10 })],
+    });
+    expect(await api.get("/u", { meta: { timeout: false } }).json()).toEqual({
+      ok: 1,
+    });
+  });
+  it("an object overrides idle alone, and total still applies", async () => {
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: hangingFetch(),
+      plugins: [timeout({ total: 30, idle: 10 })],
+    });
+    await expect(
+      api.get("/u", { meta: { timeout: { idle: 60_000 } } }),
+    ).rejects.toThrow("arthron: request timed out after 30ms");
+  });
+  it("an object overrides total alone, and idle still applies", async () => {
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: hangingFetch(),
+      plugins: [timeout({ total: 10, idle: 30 })],
+    });
+    await expect(
+      api.get("/u", { meta: { timeout: { total: 60_000 } } }),
+    ).rejects.toThrow("arthron: no data for 30ms");
+  });
+  it("refuses a bad value in meta.timeout, naming where it came from", async () => {
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: answersAfter(1),
+      plugins: [timeout(1000)],
+    });
+    await expect(
+      api.get("/u", { meta: { timeout: { idle: -1 } } }),
+    ).rejects.toThrow(
+      "arthron: meta.timeout: { idle: -1 } needs 0–2147483647 ms — pass Infinity for no deadline",
+    );
+  });
 });
 
 describe("timeout(ms) bounds", () => {
