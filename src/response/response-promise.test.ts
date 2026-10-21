@@ -1,29 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { jsonResponse } from "../testkit/fetch.testkit";
-import { toArthronPromise } from "./arthron-promise";
+import { toResponsePromise } from "./response-promise";
 
-describe("toArthronPromise", () => {
+describe("toResponsePromise", () => {
   it("awaits to the raw Response", async () => {
-    const res = await toArthronPromise(Promise.resolve(jsonResponse({ a: 1 })));
+    const res = await toResponsePromise(
+      Promise.resolve(jsonResponse({ a: 1 })),
+    );
     expect(res).toBeInstanceOf(Response);
   });
   it(".json<T>() returns the parsed body", async () => {
     expect(
-      await toArthronPromise(Promise.resolve(jsonResponse({ a: 1 }))).json<{
+      await toResponsePromise(Promise.resolve(jsonResponse({ a: 1 }))).json<{
         a: number;
       }>(),
     ).toEqual({ a: 1 });
   });
   it(".text() / .blob() / .arrayBuffer() / .formData() delegate to Response", async () => {
     expect(
-      await toArthronPromise(Promise.resolve(new Response("hi"))).text(),
+      await toResponsePromise(Promise.resolve(new Response("hi"))).text(),
     ).toBe("hi");
     expect(
-      (await toArthronPromise(Promise.resolve(new Response("hi"))).blob()).size,
+      (await toResponsePromise(Promise.resolve(new Response("hi"))).blob())
+        .size,
     ).toBe(2);
     expect(
       (
-        await toArthronPromise(
+        await toResponsePromise(
           Promise.resolve(new Response("hi")),
         ).arrayBuffer()
       ).byteLength,
@@ -32,13 +35,13 @@ describe("toArthronPromise", () => {
     fd.append("k", "v");
     expect(
       (
-        await toArthronPromise(Promise.resolve(new Response(fd))).formData()
+        await toResponsePromise(Promise.resolve(new Response(fd))).formData()
       ).get("k"),
     ).toBe("v");
   });
   it(".json() rejects on an empty 204 body (does not hide it)", async () => {
     await expect(
-      toArthronPromise(
+      toResponsePromise(
         Promise.resolve(new Response(null, { status: 204 })),
       ).json(),
     ).rejects.toThrow();
@@ -46,7 +49,7 @@ describe("toArthronPromise", () => {
   it(".sse() and .ndjson() stream the body", async () => {
     const body = (text: string) => Promise.resolve(new Response(text));
     const sse: unknown[] = [];
-    for await (const e of toArthronPromise(
+    for await (const e of toResponsePromise(
       body("data: a\n\ndata: b\n\n"),
     ).sse())
       sse.push(e);
@@ -55,7 +58,7 @@ describe("toArthronPromise", () => {
       { data: "b", lastEventId: "" },
     ]);
     const rows: unknown[] = [];
-    for await (const r of toArthronPromise(body('{"a":1}\n{"a":2}\n')).ndjson<{
+    for await (const r of toResponsePromise(body('{"a":1}\n{"a":2}\n')).ndjson<{
       a: number;
     }>())
       rows.push(r);
@@ -67,7 +70,7 @@ describe("toArthronPromise", () => {
     process.on("unhandledRejection", record);
     try {
       const boom = new Error("boom");
-      const events = toArthronPromise(Promise.reject(boom)).sse();
+      const events = toResponsePromise(Promise.reject(boom)).sse();
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(unhandled).toEqual([]);
       const iterate = async () => {
@@ -80,7 +83,7 @@ describe("toArthronPromise", () => {
   });
   it("rejection propagates through the chain", async () => {
     await expect(
-      toArthronPromise(Promise.reject(new Error("x"))).json(),
+      toResponsePromise(Promise.reject(new Error("x"))).json(),
     ).rejects.toThrow("x");
   });
 });

@@ -1,6 +1,10 @@
 import { toHeaderRecord } from "../request/headers";
 import type { Plugin } from "../types/plugin.types";
-import type { ArthronConfig, FetchDefaults, Resolved } from "./client.types";
+import type {
+  ArthronClientOptions,
+  FetchDefaults,
+  Resolved,
+} from "./client.types";
 
 /**
  * Config keys that configure arthron itself; every other key is a fetch
@@ -8,7 +12,7 @@ import type { ArthronConfig, FetchDefaults, Resolved } from "./client.types";
  * listed here — otherwise it would be sent to fetch.
  */
 const OWN_KEYS: Record<
-  Exclude<keyof ArthronConfig, keyof FetchDefaults>,
+  Exclude<keyof ArthronClientOptions, keyof FetchDefaults>,
   true
 > = {
   baseURL: true,
@@ -67,7 +71,7 @@ export function fetchDefaults(config: Resolved): FetchDefaults {
 }
 
 /** Normalize once so `extend` can merge headers and add plugins cheaply. */
-export function resolveConfig(config: ArthronConfig): Resolved {
+export function resolveConfig(config: ArthronClientOptions): Resolved {
   for (const key of PER_CALL_ONLY) {
     if ((config as Record<string, unknown>)[key] !== undefined) {
       throw new TypeError(

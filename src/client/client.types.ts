@@ -4,7 +4,7 @@ import type {
   HeadersOption,
   QueryParams,
 } from "../types/request.types";
-import type { ArthronPromise, ServerMessageFn } from "../types/response.types";
+import type { ResponsePromise, ServerMessageFn } from "../types/response.types";
 
 /**
  * The methods arthron knows by name; any other string is sent as written.
@@ -44,7 +44,7 @@ export interface RequestOptions
 }
 
 /** `request()`'s options: any method, with the same body rules as `post`. */
-export interface RequestInitWithBody extends RequestOptions {
+export interface RequestOptionsWithMethod extends RequestOptions {
   method: HttpMethod;
   body?: unknown;
 }
@@ -65,7 +65,7 @@ export type FetchDefaults = Omit<
  * default (`credentials`, `cache`, `redirect`, `mode`, …), flat like per-call
  * options; a per-call value wins.
  */
-export interface ArthronConfig extends FetchDefaults {
+export interface ArthronClientOptions extends FetchDefaults {
   /** Prefix for relative paths. Without it only absolute URLs are accepted. */
   baseURL?: string;
   /**
@@ -104,30 +104,30 @@ export interface ArthronConfig extends FetchDefaults {
   throwOn?: (res: Response) => boolean;
 }
 
-export interface Arthron {
-  get(path: string, init?: RequestOptions): ArthronPromise;
-  delete(path: string, init?: RequestOptions): ArthronPromise;
-  head(path: string, init?: RequestOptions): ArthronPromise;
-  post(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
-  put(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
-  patch(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
+export interface ArthronClient {
+  get(path: string, init?: RequestOptions): ResponsePromise;
+  delete(path: string, init?: RequestOptions): ResponsePromise;
+  head(path: string, init?: RequestOptions): ResponsePromise;
+  post(path: string, body?: unknown, init?: RequestOptions): ResponsePromise;
+  put(path: string, body?: unknown, init?: RequestOptions): ResponsePromise;
+  patch(path: string, body?: unknown, init?: RequestOptions): ResponsePromise;
   /** RFC 10008 QUERY: safe and idempotent like GET, but the query travels in the body. */
-  query(path: string, body?: unknown, init?: RequestOptions): ArthronPromise;
+  query(path: string, body?: unknown, init?: RequestOptions): ResponsePromise;
   /** Any method — the extension point for verbs without their own helper. */
-  request(path: string, init: RequestInitWithBody): ArthronPromise;
+  request(path: string, init: RequestOptionsWithMethod): ResponsePromise;
   /**
    * New client with these plugins added: a named one replaces the plugin of
    * that name in place, an unnamed one appends. The receiver is untouched.
    */
-  use(...plugins: Plugin[]): Arthron;
+  use(...plugins: Plugin[]): ArthronClient;
   /** New client with config shallow-merged, headers merged, plugins added as `use` adds them. */
-  extend(config: Partial<ArthronConfig>): Arthron;
+  extend(config: Partial<ArthronClientOptions>): ArthronClient;
   /** New client without the plugins of these names. The receiver is untouched. */
-  without(...names: string[]): Arthron;
+  without(...names: string[]): ArthronClient;
 }
 
-/** `ArthronConfig` after `resolveConfig`: headers as one record, plugins de-duplicated by name. Internal. */
-export type Resolved = Omit<ArthronConfig, "headers" | "plugins"> & {
+/** `ArthronClientOptions` after `resolveConfig`: headers as one record, plugins de-duplicated by name. Internal. */
+export type Resolved = Omit<ArthronClientOptions, "headers" | "plugins"> & {
   headers: Record<string, string>;
   plugins: readonly Plugin[];
 };

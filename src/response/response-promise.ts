@@ -1,7 +1,7 @@
 import { cancellationError } from "../error/create-error";
 import type {
-  ArthronPromise,
   NdjsonOptions,
+  ResponsePromise,
   SseOptions,
   StandardSchemaV1,
 } from "../types/response.types";
@@ -32,10 +32,10 @@ function iterate<T>(
  * Sugar over `Promise<Response>`: `.json()` is `(await p).json()`. Awaiting
  * without a helper still yields the untouched `Response`.
  */
-export function toArthronPromise(
+export function toResponsePromise(
   promise: Promise<Response>,
   signal?: AbortSignal | null,
-): ArthronPromise {
+): ResponsePromise {
   // A body read the caller aborted rejects with their reason, whatever the
   // runtime's fetch reports.
   const read = <T>(body: (res: Response) => Promise<T>): Promise<T> =>
@@ -47,7 +47,7 @@ export function toArthronPromise(
       read(async (res) => {
         const data: unknown = await res.json();
         return schema ? validate(schema, data) : data;
-      })) as ArthronPromise["json"],
+      })) as ResponsePromise["json"],
     text: () => read((res) => res.text()),
     blob: () => read((res) => res.blob()),
     arrayBuffer: () => read((res) => res.arrayBuffer()),

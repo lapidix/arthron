@@ -6,7 +6,7 @@ import { timeout } from "../plugins/timeout/timeout";
 import { fakeFetch, jsonResponse } from "../testkit/fetch.testkit";
 import type { Plugin } from "../types/plugin.types";
 import { arthron } from "./client";
-import type { ArthronConfig } from "./client.types";
+import type { ArthronClientOptions } from "./client.types";
 
 // Public types are interfaces, so a plugin package can extend them.
 declare module "./client.types" {
@@ -17,7 +17,7 @@ declare module "./client.types" {
 
 const make = (
   fetch = fakeFetch(jsonResponse({ ok: 1 })),
-  extra: Partial<ArthronConfig> = {},
+  extra: Partial<ArthronClientOptions> = {},
 ) => ({
   fetch,
   api: arthron({ baseURL: "https://a/v1", fetchFn: fetch, ...extra }),
@@ -380,7 +380,7 @@ describe("arthron — config", () => {
     "refuses %s as a client default, at construction",
     (key) => {
       expect(() =>
-        arthron({ baseURL: "https://a", [key]: "x" } as ArthronConfig),
+        arthron({ baseURL: "https://a", [key]: "x" } as ArthronClientOptions),
       ).toThrow(new RegExp(`${key}.*per call`));
     },
   );
@@ -504,7 +504,7 @@ describe("arthron — errors", () => {
       }) as typeof fetch;
     const client = (
       fetch: typeof globalThis.fetch,
-      extra: Partial<ArthronConfig> = {},
+      extra: Partial<ArthronClientOptions> = {},
     ) => arthron({ baseURL: "https://a/v1", fetchFn: fetch, ...extra });
 
     it("rejects the request with the caller's reason", async () => {
@@ -744,7 +744,8 @@ describe("arthron — 1.x option names", () => {
     ["errorDetail", () => undefined, "serverMessageFn"],
     ["allowAbsoluteUrls", true, "allowedOrigins"],
   ] as const)("refuses %s, naming its replacement", (old, value, now) => {
-    const create = () => arthron({ [old]: value } as unknown as ArthronConfig);
+    const create = () =>
+      arthron({ [old]: value } as unknown as ArthronClientOptions);
     expect(create).toThrow(TypeError);
     expect(create).toThrow(`arthron({ ${now} })`);
   });

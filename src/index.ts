@@ -1,10 +1,10 @@
 export { arthron } from "./client/client";
 export type {
-  Arthron,
-  ArthronConfig,
+  ArthronClient,
+  ArthronClientOptions,
   HttpMethod,
-  RequestInitWithBody,
   RequestOptions,
+  RequestOptionsWithMethod,
 } from "./client/client.types";
 export { ArthronError, isArthronError } from "./error/arthron-error";
 export {
@@ -27,9 +27,9 @@ export type {
   RequestContext,
 } from "./types/request.types";
 export type {
-  ArthronPromise,
   InferOutput,
   NdjsonOptions,
+  ResponsePromise,
   SchemaIssue,
   ServerMessageFn,
   SseEvent,

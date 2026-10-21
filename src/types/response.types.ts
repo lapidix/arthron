@@ -1,4 +1,4 @@
-export interface ArthronPromise extends Promise<Response> {
+export interface ResponsePromise extends Promise<Response> {
   /** The body as JSON. `T` is a cast — nothing checks it. */
   json<T = unknown>(): Promise<T>;
   /**

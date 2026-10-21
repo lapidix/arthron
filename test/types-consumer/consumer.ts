@@ -1,9 +1,9 @@
 // What a user writes against the published types. check.mjs type-checks it
 // against the packed package; it is never run.
 import {
-  type ArthronPromise,
   arthron,
   isArthronError,
+  type ResponsePromise,
   SchemaError,
   type SseEvent,
   type StandardSchemaV1,
@@ -87,7 +87,7 @@ uploads.post("/f", new Blob([]), {
 uploads.post("/f", new Blob([]), { meta: { uploadProgress: 1 } });
 
 export async function run(): Promise<void> {
-  const pending: ArthronPromise = api.get("/users/{id}", {
+  const pending: ResponsePromise = api.get("/users/{id}", {
     pathParams: { id: 1 },
     headers: [["x-trace", "1"]],
     meta: { skipAuth: true, retry: false, timeout: 1_000 },
