@@ -61,10 +61,10 @@ export async function send(
   ctx: RequestContext,
   throwOn: ((res: Response) => boolean) | undefined,
 ): Promise<Response> {
-  // The attempt's own fetch, which a plugin may have replaced or wrapped.
+  // The attempt's adapter, which a plugin may have replaced or wrapped.
   // Resolved per call, not per client: a global patched after the client was
   // created (msw's `server.listen()`, for one) must still be honoured.
-  const fetchImpl = ctx.fetch ?? resolved.fetch ?? globalThis.fetch;
+  const fetchImpl = ctx.adapter ?? resolved.fetch ?? globalThis.fetch;
   // Here rather than before the pipeline, so it sees the URL the request
   // interceptors produced. Whenever the client relies on the runtime's fetch
   // — also when a plugin wrapped or swapped it for this attempt (upload

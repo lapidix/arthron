@@ -33,42 +33,42 @@ describe("uploadProgress", () => {
 
   it("leaves a call without the callback untouched", async () => {
     const out = await sent({
-      fetch: globalThis.fetch,
+      adapter: globalThis.fetch,
       init: { method: "PUT", body: "x", headers: {} },
     });
-    expect(out.fetch).toBe(globalThis.fetch);
+    expect(out.adapter).toBe(globalThis.fetch);
     expect(out.init.body).toBe("x");
   });
 
   it("leaves a call without a body untouched", async () => {
     const events: UploadProgressEvent[] = [];
     const out = await sent({
-      fetch: globalThis.fetch,
+      adapter: globalThis.fetch,
       meta: { onUploadProgress: (e) => events.push(e) },
     });
-    expect(out.fetch).toBe(globalThis.fetch);
+    expect(out.adapter).toBe(globalThis.fetch);
     expect(events).toEqual([]);
   });
 
   it("steps aside for an injected fetch", async () => {
     const injected = fakeFetch(jsonResponse({}));
     const out = await sent({
-      fetch: injected,
+      adapter: injected,
       init: { method: "PUT", body: "x", headers: {} },
       meta: { onUploadProgress: () => {} },
     });
-    expect(out.fetch).toBe(injected);
+    expect(out.adapter).toBe(injected);
   });
 
   it("wraps the runtime fetch in Node and keeps the original body", async () => {
     const blob = new Blob(["abc"]);
     const out = await sent({
-      fetch: globalThis.fetch,
+      adapter: globalThis.fetch,
       init: { method: "PUT", body: blob, headers: {} },
       meta: { onUploadProgress: () => {} },
     });
-    expect(out.fetch).not.toBe(globalThis.fetch);
-    expect(typeof out.fetch).toBe("function");
+    expect(out.adapter).not.toBe(globalThis.fetch);
+    expect(typeof out.adapter).toBe("function");
     expect(out.init.body).toBe(blob);
   });
 });

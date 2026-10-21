@@ -68,9 +68,9 @@ authed.get("/x", { meta: { bearerAuth: true } });
 // A plugin may read, wrap or replace the fetch an attempt is sent with.
 const observed = api.use({
   request: (ctx) => {
-    const sendWith: typeof fetch | undefined = ctx.fetch;
+    const sendWith: typeof fetch | undefined = ctx.adapter;
     return sendWith
-      ? { ...ctx, fetch: (input, init) => sendWith(input, init) }
+      ? { ...ctx, adapter: (input, init) => sendWith(input, init) }
       : ctx;
   },
 });

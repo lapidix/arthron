@@ -29,7 +29,7 @@ function cloneContext({
   url,
   init,
   meta,
-  fetch,
+  adapter,
 }: RequestContext): RequestContext {
   const copy: RequestContext["init"] = {
     ...init,
@@ -37,7 +37,7 @@ function cloneContext({
   };
   if (init.body) copy.body = cloneBody(init.body);
   const out: RequestContext = { url, init: copy, meta: { ...meta } };
-  if (fetch) out.fetch = fetch;
+  if (adapter) out.adapter = adapter;
   return out;
 }
 
@@ -54,11 +54,11 @@ function normalize(
     ...ctx,
     init: { ...ctx.init, headers: toHeaderRecord(ctx.init.headers) },
     // A plugin that builds a fresh `{ url, init }` must not lose the call's
-    // meta, nor the fetch it is sent with.
+    // meta, nor the adapter it is sent with.
     meta: ctx.meta ?? previous.meta,
   };
-  const fetch = ctx.fetch ?? previous.fetch;
-  if (fetch) out.fetch = fetch;
+  const adapter = ctx.adapter ?? previous.adapter;
+  if (adapter) out.adapter = adapter;
   return out;
 }
 
@@ -151,11 +151,11 @@ export async function runPipeline(
     const middleware = middlewares[index];
     if (!middleware) return attempt(input);
     // A middleware that builds a fresh `{ url, init }` keeps the call's meta
-    // and fetch.
+    // and adapter.
     const res = await middleware(input, (next) => {
       const ctx: RequestContext = { ...next, meta: next.meta ?? input.meta };
-      const fetch = next.fetch ?? input.fetch;
-      if (fetch) ctx.fetch = fetch;
+      const adapter = next.adapter ?? input.adapter;
+      if (adapter) ctx.adapter = adapter;
       return dispatch(index + 1, ctx);
     });
     return returned(

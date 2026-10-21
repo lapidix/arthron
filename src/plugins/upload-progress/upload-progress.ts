@@ -115,7 +115,7 @@ export function uploadProgress(): Plugin {
       const onProgress = ctx.meta?.onUploadProgress;
       const { body } = ctx.init;
       if (!onProgress || body === undefined || body === null) return ctx;
-      if (ctx.fetch !== globalThis.fetch) return ctx;
+      if (ctx.adapter !== globalThis.fetch) return ctx;
       const transport = transportFor(currentRuntime());
       if (!transport) return ctx;
       if (transport === "xhr") {
@@ -133,10 +133,10 @@ export function uploadProgress(): Plugin {
       const { ctx: next, report } = withOwnSignal(ctx, onProgress);
       return {
         ...next,
-        fetch:
+        adapter:
           transport === "xhr"
             ? xhrFetch(report)
-            : countingFetch(ctx.fetch, report),
+            : countingFetch(ctx.adapter, report),
       };
     },
   };

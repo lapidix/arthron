@@ -714,8 +714,8 @@ describe("arthron — which responses reject", () => {
   });
 });
 
-describe("arthron — ctx.fetch", () => {
-  it("fills ctx.fetch with the client's fetch", async () => {
+describe("arthron — ctx.adapter", () => {
+  it("fills ctx.adapter with the client's fetch", async () => {
     const fetch = fakeFetch(jsonResponse({}));
     const seen: unknown[] = [];
     const api = arthron({
@@ -724,7 +724,7 @@ describe("arthron — ctx.fetch", () => {
       use: [
         {
           request: (ctx) => {
-            seen.push(ctx.fetch);
+            seen.push(ctx.adapter);
             return ctx;
           },
         },
@@ -733,13 +733,13 @@ describe("arthron — ctx.fetch", () => {
     await api.get("/u");
     expect(seen).toEqual([fetch]);
   });
-  it("sends with the fetch a plugin put in ctx.fetch, and still makes ArthronErrors", async () => {
+  it("sends with the adapter a plugin put in ctx.adapter, and still makes ArthronErrors", async () => {
     const client = fakeFetch(jsonResponse({}));
     const swapped = fakeFetch(jsonResponse({}, { status: 500 }));
     const api = arthron({
       baseURL: "https://a",
       fetch: client,
-      use: [{ request: (ctx) => ({ ...ctx, fetch: swapped }) }],
+      use: [{ request: (ctx) => ({ ...ctx, adapter: swapped }) }],
     });
     const err = await api.get("/u").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ArthronError);
