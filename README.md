@@ -1,6 +1,29 @@
-# arthron
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo/arthron-lockup-dark.svg">
+    <img alt="arthron" src=".github/assets/logo/arthron-lockup.svg" width="300">
+  </picture>
+</h1>
 
-A `fetch` client you assemble from plugins.
+<p align="center">A <code>fetch</code> client you assemble from plugins.</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/arthron"><img alt="npm version" src="https://img.shields.io/npm/v/arthron?color=14b8a6"></a>
+  <a href="https://github.com/lapidix/arthron/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/lapidix/arthron/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://bundlejs.com/?q=arthron"><img alt="minified and gzipped size" src="https://img.shields.io/bundlejs/size/arthron?color=14b8a6"></a>
+  <a href="https://www.npmjs.com/package/arthron?activeTab=dependencies"><img alt="zero dependencies" src="https://img.shields.io/badge/dependencies-0-14b8a6"></a>
+  <a href="#install"><img alt="Node 22 or later" src="https://img.shields.io/node/v/arthron?color=14b8a6"></a>
+  <a href="#reference"><img alt="TypeScript types included" src="https://img.shields.io/npm/types/arthron?color=14b8a6"></a>
+  <a href="https://github.com/lapidix/arthron/blob/main/LICENSE"><img alt="MIT license" src="https://img.shields.io/npm/l/arthron?color=14b8a6"></a>
+</p>
+
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#usage">Usage</a> ·
+  <a href="#plugins">Plugins</a> ·
+  <a href="#reference">Reference</a> ·
+  <a href="https://github.com/lapidix/arthron/blob/main/CHANGELOG.md">Changelog</a>
+</p>
 
 ```ts
 import { arthron } from "arthron";
