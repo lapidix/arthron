@@ -2,6 +2,9 @@
 // against the packed package; it is never run.
 import {
   arthron,
+  createErrorInterceptor,
+  createMiddleware,
+  createPlugin,
   isArthronError,
   type ResponsePromise,
   SchemaError,
@@ -68,6 +71,7 @@ authed.get("/x", { meta: { bearerAuth: true } });
 
 // A plugin may read, wrap or replace the fetch an attempt is sent with.
 const observed = api.use({
+  name: "observe",
   requestInterceptor: (ctx) => {
     const sendWith: typeof fetch | undefined = ctx.fetchFn;
     return sendWith
@@ -76,6 +80,19 @@ const observed = api.use({
   },
 });
 void observed;
+
+const idempotent = createMiddleware(async (ctx, next) => next(ctx));
+const markExpired = createErrorInterceptor((err) => err);
+const payments = api.use(
+  createPlugin({
+    name: "idempotency",
+    middleware: idempotent,
+    errorInterceptor: markExpired,
+  }),
+);
+void payments;
+// @ts-expect-error a plugin needs a name
+api.use({ middleware: idempotent });
 
 const uploads = api.use(uploadProgress());
 uploads.post("/f", new Blob([]), {

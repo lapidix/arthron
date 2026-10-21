@@ -1,16 +1,18 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import type { Middleware, Plugin } from "./";
+import type { Plugin } from "./";
 import * as arthronModule from "./";
-import { arthron, defineInterceptor, defineMiddleware, definePlugin } from "./";
+import { arthron, createPlugin } from "./";
 
 describe("public surface", () => {
   it("exports exactly the documented values", () => {
     expect(Object.keys(arthronModule).sort()).toEqual(
       [
         "ArthronError",
-        "defineInterceptor",
-        "defineMiddleware",
-        "definePlugin",
+        "createErrorInterceptor",
+        "createMiddleware",
+        "createPlugin",
+        "createRequestInterceptor",
+        "createResponseInterceptor",
         "arthron",
         "isArthronError",
         "SchemaError",
@@ -47,13 +49,12 @@ describe("public surface", () => {
     // @ts-expect-error RequestInitWithBody is RequestOptionsWithMethod since 2.0
     expectTypeOf<import("./").RequestInitWithBody>().not.toBeNever();
   });
-  it("define helpers are identity and infer types", () => {
-    const m: Middleware = async (_c, next) => next(_c);
-    expect(defineMiddleware(m)).toBe(m);
-    const p = definePlugin({ name: "x" });
-    expectTypeOf(p).toEqualTypeOf<Plugin>();
-    const r = defineInterceptor.request((c) => c);
-    expectTypeOf(r).parameter(0).toHaveProperty("url");
+  it("drops the 1.x define helpers for create…", () => {
+    // @ts-expect-error definePlugin is createPlugin since 2.0
+    expectTypeOf<typeof import("./").definePlugin>().not.toBeNever();
+    expectTypeOf(
+      createPlugin({ name: "x", requestInterceptor: (c) => c }),
+    ).toEqualTypeOf<Plugin>();
   });
   it("arthron() accepts no config", () => {
     expect(() => arthron()).not.toThrow();

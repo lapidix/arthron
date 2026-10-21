@@ -1,3 +1,4 @@
+import { checkPlugin } from "../pipeline/create-plugin";
 import { toHeaderRecord } from "../request/headers";
 import type { Plugin } from "../types/plugin.types";
 import type {
@@ -39,18 +40,11 @@ const REPLACED = {
   allowAbsoluteUrls: "allowedOrigins",
 } as const;
 
-/** 1.x interceptor slots: a plugin that still uses one would have it ignored. */
-const REPLACED_SLOTS = {
-  request: "requestInterceptor",
-  response: "responseInterceptor",
-  error: "errorInterceptor",
-} as const;
-
 /**
- * Add plugins to a list. A named plugin takes the place of the one already
- * there with that name — same position, so a replaced `logging()` stays
- * outermost and a second `retry()` does not multiply attempts. Unnamed
- * plugins append.
+ * Add plugins to a list, each checked as `createPlugin` checks it. A plugin
+ * takes the place of the one already there with its name — same position,
+ * so a replaced `logging()` stays outermost and a second `retry()` does not
+ * multiply attempts. Other names append.
  */
 export function addPlugins(
   base: readonly Plugin[],
@@ -58,19 +52,8 @@ export function addPlugins(
 ): Plugin[] {
   const out = [...base];
   for (const plugin of added) {
-    for (const [old, now] of Object.entries(REPLACED_SLOTS)) {
-      if ((plugin as Record<string, unknown>)[old] !== undefined) {
-        const who =
-          plugin.name === undefined ? "a plugin" : `plugin "${plugin.name}"`;
-        throw new TypeError(
-          `arthron: ${who}: the ${old} interceptor is called ${now} since 2.0 — rename it in the plugin`,
-        );
-      }
-    }
-    const at =
-      plugin.name === undefined
-        ? -1
-        : out.findIndex((p) => p.name === plugin.name);
+    checkPlugin(plugin);
+    const at = out.findIndex((p) => p.name === plugin.name);
     if (at === -1) out.push(plugin);
     else out[at] = plugin;
   }

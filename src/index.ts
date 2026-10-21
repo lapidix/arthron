@@ -8,10 +8,12 @@ export type {
 } from "./client/client.types";
 export { ArthronError, isArthronError } from "./error/arthron-error";
 export {
-  defineInterceptor,
-  defineMiddleware,
-  definePlugin,
-} from "./pipeline/define-plugin";
+  createErrorInterceptor,
+  createMiddleware,
+  createPlugin,
+  createRequestInterceptor,
+  createResponseInterceptor,
+} from "./pipeline/create-plugin";
 export { SchemaError } from "./response/schema-validation";
 export type {
   ErrorInterceptor,

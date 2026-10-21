@@ -155,9 +155,7 @@ export function arthron(config: ArthronClientOptions = {}): ArthronClient {
     without: (...names) =>
       arthron({
         ...resolved,
-        plugins: resolved.plugins.filter(
-          (p) => p.name === undefined || !names.includes(p.name),
-        ),
+        plugins: resolved.plugins.filter((p) => !names.includes(p.name)),
       }),
   };
 }

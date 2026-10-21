@@ -93,6 +93,7 @@ describe("retry", () => {
       plugins: [
         retryWith({}, sleepSpy()),
         {
+          name: "p95",
           requestInterceptor: () => {
             throw bug;
           },
