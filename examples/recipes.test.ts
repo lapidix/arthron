@@ -12,7 +12,7 @@ describe("error page recipe (examples/error-page.ts)", () => {
     arthron({
       baseURL: "https://a",
       fetchFn: fakeFetch(...responses),
-      use: [
+      plugins: [
         errorRedirect((to) => navs.push(to)),
         retry({ sleep: async () => {} }),
       ],

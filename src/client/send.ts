@@ -87,7 +87,7 @@ export async function send(
   // Only a non-ok response can become an ArthronError; throwOn narrows which.
   if (res.ok) return res;
   if (!(throwOn ? throwOn(res) : failedByDefault(res, ctx.init))) return res;
-  const error = await responseError(res, ctx, resolved.errorDetail);
+  const error = await responseError(res, ctx, resolved.pickErrorDetail);
   // Aborted while the error body was being read (timeout, caller): that is
   // a cancellation, not this status.
   if (signal?.aborted) throw signal.reason;

@@ -36,7 +36,7 @@ export class ArthronError extends Error {
   readonly data: unknown;
   /**
    * The server's own explanation, picked out of `data` (by default
-   * `message` → `error` → `error.message` → `detail`; see the `errorDetail`
+   * `message` → `error` → `error.message` → `detail`; see the `pickErrorDetail`
    * config). `undefined` when the body had none. Untrusted server text: show
    * it to users as text, never as HTML. `message`, by contrast, is written by
    * arthron — method, URL without query, status — and is meant for logs.

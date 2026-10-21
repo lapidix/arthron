@@ -48,7 +48,7 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      use: [bearerAuth({ origin: API, token: () => "abc" })],
+      plugins: [bearerAuth({ origin: API, token: () => "abc" })],
     });
     await api.get("/me");
     expect(sentAuth(fetch)).toEqual(["Bearer abc"]);
@@ -63,7 +63,7 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      use: [
+      plugins: [
         retry({ sleep: async () => {} }),
         bearerAuth({ origin: API, token: async () => `t${++n}` }),
       ],
@@ -78,7 +78,7 @@ describe("bearerAuth", () => {
       const api = arthron({
         baseURL: API,
         fetchFn: fetch,
-        use: [bearerAuth({ origin: API, token: () => token })],
+        plugins: [bearerAuth({ origin: API, token: () => token })],
       });
       await api.get("/me");
       expect(sentAuth(fetch)).toEqual([undefined]);
@@ -95,7 +95,7 @@ describe("bearerAuth", () => {
         "http://api.test",
       ],
       fetchFn: fetch,
-      use: [
+      plugins: [
         bearerAuth({
           origin: [`${API}/v1/`, "https://files.test"],
           token: () => "abc",
@@ -132,7 +132,9 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
+      plugins: [
+        bearerAuth({ origin: API, token: () => session.current, refresh }),
+      ],
     });
     const out = await Promise.all(
       Array.from({ length: 5 }, () => api.get("/me").json()),
@@ -155,7 +157,9 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
+      plugins: [
+        bearerAuth({ origin: API, token: () => session.current, refresh }),
+      ],
     });
     expect(await api.get("/me").json()).toEqual({ ok: 1 });
     expect(session.refreshes).toBe(0);
@@ -175,7 +179,9 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
+      plugins: [
+        bearerAuth({ origin: API, token: () => session.current, refresh }),
+      ],
     });
     await api.get("/me");
     expect(session.refreshes).toBe(1);
@@ -188,7 +194,9 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
+      plugins: [
+        bearerAuth({ origin: API, token: () => session.current, refresh }),
+      ],
     });
     const err = await api.get("/me").catch((e: unknown) => e);
     expect(isArthronError(err) && err.status).toBe(401);
@@ -201,7 +209,7 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      use: [bearerAuth({ origin: API, token: () => "abc" })],
+      plugins: [bearerAuth({ origin: API, token: () => "abc" })],
     });
     await expect(api.get("/me")).rejects.toMatchObject({ status: 401 });
     expect(fetch.calls).toHaveLength(1);
@@ -213,7 +221,9 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
+      plugins: [
+        bearerAuth({ origin: API, token: () => session.current, refresh }),
+      ],
     });
     const body = new ReadableStream({
       start: (controller) => controller.close(),
@@ -231,7 +241,9 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
+      plugins: [
+        bearerAuth({ origin: API, token: () => session.current, refresh }),
+      ],
     });
     await expect(api.get("/me")).rejects.toMatchObject({ status: 403 });
     expect(session.refreshes).toBe(0);
@@ -245,7 +257,9 @@ describe("bearerAuth", () => {
       baseURL: API,
       allowedOrigins: ["https://other.test"],
       fetchFn: fetch,
-      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
+      plugins: [
+        bearerAuth({ origin: API, token: () => session.current, refresh }),
+      ],
     });
     await expect(api.get("https://other.test/x")).rejects.toMatchObject({
       status: 401,
@@ -260,7 +274,7 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      use: [
+      plugins: [
         bearerAuth({
           origin: API,
           token: () => "old",
@@ -286,7 +300,7 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      use: [
+      plugins: [
         bearerAuth({
           origin: API,
           token: () => "old",
@@ -308,7 +322,9 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
+      plugins: [
+        bearerAuth({ origin: API, token: () => session.current, refresh }),
+      ],
     });
     await expect(
       api.post("/login", {}, { meta: { bearerAuth: false } }),
@@ -329,7 +345,7 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      use: [
+      plugins: [
         bearerAuth({
           origin: API,
           token: () => current,

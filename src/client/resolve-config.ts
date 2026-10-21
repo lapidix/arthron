@@ -15,13 +15,25 @@ const OWN_KEYS: Record<
   allowedOrigins: true,
   headers: true,
   fetchFn: true,
-  use: true,
-  errorDetail: true,
+  plugins: true,
+  pickErrorDetail: true,
   throwOn: true,
 };
 
 /** Fields that belong to one request, refused as client defaults. */
 const PER_CALL_ONLY = ["signal", "body", "method"] as const;
+
+/**
+ * 1.x config keys and what replaced them. Left alone, each would become an
+ * unknown key, then a fetch default, and be ignored: plugins not applied, a
+ * test's fake fetch passed over for the real network.
+ */
+const REPLACED = {
+  fetch: "fetchFn",
+  use: "plugins",
+  errorDetail: "pickErrorDetail",
+  allowAbsoluteUrls: "allowedOrigins",
+} as const;
 
 /**
  * Add plugins to a list. A named plugin takes the place of the one already
@@ -63,17 +75,17 @@ export function resolveConfig(config: ArthronConfig): Resolved {
       );
     }
   }
-  // The 1.x name: as an unknown key it would become a fetch default and be
-  // ignored, sending a test's requests to the real network.
-  if ((config as Record<string, unknown>).fetch !== undefined) {
-    throw new TypeError(
-      "arthron: the fetch option is called fetchFn since 2.0 — pass arthron({ fetchFn })",
-    );
+  for (const [old, now] of Object.entries(REPLACED)) {
+    if ((config as Record<string, unknown>)[old] !== undefined) {
+      throw new TypeError(
+        `arthron: the ${old} option was replaced by ${now} in 2.0 — pass arthron({ ${now} })`,
+      );
+    }
   }
-  const { headers, use, ...rest } = config;
+  const { headers, plugins, ...rest } = config;
   return {
     ...rest,
     headers: toHeaderRecord(headers),
-    use: addPlugins([], use ?? []),
+    plugins: addPlugins([], plugins ?? []),
   };
 }

@@ -162,7 +162,7 @@ describe("arthron in the browser", () => {
 describe("uploadProgress in the browser", () => {
   const uploads = arthron({
     baseURL: inject("server"),
-    use: [uploadProgress()],
+    plugins: [uploadProgress()],
   });
 
   it("reports upload progress and keeps the Blob's type", async () => {

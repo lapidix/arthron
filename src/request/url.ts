@@ -119,7 +119,7 @@ export function fillPath(
   const filled = template.replace(/\{([^{}/]+)\}/g, (_, name: string) => {
     if (!Object.hasOwn(values, name)) {
       throw new TypeError(
-        `arthron: path "${template}" has {${name}} but no value for it — pass path: { ${name}: … }`,
+        `arthron: path "${template}" has {${name}} but no value for it — pass pathParams: { ${name}: … }`,
       );
     }
     used.add(name);

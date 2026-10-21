@@ -124,7 +124,7 @@ describe("uploadProgress keeps argument errors", () => {
   it("rejects a malformed URL with a TypeError, not a retried network error", async () => {
     let attempts = 0;
     const api = arthron({
-      use: [
+      plugins: [
         retry({
           methods: ["PUT"],
           delay: () => 0,
@@ -184,7 +184,7 @@ describe("uploadProgress against a real server", () => {
     const api = arthron({
       baseURL: base,
       headers: { authorization: "Bearer new" },
-      use: [
+      plugins: [
         retry({ methods: ["PUT"], delay: () => 0 }),
         {
           error: (e) => {
@@ -214,7 +214,7 @@ describe("uploadProgress against a real server", () => {
     let token = "old";
     const api = arthron({
       baseURL: base,
-      use: [
+      plugins: [
         bearerAuth({
           origin: base,
           token: () => token,

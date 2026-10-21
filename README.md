@@ -8,7 +8,7 @@ import { logging, retry, timeout } from "arthron/plugins";
 
 const api = arthron({
   baseURL: "https://api.example.com",
-  use: [logging(), timeout(10_000), retry()], // 10 s for the whole call, retries included
+  plugins: [logging(), timeout(10_000), retry()], // 10 s for the whole call, retries included
 });
 
 const user = await api.get("/me").json<User>();
@@ -35,7 +35,7 @@ const api = arthron({
   headers: { accept: "application/json" }, // defaults; per-call headers win
   credentials: "include", // only if you need cookies cross-origin
   cache: "no-store", // any fetch option works as a default; per-call values win
-  use: [retry()], // plugins, outermost first
+  plugins: [retry()], // plugins, outermost first
 });
 ```
 
@@ -67,7 +67,7 @@ const stream = (await api.post("/chat", prompt)).body; // ReadableStream
 for await (const e of api.post("/chat", prompt).sse()) {} // see "Stream responses"
 ```
 
-`init` accepts everything `fetch` does (`signal`, `cache`, `headers`, …) plus `params`: an object whose `null`/`undefined` values are dropped and whose arrays become repeated keys (`{ ids: [1, 2] }` → `ids=1&ids=2`), or a `URLSearchParams`. Other object values (a `Date`, a nested object) are rejected rather than sent as `[object Object]`. Put ids into the path with `path`, not string interpolation: `api.get("/users/{id}", { path: { id } })` encodes each value into its own segment, so an id like `../admin` or `x?role=admin` cannot change which endpoint you call (`encodeURIComponent` alone lets `..` through). A `null` (or `undefined`) header value drops a client default for that call: `api.get("/public", { headers: { authorization: null } })`.
+`init` accepts everything `fetch` does (`signal`, `cache`, `headers`, …) plus `params`: an object whose `null`/`undefined` values are dropped and whose arrays become repeated keys (`{ ids: [1, 2] }` → `ids=1&ids=2`), or a `URLSearchParams`. Other object values (a `Date`, a nested object) are rejected rather than sent as `[object Object]`. Put ids into the path with `pathParams`, not string interpolation: `api.get("/users/{id}", { pathParams: { id } })` encodes each value into its own segment, so an id like `../admin` or `x?role=admin` cannot change which endpoint you call (`encodeURIComponent` alone lets `..` through). A `null` (or `undefined`) header value drops a client default for that call: `api.get("/public", { headers: { authorization: null } })`.
 
 `query` sends the [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008) QUERY method: safe and idempotent like GET, so `retry()` repeats it by default, but the query travels in the body. Any `fetch` sends it; the server has to understand it (Node's own `http` server does from v20).
 
@@ -122,7 +122,7 @@ A request that is aborted or times out rejects with the abort reason — `AbortE
 Clients are immutable. `use`, `extend` and `without` return a new client and leave the original alone — so keep what they return. `api.use(plugin)` on its own line does nothing.
 
 ```ts
-const base = arthron({ baseURL: API, use: [logging(), retry()] });
+const base = arthron({ baseURL: API, plugins: [logging(), retry()] });
 const authed = base.use(bearerAuth({ origin: API, token })); // base + auth
 const admin = authed.extend({ headers: { "x-role": "admin" } }); // authed + header
 ```
@@ -150,7 +150,7 @@ type RequestContext = {
 };
 ```
 
-How one request runs, with `use: [m1, m2]`:
+How one request runs, with `plugins: [m1, m2]`:
 
 ```
 call → m1 (before next) → m2 (before next) ─┐
@@ -187,7 +187,7 @@ The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging,
 Order is meaning: the first plugin is outermost. A good default:
 
 ```ts
-use: [logging(), bearerAuth(…), timeout(10_000), retry()]
+plugins: [logging(), bearerAuth(…), timeout(10_000), retry()]
 ```
 
 `logging` first logs each call once — its start, and its end with the total time, retries included. A `timeout` before `retry` bounds the whole call; after it, each attempt — and a timed-out attempt is not retried. `bearerAuth` sets its header on every attempt wherever it sits. Anything that should see only the final outcome — an error page, mapping to domain errors — goes before `retry`.
@@ -195,7 +195,7 @@ use: [logging(), bearerAuth(…), timeout(10_000), retry()]
 Plugins with the same name replace each other, so a second `timeout()` takes the first one's place instead of adding a deadline. For both a total and a per-attempt deadline, rename one:
 
 ```ts
-use: [{ ...timeout(30_000), name: "callTimeout" }, retry(), timeout(10_000)] // 30 s in all, 10 s per attempt
+plugins: [{ ...timeout(30_000), name: "callTimeout" }, retry(), timeout(10_000)] // 30 s in all, 10 s per attempt
 ```
 
 #### `retry(options)`
@@ -223,8 +223,8 @@ Aborts the attempt after `ms`, counted until the body has been fully read — a 
 A total deadline also cuts off a stream that is still flowing. For streams, bound the silence instead: `timeout({ idle: 30_000 })` aborts only after 30 s without data — waiting for headers or between chunks — however long the stream runs. Both can be combined: `timeout({ total: 600_000, idle: 30_000 })`; `timeout(ms)` is `timeout({ total: ms })`. Options with neither are a `TypeError`.
 
 ```ts
-arthron({ use: [retry(), timeout(5_000)] }); // 5 s per attempt — a timed-out attempt is not retried
-arthron({ use: [timeout(5_000), retry()] }); // 5 s for all attempts together
+arthron({ plugins: [retry(), timeout(5_000)] }); // 5 s per attempt — a timed-out attempt is not retried
+arthron({ plugins: [timeout(5_000), retry()] }); // 5 s for all attempts together
 ```
 
 #### `logging(options)`
@@ -250,7 +250,7 @@ Bearer tokens, with a refresh on 401.
 ```ts
 const api = arthron({
   baseURL: API,
-  use: [
+  plugins: [
     bearerAuth({
       origin: API,
       token: () => session.accessToken,
@@ -280,7 +280,7 @@ The token is treated as opaque: to refresh a JWT ahead of its `exp`, do it insid
 Does nothing by itself — only a call that passes `meta.uploadProgress` reports progress. Every other call, on the same client too, goes out exactly as before.
 
 ```ts
-const api = arthron({ baseURL: API, use: [retry(), uploadProgress()] }); // last in use
+const api = arthron({ baseURL: API, plugins: [retry(), uploadProgress()] }); // last in plugins
 
 await api.get("/me"); // as usual
 await api.post("/files", file, {
@@ -296,7 +296,7 @@ How that call is sent depends on where it runs:
 - **Node:** with `fetch` as usual, the body counted as it is read, in steps of at most 64 KiB. `content-length` and the content type a `Blob` would set are kept, so an S3 presigned `PUT` accepts it. A `FormData` body is encoded with its length known up front, its files streamed rather than read into memory. jsdom on Node counts the same way.
 - **Anywhere else** — Deno, Bun, Cloudflare Workers, an Electron main process, a service worker — and on a client with its own `fetchFn`, or with another plugin's: sent as usual, without progress.
 
-A callback that throws fails the call with its own error, untouched: not an `ArthronError`, not retried. Put `uploadProgress()` last in `use`: a request interceptor after it that replaces `init.signal` would cut that path, and the error would come back as a network failure.
+A callback that throws fails the call with its own error, untouched: not an `ArthronError`, not retried. Put `uploadProgress()` last in `plugins`: a request interceptor after it that replaces `init.signal` would cut that path, and the error would come back as a network failure.
 
 ### Write your own
 
@@ -311,7 +311,7 @@ const idempotent = defineMiddleware((ctx, next) =>
   next({ ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, "idempotency-key": crypto.randomUUID() } } }),
 );
 // A client of its own, so the order is exactly this: the key first, then retry.
-const payments = arthron({ baseURL: API, use: [{ name: "idempotency", middleware: idempotent }, retry({ methods: ["POST"] })] });
+const payments = arthron({ baseURL: API, plugins: [{ name: "idempotency", middleware: idempotent }, retry({ methods: ["POST"] })] });
 ```
 
 (`api.use(…)` would not do here if `api` already has a `retry()`: the new one takes the old one's place, which may be before the key.)
@@ -352,7 +352,7 @@ export const errorRedirect = (navigate: (to: string) => void) =>
     },
   });
 
-const api = arthron({ baseURL: API, use: [errorRedirect(router.push), retry()] }); // first: wraps retry
+const api = arthron({ baseURL: API, plugins: [errorRedirect(router.push), retry()] }); // first: wraps retry
 ```
 
 The same shape maps errors to your own types: `catch (e) { throw toDomainError(e); }` in an outermost middleware runs once per call, after retries.
@@ -373,8 +373,8 @@ type ArthronConfig = {
   allowedOrigins?: string[]; // other origins absolute URLs may go to (only the origin of each URL counts; no config headers there)
   headers?: HeadersOption; // anything fetch's headers take, or a record whose null drops a header (in extend)
   fetchFn?: typeof fetch; // the function requests are sent with: a fake in tests, a polyfill, a framework's fetch; default the global fetch, read per request
-  use?: Plugin[];
-  errorDetail?: (data: unknown, res: Response) => string | undefined; // picks ArthronError.detail out of the body
+  plugins?: Plugin[]; // outermost first; a named one replaces an earlier one of that name
+  pickErrorDetail?: (data: unknown, res: Response) => string | undefined; // picks ArthronError.detail out of the body
   throwOn?: (res: Response) => boolean; // which non-ok responses reject (also per call)
   // …plus any fetch option as a default: credentials, cache, redirect, mode,
   // keepalive, referrerPolicy, priority, integrity. Not body, method or signal —
@@ -416,7 +416,7 @@ class ArthronError extends Error {
 
 ### Rules worth knowing
 
-- **Fill path segments with `path`.** `{name}` placeholders are encoded per segment; `""`, `.` and `..` are refused, as are missing or unused values. Without `path`, braces are left alone.
+- **Fill path segments with `pathParams`.** `{name}` placeholders are encoded per segment; `""`, `.` and `..` are refused, as are missing or unused values. Without `pathParams`, braces are left alone.
 - **URLs are joined by string concatenation.** `baseURL: "https://a/v1"` + `"/users"` → `https://a/v1/users`. The `/v1` survives, unlike with `new URL()`.
 - **Absolute URLs stay on `baseURL`'s origin.** `api.get("https://other.example/x")` on a client with a `baseURL` rejects with a `TypeError`, because a path built from user input or an API response must not carry your credentials elsewhere. Same-origin absolute URLs work. List other origins in `allowedOrigins`; they get per-call headers only. To call any origin, use a client without `baseURL` or `allowedOrigins`. Only `http(s)` URLs are accepted.
 - **Error bodies are read up to 64 KiB.** That is enough for any error message and keeps a huge or endless error body from filling memory. Past the limit `data` is the raw text and the rest of the body is cancelled.

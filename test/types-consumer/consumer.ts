@@ -43,7 +43,7 @@ const api = arthron({
   allowedOrigins: ["https://cdn.example.com"],
   credentials: "include",
   headers: { authorization: "Bearer token" },
-  use: [
+  plugins: [
     logging({ enabled: false }),
     retry({ retries: 2 } satisfies RetryOptions),
     timeout(5_000),
@@ -88,7 +88,7 @@ uploads.post("/f", new Blob([]), { meta: { uploadProgress: 1 } });
 
 export async function run(): Promise<void> {
   const pending: ArthronPromise = api.get("/users/{id}", {
-    path: { id: 1 },
+    pathParams: { id: 1 },
     headers: [["x-trace", "1"]],
     meta: { skipAuth: true, retry: false, timeout: 1_000 },
     tenant: "acme",

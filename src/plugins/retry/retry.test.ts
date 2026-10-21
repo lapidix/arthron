@@ -13,7 +13,7 @@ const make = (fetch: ReturnType<typeof fakeFetch>, opts: RetryOptions = {}) =>
   arthron({
     baseURL: "https://a",
     fetchFn: fetch,
-    use: [retry({ ...noSleep, ...opts })],
+    plugins: [retry({ ...noSleep, ...opts })],
   });
 
 describe("retry", () => {
@@ -65,7 +65,7 @@ describe("retry", () => {
     const api = arthron({
       baseURL: "https://a",
       fetchFn: fetch,
-      use: [
+      plugins: [
         retry(noSleep),
         {
           request: () => {
@@ -242,7 +242,7 @@ describe("retry", () => {
       const api = arthron({
         baseURL: "https://a",
         fetchFn: hangsOnce,
-        use: [
+        plugins: [
           retry({
             ...noSleep,
             shouldRetry: (e) =>

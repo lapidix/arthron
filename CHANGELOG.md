@@ -21,7 +21,10 @@ Removes what 1.1.0 deprecated, renames what read as something else, and turns `a
 - `logging`, `retry` and `timeout`, and the `LogEvent`, `LoggingOptions` and `TimeoutOptions` types, are no longer exported from `arthron` — import them from `arthron/plugins`, where they have been since 1.1.0. So is `RetryOptions`, which 1.1.0 had left on the main entry without a deprecation.
 - `timeout(ms, { idle })` is gone — write `timeout({ total: ms, idle })`. A second argument is a `TypeError` that names the replacement.
 - `meta.onUploadProgress` is now `meta.uploadProgress`, like `meta.bearerAuth`, `meta.retry` and `meta.timeout`: plugin X's per-call setting is `meta.X`.
-- The `fetch` option is now `fetchFn`, and `RequestContext.fetch` is `RequestContext.fetchFn` — one name for the function requests are sent with: the client's, and each attempt's, which a plugin may replace (`uploadProgress()` sends over XMLHttpRequest) or wrap. As `fetch`, it read like the global function. `arthron({ fetch })` and `extend({ fetch })` throw a `TypeError` naming `fetchFn` rather than send a test's requests to the real network.
+- The `fetch` option is now `fetchFn`, and `RequestContext.fetch` is `RequestContext.fetchFn` — one name for the function requests are sent with: the client's, and each attempt's, which a plugin may replace (`uploadProgress()` sends over XMLHttpRequest) or wrap. As `fetch`, it read like the global function.
+- The `use` option is now `plugins`, and `errorDetail` is `pickErrorDetail` — the first holds a list of plugins, the second a function that picks the detail, not the detail. `api.use()` keeps its name: it is an action.
+- The per-call `path` option is now `pathParams`: the first argument is already the path, and this holds the values for its `{name}` placeholders.
+- A 1.x option name — `fetch`, `use`, `errorDetail`, `allowAbsoluteUrls`, or `path` per call — is a `TypeError` naming its replacement. Left alone, each would be an unknown key, passed on to `fetch` and ignored: plugins not applied, a test's fake fetch passed over for the network, `{id}` sent unfilled.
 - `allowAbsoluteUrls` is replaced by `allowedOrigins`, a list: with a `baseURL`, an absolute URL may go to `baseURL`'s origin or a listed one, and any other origin is a `TypeError`. Only the origin of each entry counts; an empty list or a non-http(s) entry is a `TypeError` when the client is created. Without a `baseURL`, the list alone limits absolute URLs. Config `headers` still go to `baseURL`'s origin only. To reach any origin, as `allowAbsoluteUrls: true` did, use a client without `baseURL`.
 
 ### Moving from 1.x
@@ -43,6 +46,12 @@ Removes what 1.1.0 deprecated, renames what read as something else, and turns `a
 +arthron({ baseURL: API, fetchFn: fakeFetch })
 -request: (ctx) => ({ ...ctx, fetch: traced(ctx.fetch) })
 +request: (ctx) => ({ ...ctx, fetchFn: traced(ctx.fetchFn) })
+
+-arthron({ baseURL: API, use: [retry()], errorDetail: pick })
++arthron({ baseURL: API, plugins: [retry()], pickErrorDetail: pick })
+
+-api.get("/users/{id}", { path: { id } })
++api.get("/users/{id}", { pathParams: { id } })
 
 -arthron({ baseURL: API, allowAbsoluteUrls: true })
 +arthron({ baseURL: API, allowedOrigins: ["https://cdn.example.com"] })

@@ -46,11 +46,18 @@ export function arthron(config: ArthronConfig = {}): Arthron {
       headers: callHeaders,
       meta,
       throwOn = resolved.throwOn,
-      path: pathValues,
+      pathParams,
       ...init
     }: RequestOptions,
   ): ArthronPromise => {
     try {
+      // The 1.x name: left in init it would reach fetch, and {id} would go
+      // out unfilled.
+      if ((init as Record<string, unknown>).path !== undefined) {
+        throw new TypeError(
+          "arthron: the path option is called pathParams since 2.0 — pass { pathParams: { … } }",
+        );
+      }
       const upper = method.toUpperCase();
       const verb = STANDARD_METHODS.has(upper) ? upper : method;
       if (rawBody !== undefined && BODYLESS_METHODS.has(upper)) {
@@ -59,7 +66,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
           `arthron: ${upper} requests cannot carry a body — send it as params (query) or switch to POST`,
         );
       }
-      if (pathValues) path = fillPath(path, pathValues);
+      if (pathParams) path = fillPath(path, pathParams);
       const url = resolveUrl(resolved.baseURL, path, params, allowed);
       // Config headers (credentials, typically) belong to baseURL's origin.
       // Another origin, reachable only through allowedOrigins, gets per-call
@@ -84,7 +91,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
         Object.assign(requestInit, { duplex: "half" });
       return toArthronPromise(
         runPipeline(
-          resolved.use,
+          resolved.plugins,
           {
             url,
             init: requestInit,
@@ -108,7 +115,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
       ...resolved,
       ...next,
       headers: mergeHeaders(resolved.headers, next.headers),
-      use: addPlugins(resolved.use, next.use ?? []),
+      plugins: addPlugins(resolved.plugins, next.plugins ?? []),
     };
     return arthron(merged);
   };
@@ -134,12 +141,12 @@ export function arthron(config: ArthronConfig = {}): Arthron {
       }
       return dispatch(path, method, body, rest);
     },
-    use: (...plugins) => derive({ use: plugins }),
+    use: (...plugins) => derive({ plugins }),
     extend: (next) => derive(next),
     without: (...names) =>
       arthron({
         ...resolved,
-        use: resolved.use.filter(
+        plugins: resolved.plugins.filter(
           (p) => p.name === undefined || !names.includes(p.name),
         ),
       }),

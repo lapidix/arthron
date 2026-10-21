@@ -133,7 +133,7 @@ try {
   const { bearerAuth, retry, timeout } = esmPlugins;
   const api = arthron({
     baseURL,
-    use: [retry({ delay: () => 0 }), timeout(500)],
+    plugins: [retry({ delay: () => 0 }), timeout(500)],
   });
 
   const body = await api.get("/echo", { params: { q: 1 } }).json();
@@ -246,7 +246,7 @@ try {
   let refreshes = 0;
   const authed = arthron({
     baseURL,
-    use: [
+    plugins: [
       bearerAuth({
         origin: baseURL,
         token: () => token,
@@ -271,7 +271,7 @@ try {
   const progress = [];
   const counted = await arthron({
     baseURL,
-    use: [esmPlugins.uploadProgress()],
+    plugins: [esmPlugins.uploadProgress()],
   })
     .put("/progress-upload", new Blob([new Uint8Array(1024 * 1024)]), {
       meta: { uploadProgress: (e) => progress.push(e) },

@@ -27,5 +27,5 @@ export const errorRedirect = (navigate: (to: string) => void) =>
 const navigate = (to: string) => console.log(`navigate → ${to}`);
 export const api = arthron({
   baseURL: "https://api.example.com",
-  use: [errorRedirect(navigate), retry()],
+  plugins: [errorRedirect(navigate), retry()],
 });

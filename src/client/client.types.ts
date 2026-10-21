@@ -36,10 +36,10 @@ export interface RequestOptions
   params?: QueryParams;
   /**
    * Values for `{name}` placeholders in the path, each encoded into its own
-   * segment: `get("/users/{id}", { path: { id } })`. Interpolating ids into
-   * the path string yourself lets "../" or "?" escape the segment.
+   * segment: `get("/users/{id}", { pathParams: { id } })`. Interpolating ids
+   * into the path string yourself lets "../" or "?" escape the segment.
    */
-  path?: Record<string, string | number>;
+  pathParams?: Record<string, string | number>;
   /** Settings for plugins on this call only (see `ArthronMeta`). Not sent. */
   meta?: ArthronMeta;
   /** Which non-ok responses reject on this call; overrides the client's `throwOn`. */
@@ -89,9 +89,13 @@ export interface ArthronConfig extends FetchDefaults {
    * (SvelteKit's `event.fetch`). Plugins see it as `ctx.fetchFn`.
    */
   fetchFn?: typeof fetch;
-  use?: Plugin[];
-  /** How to pick a message out of an error body. */
-  errorDetail?: ErrorDetailResolver;
+  /** Plugins, outermost first. A named one replaces an earlier one of that name. */
+  plugins?: Plugin[];
+  /**
+   * Picks `ArthronError.detail` out of an error body. Default: the body's
+   * `message`, else `error` (a string), else `error.message`, else `detail`.
+   */
+  pickErrorDetail?: ErrorDetailResolver;
   /**
    * Which non-ok responses reject with an ArthronError — return `false` to
    * get the Response instead (a 404 that is data, say). An ok response never
@@ -124,7 +128,7 @@ export interface Arthron {
 }
 
 /** `ArthronConfig` after `resolveConfig`: headers as one record, plugins de-duplicated by name. Internal. */
-export type Resolved = Omit<ArthronConfig, "headers" | "use"> & {
+export type Resolved = Omit<ArthronConfig, "headers" | "plugins"> & {
   headers: Record<string, string>;
-  use: readonly Plugin[];
+  plugins: readonly Plugin[];
 };

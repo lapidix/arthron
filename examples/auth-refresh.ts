@@ -15,7 +15,7 @@ let accessToken: string | null = null;
 export const api = arthron({
   baseURL: API,
   credentials: "include", // the refresh token is an httpOnly cookie
-  use: [
+  plugins: [
     bearerAuth({
       origin: API,
       token: () => accessToken,
