@@ -22,9 +22,13 @@ Removes what 1.1.0 deprecated, renames what read as something else, and turns `a
 - `timeout(ms, { idle })` is gone — write `timeout({ total: ms, idle })`. A second argument is a `TypeError` that names the replacement.
 - `meta.onUploadProgress` is now `meta.uploadProgress`, like `meta.bearerAuth`, `meta.retry` and `meta.timeout`: plugin X's per-call setting is `meta.X`.
 - The `fetch` option is now `fetchFn`, and `RequestContext.fetch` is `RequestContext.fetchFn` — one name for the function requests are sent with: the client's, and each attempt's, which a plugin may replace (`uploadProgress()` sends over XMLHttpRequest) or wrap. As `fetch`, it read like the global function.
-- The `use` option is now `plugins`, and `errorDetail` is `pickErrorDetail` — the first holds a list of plugins, the second a function that picks the detail, not the detail. `api.use()` keeps its name: it is an action.
+- `ArthronError.detail` is now `serverMessage`, in `toJSON()` too: beside `message`, which arthron writes for logs, it is what the server wrote, for users. The `errorDetail` option that fills it is `serverMessageFn: (body, response) => string | undefined`, and its type `ServerMessageFn` (was `ErrorDetailResolver`).
+- The `use` option is now `plugins`: it holds a list of plugins. `api.use()` keeps its name: it is an action.
 - The per-call `path` option is now `pathParams`: the first argument is already the path, and this holds the values for its `{name}` placeholders.
-- A 1.x option name — `fetch`, `use`, `errorDetail`, `allowAbsoluteUrls`, or `path` per call — is a `TypeError` naming its replacement. Left alone, each would be an unknown key, passed on to `fetch` and ignored: plugins not applied, a test's fake fetch passed over for the network, `{id}` sent unfilled.
+- A function an option holds to produce something is named for what it produces, with `Fn`: `bearerAuth({ token, refresh })` is `bearerAuth({ accessTokenFn, refreshFn })`, and `retry({ delay })` is `retry({ delayFn })`. Event callbacks (`onRetry`, `onEvent`) and yes/no decisions (`shouldRetry`, `throwOn`) keep their names.
+- `retry`'s `sleep` and `logging`'s `now` leave the public options: both were hooks for tests. Use fake timers or a spy on `performance.now` in yours.
+- The types are named after what they are: `Arthron` is `ArthronClient`, `ArthronConfig` is `ArthronClientOptions`, `ArthronPromise` is `ResponsePromise`, and `RequestInitWithBody` is `RequestOptionsWithMethod`.
+- A 1.x option name — `fetch`, `use`, `errorDetail`, `allowAbsoluteUrls`, `path` per call, `bearerAuth`'s `token` and `refresh`, `retry`'s `delay` and `sleep`, `logging`'s `now` — is a `TypeError` that names its replacement. Left alone, each would be an unknown key and ignored: plugins not applied, a test's fake fetch passed over for the network, `{id}` sent unfilled, no token sent.
 - `allowAbsoluteUrls` is replaced by `allowedOrigins`, a list: with a `baseURL`, an absolute URL may go to `baseURL`'s origin or a listed one, and any other origin is a `TypeError`. Only the origin of each entry counts; an empty list or a non-http(s) entry is a `TypeError` when the client is created. Without a `baseURL`, the list alone limits absolute URLs. Config `headers` still go to `baseURL`'s origin only. To reach any origin, as `allowAbsoluteUrls: true` did, use a client without `baseURL`.
 
 ### Moving from 1.x
@@ -48,10 +52,20 @@ Removes what 1.1.0 deprecated, renames what read as something else, and turns `a
 +request: (ctx) => ({ ...ctx, fetchFn: traced(ctx.fetchFn) })
 
 -arthron({ baseURL: API, use: [retry()], errorDetail: pick })
-+arthron({ baseURL: API, plugins: [retry()], pickErrorDetail: pick })
++arthron({ baseURL: API, plugins: [retry()], serverMessageFn: pick })
+-toast(e.detail ?? "Something went wrong")
++toast(e.serverMessage ?? "Something went wrong")
 
 -api.get("/users/{id}", { path: { id } })
 +api.get("/users/{id}", { pathParams: { id } })
+
+-bearerAuth({ origin: API, token: () => tok, refresh })
++bearerAuth({ origin: API, accessTokenFn: () => tok, refreshFn: refresh })
+-retry({ delay: (n) => 1000 * n })
++retry({ delayFn: (n) => 1000 * n })
+
+-function makeRepo(api: Arthron, config: ArthronConfig) {}
++function makeRepo(api: ArthronClient, options: ArthronClientOptions) {}
 
 -arthron({ baseURL: API, allowAbsoluteUrls: true })
 +arthron({ baseURL: API, allowedOrigins: ["https://cdn.example.com"] })

@@ -99,7 +99,7 @@ try {
   if (isArthronError(e)) {
     e.status; // 404, or 0 when the network failed
     e.data; // parsed body: JSON, else text, else undefined
-    e.detail; // the server's explanation (`message` → `error` → `error.message` → `detail`), or undefined — show this to users
+    e.serverMessage; // what the server said (the body's `message` → `error` → `error.message` → `detail`, or your serverMessageFn), or undefined — show this to users
     e.message; // arthron's own: "GET https://api.example.com/users/404 failed with 404 Not Found" — for logs
     e.response; // the failed Response, still readable (up to 64 KiB of its body)
     e.request; // what was sent (url, init) — read it directly; it is left out of logs
@@ -107,9 +107,9 @@ try {
 }
 ```
 
-`isArthronError(e)` and `e instanceof ArthronError` work across copies of the package — the ESM and CJS builds loaded side by side, a CJS dependency's client caught by your ESM code. `request`, `response` and `headers` are not enumerable, and `toJSON()` returns only name, message, detail, status, method, a URL without query or userinfo, and `data`. So `JSON.stringify(e)`, `console.error(e)` and error trackers never print your tokens.
+`isArthronError(e)` and `e instanceof ArthronError` work across copies of the package — the ESM and CJS builds loaded side by side, a CJS dependency's client caught by your ESM code. `request`, `response` and `headers` are not enumerable, and `toJSON()` returns only name, message, serverMessage, status, method, a URL without query or userinfo, and `data`. So `JSON.stringify(e)`, `console.error(e)` and error trackers never print your tokens.
 
-`message` and `detail` are kept apart on purpose. `message` is written by arthron — method, URL without query, status — so a log line or an error tracker says which request failed, and never carries text the server chose. `detail` is what the server said: the right thing for a toast (`e.detail ?? "Something went wrong"`), but untrusted — render it as text, never as HTML, and filter it if your gateway leaks internal routes in it.
+`message` and `serverMessage` are kept apart on purpose. `message` is written by arthron — method, URL without query, status — so a log line or an error tracker says which request failed, and never carries text the server chose. `serverMessage` is what the server said: the right thing for a toast (`e.serverMessage ?? "Something went wrong"`), but untrusted — render it as text, never as HTML, and filter it if your gateway leaks internal routes in it.
 
 Not every non-ok response is a failure. An opaque response (`mode: "no-cors"`) and the 3xx of `redirect: "manual"` come back as a `Response`, since you asked for them. `throwOn` picks which other non-ok responses reject, for the client or one call: `api.get("/maybe", { throwOn: (res) => res.status !== 404 })` returns the 404 to inspect. An ok response never rejects.
 
@@ -207,14 +207,14 @@ Re-runs the attempt on network failure or a retryable status. Because it re-runs
 | `retries` | `2` | retries after the first attempt (3 requests total); a whole number ≥ 0 |
 | `retryOn` | `[408, 429, 500, 502, 503, 504]` | network failures (`status: 0`) are always retried |
 | `methods` | `GET HEAD OPTIONS QUERY PUT DELETE` | case-insensitive |
-| `delay` | `(retry) => Math.random() * 300 * 2 ** retry` | ms; `retry` counts from 0. Full jitter, so clients that failed together don't retry together |
+| `delayFn` | `(retry) => Math.random() * 300 * 2 ** retry` | ms; `retry` counts from 0. Full jitter, so clients that failed together don't retry together |
 | `maxRetryAfter` | `60_000` | a `Retry-After` longer than this means "don't retry" |
 | `shouldRetry` | — | `(error, attempt, ctx) => boolean \| undefined`: `true` retries, `false` stops, `undefined` uses the rules above. Sees every error, an inner `TimeoutError` included |
 | `onRetry` | — | `(error, attempt, waitMs) => void`, before each wait |
 
 Honours `Retry-After` (seconds or HTTP date). Never retries a `ReadableStream` body or an aborted request, and never more than `retries` times — `shouldRetry` cannot lift those.
 
-Opting a non-idempotent method in (`methods: ["POST"]`) means a network failure is retried too, and a dropped connection may already have reached the server. Where a duplicate would hurt — a payment, an LLM completion you pay for — keep retries to statuses: `shouldRetry: (e) => (isArthronError(e) && e.status === 0 ? false : undefined)`. Per call, `meta: { retry: false }` turns it off and `meta: { retry: { retries: 5 } }` overrides any option but `sleep`.
+Opting a non-idempotent method in (`methods: ["POST"]`) means a network failure is retried too, and a dropped connection may already have reached the server. Where a duplicate would hurt — a payment, an LLM completion you pay for — keep retries to statuses: `shouldRetry: (e) => (isArthronError(e) && e.status === 0 ? false : undefined)`. Per call, `meta: { retry: false }` turns it off and `meta: { retry: { retries: 5 } }` overrides any option.
 
 #### `timeout(ms)` / `timeout({ total?, idle? })`
 
@@ -253,8 +253,8 @@ const api = arthron({
   plugins: [
     bearerAuth({
       origin: API,
-      token: () => session.accessToken,
-      refresh: async () => {
+      accessTokenFn: () => session.accessToken,
+      refreshFn: async () => {
         const res = await api.post("/token/refresh", undefined, { meta: { bearerAuth: false } }).json<{ access_token: string }>();
         session.accessToken = res.access_token;
       },
@@ -266,14 +266,14 @@ const api = arthron({
 | option | default | |
 |---|---|---|
 | `origin` | required | a URL or several; only their origins count, so `baseURL` works as is. Anything that is not an http(s) URL is a `TypeError` |
-| `token` | required | `() => string \| null \| undefined`, or a promise of one; read on every attempt. No token, no header |
-| `refresh` | — | `() => Promise<void>`, called after a 401; then the call is redone once. Without it, a 401 is thrown as is |
+| `accessTokenFn` | required | `() => string \| null \| undefined`, or a promise of one; read on every attempt. No token, no header |
+| `refreshFn` | — | `() => Promise<void>`, called after a 401; then the call is redone once. Without it, a 401 is thrown as is |
 
-The token goes to `origin` only — never to a CDN or a URL taken from a response body. Concurrent 401s share one refresh: with refresh-token rotation, parallel refreshes would revoke each other and log the user out. A call whose token was already replaced by another call's refresh retries without refreshing again. A second 401 is thrown, and so is a failed refresh — every call waiting on it rejects with the error `refresh` threw, so that is the place to send the user to a login page. The 401 of a `ReadableStream` body is thrown without a refresh: the first try has read the stream, so there is nothing to resend.
+The token goes to `origin` only — never to a CDN or a URL taken from a response body. Concurrent 401s share one refresh: with refresh-token rotation, parallel refreshes would revoke each other and log the user out. A call whose token was already replaced by another call's refresh retries without refreshing again. A second 401 is thrown, and so is a failed refresh — every call waiting on it rejects with the error `refreshFn` threw, so that is the place to send the user to a login page. The 401 of a `ReadableStream` body is thrown without a refresh: the first try has read the stream, so there is nothing to resend.
 
 Per call, `meta: { bearerAuth: false }` sends no token and never refreshes. Use it for the login and refresh endpoints: a refresh request that went through `bearerAuth()` would, on its own 401, wait for itself.
 
-The token is treated as opaque: to refresh a JWT ahead of its `exp`, do it inside `token()`. It is not for cookie sessions: it tells whether another call already refreshed by comparing the `authorization` header a call sent with the current one, and an httpOnly cookie cannot be read to compare.
+The token is treated as opaque: to refresh a JWT ahead of its `exp`, do it inside `accessTokenFn`. It is not for cookie sessions: it tells whether another call already refreshed by comparing the `authorization` header a call sent with the current one, and an httpOnly cookie cannot be read to compare.
 
 #### `uploadProgress()`
 
@@ -368,13 +368,13 @@ const traced = api.use({ request: (ctx) => ({ ...ctx, init: { ...ctx.init, heade
 ### `arthron(config)`
 
 ```ts
-type ArthronConfig = {
+type ArthronClientOptions = {
   baseURL?: string;
   allowedOrigins?: string[]; // other origins absolute URLs may go to (only the origin of each URL counts; no config headers there)
   headers?: HeadersOption; // anything fetch's headers take, or a record whose null drops a header (in extend)
   fetchFn?: typeof fetch; // the function requests are sent with: a fake in tests, a polyfill, a framework's fetch; default the global fetch, read per request
   plugins?: Plugin[]; // outermost first; a named one replaces an earlier one of that name
-  pickErrorDetail?: (data: unknown, res: Response) => string | undefined; // picks ArthronError.detail out of the body
+  serverMessageFn?: (body: unknown, response: Response) => string | undefined; // gives ArthronError.serverMessage from the error body
   throwOn?: (res: Response) => boolean; // which non-ok responses reject (also per call)
   // …plus any fetch option as a default: credentials, cache, redirect, mode,
   // keepalive, referrerPolicy, priority, integrity. Not body, method or signal —
@@ -396,7 +396,7 @@ without(...names) → new client without those plugins
 
 All arguments after `path` are optional, except `method` in `request`. `request` is the way to any other verb; its `method` autocompletes the standard ones, and those go out uppercased whatever case you write them in (fetch itself leaves `"patch"` lowercase, which servers answer with 405). Other method names are sent as written.
 
-The public object types — `ArthronConfig`, `RequestOptions`, `RequestContext`, `ArthronMeta`, `Plugin`, `ArthronPromise`, `Arthron` — are interfaces, so a plugin package can add its own options with `declare module "arthron" { interface RequestOptions { … } }`.
+The public object types — `ArthronClientOptions`, `RequestOptions`, `RequestContext`, `ArthronMeta`, `Plugin`, `ResponsePromise`, `ArthronClient` — are interfaces, so a plugin package can add its own options with `declare module "arthron" { interface RequestOptions { … } }`.
 
 ### `ArthronError`
 
@@ -406,11 +406,11 @@ class ArthronError extends Error {
   statusText: string;
   headers: Headers; // not enumerable
   data: unknown;
-  detail?: string; // the server's explanation, picked out of data; untrusted text
+  serverMessage?: string; // what the server said, picked out of data; untrusted text
   response?: Response; // absent for network failures; not enumerable
   request: RequestContext; // not enumerable — holds credentials
   cause?: unknown; // the underlying error for network failures
-  toJSON(): { name; message; detail; status; statusText; method; url; data }; // url without query/userinfo
+  toJSON(): { name; message; serverMessage; status; statusText; method; url; data }; // url without query/userinfo
 }
 ```
 

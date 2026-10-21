@@ -14,7 +14,7 @@ const api = arthron({
   credentials?, cache?, redirect?, mode?, keepalive?, …  // any fetch option (RequestInit minus body/method/headers/signal/window) as a default; per-call wins; NOT set unless you set it; passing signal/body/method throws
   fetchFn?: typeof fetch,        // the function requests are sent with (fake in tests, polyfill, framework fetch); default the global fetch, read per request
   plugins?: Plugin[],            // outermost first; a named one replaces an earlier one of that name
-  pickErrorDetail?: (data: unknown, res: Response) => string | undefined, // picks ArthronError.detail
+  serverMessageFn?: (body: unknown, response: Response) => string | undefined, // gives ArthronError.serverMessage from the error body
   throwOn?: (res: Response) => boolean, // which non-ok responses reject; also a per-call option
 });
 ```
@@ -44,19 +44,19 @@ class ArthronError extends Error {
   statusText: string;
   headers: Headers;      // not enumerable
   message: string;       // arthron's: "GET https://api.test/users/1 failed with 404 Not Found" / "… failed: fetch failed" — no query, no server text
-  detail?: string;       // the server's explanation (body message → error → error.message → detail); untrusted — show as text
+  serverMessage?: string; // what the server said (body message → error → error.message → detail, or serverMessageFn); untrusted — show as text
   data: unknown;         // JSON if parseable, else text, else undefined; from at most 64 KiB of body (text if cut)
   response?: Response;   // still readable, holding what was read (≤ 64 KiB); absent for network failure; not enumerable
   request: { url: string; init: RequestInit }; // not enumerable (holds credentials)
   cause?: unknown;       // underlying error for network failure
-  toJSON(): { name, message, detail, status, statusText, method, url /* no query/userinfo */, data };
+  toJSON(): { name, message, serverMessage, status, statusText, method, url /* no query/userinfo */, data };
 }
 isArthronError(e): e is ArthronError   // branded with Symbol.for: works (and instanceof works) across the ESM and CJS copies
 ```
 
 - Only `!response.ok` and fetch rejection become ArthronError — and not every non-ok: opaque responses (no-cors) and the 3xx of `redirect: "manual"` are returned; `throwOn(res)` (config or per call) narrows further. An ok response never rejects. Aborts (`AbortError`/`TimeoutError` or any custom `abort(reason)`, including during the error-body read) and exceptions thrown by plugins propagate untouched and skip error interceptors.
 - Serializing an ArthronError (JSON.stringify, console.error, error trackers, logging onEvent) never includes request headers, body, query or userinfo. Error messages arthron writes leave the query out too.
-- `message` is arthron's (for logs); `detail` is the server's (for UI: `e.detail ?? fallback`). Default `detail`: body `message` → `error` (string) → `error.message` → `detail`, else undefined. Override with `pickErrorDetail`.
+- `message` is arthron's (for logs); `serverMessage` is the server's (for UI: `e.serverMessage ?? fallback`). Default `serverMessage`: body `message` → `error` (string) → `error.message` → `detail`, else undefined. Override with `serverMessageFn`.
 
 ## Plugins
 
@@ -81,17 +81,17 @@ Helpers (identity, for typing): `definePlugin(p)`, `defineMiddleware(m)`, `defin
 
 ## Built-in plugins (from "arthron/plugins")
 
-- `retry({ retries=2, retryOn=[408,429,500,502,503,504], methods=[GET,HEAD,OPTIONS,QUERY,PUT,DELETE], delay=(n)=>Math.random()*300*2**n /* full jitter */, maxRetryAfter=60000, shouldRetry?(error, attempt, ctx) → true|false|undefined, onRetry?(error, attempt, waitMs) })` — re-runs the whole attempt (request interceptors included). Honours Retry-After (seconds or HTTP-date). Never retries ReadableStream bodies or aborted requests, nor beyond `retries`; by default never non-ArthronErrors (shouldRetry may opt in, e.g. an inner TimeoutError). With methods: ["POST"], network errors (status 0) are retried too — refuse them with shouldRetry where a duplicate would hurt. Per call: `meta: { retry: false }` or `meta: { retry: { retries: 5 } }`. `retries` must be a whole number ≥ 0 (TypeError otherwise); waits are capped at 2^31-1 ms.
+- `retry({ retries=2, retryOn=[408,429,500,502,503,504], methods=[GET,HEAD,OPTIONS,QUERY,PUT,DELETE], delayFn=(n)=>Math.random()*300*2**n /* full jitter; Retry-After wins */, maxRetryAfter=60000, shouldRetry?(error, attempt, ctx) → true|false|undefined, onRetry?(error, attempt, waitMs) })` — re-runs the whole attempt (request interceptors included). Honours Retry-After (seconds or HTTP-date). Never retries ReadableStream bodies or aborted requests, nor beyond `retries`; by default never non-ArthronErrors (shouldRetry may opt in, e.g. an inner TimeoutError). With methods: ["POST"], network errors (status 0) are retried too — refuse them with shouldRetry where a duplicate would hurt. Per call: `meta: { retry: false }` or `meta: { retry: { retries: 5 } }`. `retries` must be a whole number ≥ 0 (TypeError otherwise); waits are capped at 2^31-1 ms.
 - `timeout(ms)` | `timeout({ total?, idle? })` — `total` (= `ms`): deadline from attempt start until the body is fully read; `idle`: aborts after that many ms without data (headers or chunks), so `timeout({ idle: 30_000 })` never cuts a flowing stream. Both together: whichever trips first. `{}` → TypeError; so is a second argument (the 1.x `timeout(ms, { idle })`). Rejects with TimeoutError (not ArthronError; retry ignores it). Place after `retry` for per-attempt, before it for total. Per call: `meta: { timeout: ms }` (Infinity lifts it). `Infinity` = no deadline; NaN/negative/>2^31-1 → TypeError. Keeps `res.url`/`redirected`/`type` (through `clone()` too); timers are unref'd.
-- `bearerAuth({ origin, token, refresh? })` — `authorization: Bearer <token>` on every attempt, only to requests on `origin` (a URL or array; only origins count, non-http(s) → TypeError). `token: () => string | null | undefined | Promise<…>`, read per attempt; empty → no header. With `refresh: () => Promise<void>`, a 401 refreshes and redoes the call once: concurrent 401s share one refresh, a call whose token was already replaced retries without refreshing, a second 401 is thrown, a rejected refresh reaches every waiting call unchanged. Without `refresh`, or for a ReadableStream body (cannot be resent), 401 is thrown without refreshing. Per call: `meta: { bearerAuth: false }` = no token, no refresh — required on the login/refresh requests if they use the same client (else the refresh's own 401 waits on itself). Token is opaque: refresh ahead of a JWT's exp inside `token()`.
-- `logging({ enabled=true, logger=console, onEvent?, now? })` — start/success/error lines or structured events `{ phase, method, path, status?, ms?, error? }`. Never prints query strings or userinfo. Does not log cancellations.
+- `bearerAuth({ origin, accessTokenFn, refreshFn? })` — `authorization: Bearer <token>` on every attempt, only to requests on `origin` (a URL or array; only origins count, non-http(s) → TypeError). `accessTokenFn: () => string | null | undefined | Promise<…>`, called per attempt; empty → no header. With `refreshFn: () => Promise<void>`, a 401 refreshes and redoes the call once: concurrent 401s share one refresh, a call whose token was already replaced retries without refreshing, a second 401 is thrown, a rejected refresh reaches every waiting call unchanged. Without `refreshFn`, or for a ReadableStream body (cannot be resent), 401 is thrown without refreshing. Per call: `meta: { bearerAuth: false }` = no token, no refresh — required on the login/refresh requests if they use the same client (else the refresh's own 401 waits on itself). Token is opaque: refresh ahead of a JWT's exp inside `accessTokenFn`.
+- `logging({ enabled=true, logger=console, onEvent? })` — start/success/error lines or structured events `{ phase, method, path, status?, ms?, error? }`. Never prints query strings or userinfo. Does not log cancellations.
 - `uploadProgress()` — does nothing alone; a call with `meta: { uploadProgress: ({ loaded, total, progress }) => … }` and a body reports upload progress (total/progress undefined when the size is unknown; restarts at 0 per attempt; no events after the response or an abort). Browser (incl. Electron renderer): sent over XMLHttpRequest (cross-origin → CORS preflight; response not streamed; redirect "manual"/"error", mode "no-cors", credentials "omit" to the page's origin → TypeError before sending; cache/priority/referrerPolicy/integrity/keepalive ignored; ReadableStream body → no progress). Node (incl. jsdom on Node): fetch with the body counted in ≤ 64 KiB steps, content-length and Blob content-type kept (S3 presigned PUT works); FormData encoded with a known length, files streamed. Deno/Bun/Cloudflare Workers/Electron main/service workers, a client fetchFn or another plugin's → sent as usual without progress. A throwing callback rejects the call with its own error (not ArthronError, not retried) — keep uploadProgress last in plugins. Works through ctx.fetchFn.
 
 ## Recipes
 
 Auth refresh — built in (`bearerAuth()` above; examples/auth-refresh.ts). The refresh request skips auth:
 ```ts
-const api = arthron({ baseURL: API, plugins: [bearerAuth({ origin: API, token: () => tok, refresh: async () => {
+const api = arthron({ baseURL: API, plugins: [bearerAuth({ origin: API, accessTokenFn: () => tok, refreshFn: async () => {
   tok = (await api.post("/token/refresh", undefined, { meta: { bearerAuth: false } }).json<{ access_token: string }>()).access_token;
 } })] });
 ```
@@ -112,4 +112,4 @@ No request/response key transformation, no caching, no dedupe, no backend-envelo
 
 ## Types
 
-Public object types are interfaces (ArthronConfig, RequestOptions, RequestInitWithBody, RequestContext, ArthronMeta, Plugin, ArthronPromise, Arthron): extend them with `declare module "arthron" { interface … }`.
+Public object types are interfaces (ArthronClientOptions, RequestOptions, RequestOptionsWithMethod, RequestContext, ArthronMeta, Plugin, ResponsePromise, ArthronClient): extend them with `declare module "arthron" { interface … }`.
