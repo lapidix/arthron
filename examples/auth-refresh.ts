@@ -18,8 +18,8 @@ export const api = arthron({
   plugins: [
     bearerAuth({
       origin: API,
-      token: () => accessToken,
-      refresh: async () => {
+      accessTokenFn: () => accessToken,
+      refreshFn: async () => {
         // Rejects with an ArthronError when the session is gone — every
         // waiting call sees it. Send the user to the login page from here.
         const res = await api

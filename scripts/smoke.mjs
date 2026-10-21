@@ -249,8 +249,8 @@ try {
     plugins: [
       bearerAuth({
         origin: baseURL,
-        token: () => token,
-        refresh: async () => {
+        accessTokenFn: () => token,
+        refreshFn: async () => {
           refreshes += 1;
           const r = await authed
             .post("/token", undefined, { meta: { bearerAuth: false } })

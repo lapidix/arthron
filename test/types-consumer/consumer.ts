@@ -54,8 +54,8 @@ const api = arthron({
 
 const authOptions: BearerAuthOptions = {
   origin: ["https://api.example.com"],
-  token: async () => null,
-  refresh: async () => {
+  accessTokenFn: async () => null,
+  refreshFn: async () => {
     await authed.post("/token/refresh", undefined, {
       meta: { bearerAuth: false },
     });
