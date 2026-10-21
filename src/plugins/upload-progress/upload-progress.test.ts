@@ -28,7 +28,7 @@ const sent = async (ctx: Partial<RequestContext>) => {
 
 describe("uploadProgress", () => {
   it("is named uploadProgress", () => {
-    expect(uploadProgress().name).toBe("uploadProgress");
+    expect(uploadProgress().pluginName).toBe("uploadProgress");
   });
 
   it("leaves a call without the callback untouched", async () => {
@@ -187,7 +187,7 @@ describe("uploadProgress against a real server", () => {
       plugins: [
         retry({ methods: ["PUT"], delayFn: () => 0 }),
         {
-          name: "p189",
+          pluginName: "p189",
           errorInterceptor: (e) => {
             seen.push(e);
             return e;

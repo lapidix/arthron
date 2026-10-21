@@ -9,7 +9,7 @@ import { retry } from "../src/plugins";
 
 export const errorRedirect = (navigate: (to: string) => void) =>
   createPlugin({
-    name: "errorRedirect",
+    pluginName: "errorRedirect",
     middleware: async (ctx, next) => {
       try {
         return await next(ctx);

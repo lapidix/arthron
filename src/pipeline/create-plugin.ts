@@ -23,21 +23,29 @@ const REPLACED_SLOTS = {
 
 /**
  * Throws a TypeError for what a plugin can get wrong where TypeScript does
- * not look — JS, a cast, an object built at runtime: not an object, no name,
- * a key it does not take (a typo, a 1.x slot), a slot that is not a
- * function, or nothing to run. `createPlugin` runs it where the plugin is
+ * not look — JS, a cast, an object built at runtime: not an object, no
+ * pluginName, a key it does not take (a typo, a 1.x name), a slot that is not
+ * a function, or nothing to run. `createPlugin` runs it where the plugin is
  * written; `use` and `plugins` run it again on whatever they are given.
  */
 export function checkPlugin(plugin: unknown): asserts plugin is Plugin {
   if (typeof plugin !== "object" || plugin === null) {
     const got = plugin === null ? "null" : `a ${typeof plugin}`;
     throw new TypeError(
-      `arthron: a plugin is an object, got ${got} — e.g. createPlugin({ name: "trace", middleware: fn })`,
+      `arthron: a plugin is an object, got ${got} — e.g. createPlugin({ pluginName: "trace", middleware: fn })`,
     );
   }
   const fields = plugin as Record<string, unknown>;
-  const named = typeof fields.name === "string" && fields.name !== "";
-  const label = named ? `plugin "${fields.name}"` : "a plugin";
+  const given = fields.pluginName ?? fields.name;
+  const label =
+    typeof given === "string" && given !== ""
+      ? `plugin "${given}"`
+      : "a plugin";
+  if (fields.name !== undefined) {
+    throw new TypeError(
+      `arthron: ${label}: the name field is called pluginName since 2.0 — rename it in the plugin`,
+    );
+  }
   for (const [old, now] of Object.entries(REPLACED_SLOTS)) {
     if (fields[old] !== undefined) {
       throw new TypeError(
@@ -45,15 +53,15 @@ export function checkPlugin(plugin: unknown): asserts plugin is Plugin {
       );
     }
   }
-  if (!named) {
+  if (typeof fields.pluginName !== "string" || fields.pluginName === "") {
     throw new TypeError(
-      'arthron: a plugin needs a name — e.g. createPlugin({ name: "trace", … })',
+      'arthron: a plugin needs a pluginName — e.g. createPlugin({ pluginName: "trace", … })',
     );
   }
   for (const key of Object.keys(fields)) {
-    if (key !== "name" && !(SLOTS as readonly string[]).includes(key)) {
+    if (key !== "pluginName" && !(SLOTS as readonly string[]).includes(key)) {
       throw new TypeError(
-        `arthron: ${label} has an unknown key "${key}" — use name, middleware, requestInterceptor, responseInterceptor or errorInterceptor`,
+        `arthron: ${label} has an unknown key "${key}" — use pluginName, middleware, requestInterceptor, responseInterceptor or errorInterceptor`,
       );
     }
   }
@@ -71,7 +79,7 @@ export function checkPlugin(plugin: unknown): asserts plugin is Plugin {
 
 /**
  * A plugin, checked where it is written and typed without annotations:
- * `createPlugin({ name: "trace", requestInterceptor: (ctx) => … })`.
+ * `createPlugin({ pluginName: "trace", requestInterceptor: (ctx) => … })`.
  */
 export function createPlugin(plugin: Plugin): Plugin {
   checkPlugin(plugin);

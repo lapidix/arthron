@@ -188,7 +188,7 @@ describe("arthron — argument errors reject instead of throwing synchronously",
       plugins: [
         retryWith({}, async () => {}),
         {
-          name: "p190",
+          pluginName: "p190",
           requestInterceptor: (ctx) => {
             attempts += 1;
             return { ...ctx, url: "::not-a-url" };
@@ -222,7 +222,7 @@ describe("arthron — per-call meta", () => {
     const { api, fetch } = make(undefined, {
       plugins: [
         {
-          name: "p223",
+          pluginName: "p223",
           middleware: (c, next) => {
             seen.push(c.meta);
             return next(c);
@@ -239,7 +239,7 @@ describe("arthron — per-call meta", () => {
     const { api } = make(undefined, {
       plugins: [
         {
-          name: "p239",
+          pluginName: "p239",
           requestInterceptor: (c) => {
             seen.push(c.meta);
             return c;
@@ -478,7 +478,7 @@ describe("arthron — errors", () => {
     ac.abort(reason);
     const seen = vi.fn((e: ArthronError) => e);
     const { api } = make(fakeFetch(reason), {
-      plugins: [{ name: "p478", errorInterceptor: seen }],
+      plugins: [{ pluginName: "p478", errorInterceptor: seen }],
     });
     await expect(api.get("/u", { signal: ac.signal })).rejects.toBe(reason);
     expect(seen).not.toHaveBeenCalled();
@@ -550,7 +550,7 @@ describe("arthron — errors", () => {
   it("error interceptors see the ArthronError", async () => {
     const seen = vi.fn((e: ArthronError) => e);
     const { api } = make(fakeFetch(jsonResponse({}, { status: 500 })), {
-      plugins: [{ name: "p550", errorInterceptor: seen }],
+      plugins: [{ pluginName: "p550", errorInterceptor: seen }],
     });
     await expect(api.get("/u")).rejects.toBeInstanceOf(ArthronError);
     expect(seen).toHaveBeenCalledOnce();
@@ -559,7 +559,7 @@ describe("arthron — errors", () => {
 
 describe("arthron — immutability", () => {
   const tag = (v: string): Plugin => ({
-    name: "p558",
+    pluginName: "p558",
     requestInterceptor: (c) => ({
       ...c,
       init: {
@@ -613,8 +613,8 @@ describe("arthron — immutability", () => {
 
 describe("arthron — plugins by name", () => {
   /** A middleware that records `label` each time it runs. */
-  const mark = (log: string[], label: string, name = label): Plugin => ({
-    name,
+  const mark = (log: string[], label: string, pluginName = label): Plugin => ({
+    pluginName,
     middleware: (c, next) => {
       log.push(label);
       return next(c);
@@ -630,10 +630,10 @@ describe("arthron — plugins by name", () => {
     await base.use(mark(log, "auth-v2", "auth")).get("/u");
     expect(log).toEqual(["auth-v2", "other"]);
   });
-  it("refuses a plugin without a name, or a bare function, when it is added", () => {
+  it("refuses a plugin without a pluginName, or a bare function, when it is added", () => {
     const api = arthron();
     const unnamed = { middleware: (c, n) => n(c) } as Plugin;
-    expect(() => api.use(unnamed)).toThrow(/a plugin needs a name/);
+    expect(() => api.use(unnamed)).toThrow(/a plugin needs a pluginName/);
     const bare = (() => undefined) as unknown as Plugin;
     expect(() => arthron({ plugins: [bare] })).toThrow(
       /a plugin is an object, got a function/,
@@ -770,7 +770,7 @@ describe("arthron — 1.x option names", () => {
     ["response", "responseInterceptor"],
     ["error", "errorInterceptor"],
   ])("refuses a plugin with a 1.x %s interceptor, naming %s", (old, now) => {
-    const plugin = { name: "audit", [old]: (x: unknown) => x } as Plugin;
+    const plugin = { pluginName: "audit", [old]: (x: unknown) => x } as Plugin;
     const expected = `plugin "audit": the ${old} interceptor is called ${now} since 2.0`;
     expect(() => arthron({ plugins: [plugin] })).toThrow(expected);
     expect(() => arthron().use(plugin)).toThrow(expected);
@@ -806,7 +806,7 @@ describe("arthron — fetchFn", () => {
       fetchFn: fetch,
       plugins: [
         {
-          name: "p802",
+          pluginName: "p802",
           requestInterceptor: (ctx) => {
             seen.push(ctx.fetchFn);
             return ctx;
@@ -825,7 +825,7 @@ describe("arthron — fetchFn", () => {
       fetchFn: client,
       plugins: [
         {
-          name: "p820",
+          pluginName: "p820",
           requestInterceptor: (ctx) => ({ ...ctx, fetchFn: swapped }),
         },
       ],

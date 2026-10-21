@@ -18,12 +18,15 @@ import {
 
 describe("createPlugin", () => {
   it("returns the plugin it was given", () => {
-    const plugin: Plugin = { name: "trace", requestInterceptor: (ctx) => ctx };
+    const plugin: Plugin = {
+      pluginName: "trace",
+      requestInterceptor: (ctx) => ctx,
+    };
     expect(createPlugin(plugin)).toBe(plugin);
   });
   it("types each slot's parameters without annotations", () => {
     const plugin = createPlugin({
-      name: "trace",
+      pluginName: "trace",
       middleware: (ctx, next) => {
         expectTypeOf(ctx).toEqualTypeOf<RequestContext>();
         return next(ctx);
@@ -39,42 +42,49 @@ describe("createPlugin", () => {
     });
     expectTypeOf(plugin).toEqualTypeOf<Plugin>();
   });
-  it("refuses a plugin without a name", () => {
-    // @ts-expect-error name is required
+  it("refuses a plugin without a pluginName", () => {
+    // @ts-expect-error pluginName is required
     const unnamed = () => createPlugin({ requestInterceptor: (c) => c });
     expect(unnamed).toThrow(
-      'a plugin needs a name — e.g. createPlugin({ name: "trace", … })',
+      'a plugin needs a pluginName — e.g. createPlugin({ pluginName: "trace", … })',
     );
     expect(() =>
-      createPlugin({ name: "", middleware: (c, n) => n(c) }),
-    ).toThrow(/needs a name/);
+      createPlugin({ pluginName: "", middleware: (c, n) => n(c) }),
+    ).toThrow(/needs a pluginName/);
   });
   it("refuses an unknown key, naming the ones it takes", () => {
     // @ts-expect-error a typo
-    const typo = () => createPlugin({ name: "trace", requset: (c) => c });
+    const typo = () => createPlugin({ pluginName: "trace", requset: (c) => c });
     expect(typo).toThrow(
-      'plugin "trace" has an unknown key "requset" — use name, middleware, requestInterceptor, responseInterceptor or errorInterceptor',
+      'plugin "trace" has an unknown key "requset" — use pluginName, middleware, requestInterceptor, responseInterceptor or errorInterceptor',
     );
   });
   it("refuses a slot that is not a function", () => {
     const header = "x-trace-id" as unknown as RequestInterceptor;
     const value = () =>
-      createPlugin({ name: "trace", requestInterceptor: header });
+      createPlugin({ pluginName: "trace", requestInterceptor: header });
     expect(value).toThrow(
       'plugin "trace": requestInterceptor must be a function',
     );
   });
   it("refuses a plugin with nothing to run", () => {
-    expect(() => createPlugin({ name: "trace" })).toThrow(
+    expect(() => createPlugin({ pluginName: "trace" })).toThrow(
       'plugin "trace" has nothing to run — add middleware, requestInterceptor, responseInterceptor or errorInterceptor',
     );
   });
-  it("refuses a bare function, which TypeScript lets through", () => {
-    // A function has a `name`, so it fits Plugin's type; only this check stops it.
+  it("refuses a bare function, in the types and when it runs", () => {
     const middleware: Middleware = (ctx, next) => next(ctx);
+    // @ts-expect-error a function has a `name`, but no `pluginName`
     const bare = () => createPlugin(middleware);
     expect(bare).toThrow(
-      'a plugin is an object, got a function — e.g. createPlugin({ name: "trace", middleware: fn })',
+      'a plugin is an object, got a function — e.g. createPlugin({ pluginName: "trace", middleware: fn })',
+    );
+  });
+  it("refuses the 1.x name field, naming pluginName", () => {
+    const middleware: Middleware = (c, n) => n(c);
+    const old = { name: "audit", middleware } as unknown as Plugin;
+    expect(() => createPlugin(old)).toThrow(
+      'plugin "audit": the name field is called pluginName since 2.0 — rename it in the plugin',
     );
   });
 });

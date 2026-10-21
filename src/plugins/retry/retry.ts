@@ -121,7 +121,7 @@ export function retryWith(options: RetryOptions, sleep: Sleep): Plugin {
   const base = settle(options, "retry()");
 
   return {
-    name: "retry",
+    pluginName: "retry",
     middleware: async (ctx, next) => {
       const override = ctx.meta?.retry;
       if (override === false) return next(ctx);

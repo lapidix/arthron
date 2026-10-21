@@ -54,7 +54,7 @@ export function bearerAuth(options: BearerAuthOptions): Plugin {
   let refreshing: Promise<void> | undefined;
 
   return {
-    name: "bearerAuth",
+    pluginName: "bearerAuth",
     requestInterceptor: async (ctx) => {
       if (ctx.meta?.bearerAuth === false || !ours(ctx.url)) return ctx;
       const value = await bearer();

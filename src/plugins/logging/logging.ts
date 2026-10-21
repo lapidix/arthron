@@ -42,7 +42,7 @@ export function loggingWith(
   const { enabled = true, logger = console, onEvent } = options;
   const emit = onEvent ?? consoleSink(logger);
   return {
-    name: "logging",
+    pluginName: "logging",
     middleware: async (ctx, next) => {
       if (!enabled) return next(ctx);
       const method = ctx.init.method ?? "GET";

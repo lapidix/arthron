@@ -152,10 +152,12 @@ export function arthron(config: ArthronClientOptions = {}): ArthronClient {
     },
     use: (...plugins) => derive({ plugins }),
     extend: (next) => derive(next),
-    without: (...names) =>
+    without: (...pluginNames) =>
       arthron({
         ...resolved,
-        plugins: resolved.plugins.filter((p) => !names.includes(p.name)),
+        plugins: resolved.plugins.filter(
+          (p) => !pluginNames.includes(p.pluginName),
+        ),
       }),
   };
 }

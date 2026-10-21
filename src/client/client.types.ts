@@ -123,14 +123,14 @@ export interface ArthronClient {
   /** Any method — the extension point for verbs without their own helper. */
   request(path: string, init: RequestOptionsWithMethod): ResponsePromise;
   /**
-   * New client with these plugins added: a named one replaces the plugin of
-   * that name in place, an unnamed one appends. The receiver is untouched.
+   * New client with these plugins added: a plugin replaces the one with its
+   * pluginName in place; other names append. The receiver is untouched.
    */
   use(...plugins: Plugin[]): ArthronClient;
   /** New client with config shallow-merged, headers merged, plugins added as `use` adds them. */
   extend(config: Partial<ArthronClientOptions>): ArthronClient;
-  /** New client without the plugins of these names. The receiver is untouched. */
-  without(...names: string[]): ArthronClient;
+  /** New client without the plugins of these pluginNames. The receiver is untouched. */
+  without(...pluginNames: string[]): ArthronClient;
 }
 
 /** `ArthronClientOptions` after `resolveConfig`: headers as one record, plugins de-duplicated by name. Internal. */

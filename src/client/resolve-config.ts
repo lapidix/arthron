@@ -42,7 +42,7 @@ const REPLACED = {
 
 /**
  * Add plugins to a list, each checked as `createPlugin` checks it. A plugin
- * takes the place of the one already there with its name — same position,
+ * takes the place of the one already there with its pluginName — same position,
  * so a replaced `logging()` stays outermost and a second `retry()` does not
  * multiply attempts. Other names append.
  */
@@ -53,7 +53,7 @@ export function addPlugins(
   const out = [...base];
   for (const plugin of added) {
     checkPlugin(plugin);
-    const at = out.findIndex((p) => p.name === plugin.name);
+    const at = out.findIndex((p) => p.pluginName === plugin.pluginName);
     if (at === -1) out.push(plugin);
     else out[at] = plugin;
   }

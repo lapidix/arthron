@@ -49,9 +49,9 @@ describe("bearerAuth", () => {
     ).toThrow("bearerAuth({ refreshFn })");
   });
   it("is named bearerAuth", () => {
-    expect(bearerAuth({ origin: API, accessTokenFn: () => "t" }).name).toBe(
-      "bearerAuth",
-    );
+    expect(
+      bearerAuth({ origin: API, accessTokenFn: () => "t" }).pluginName,
+    ).toBe("bearerAuth");
   });
 
   it("sends the token as a Bearer authorization header", async () => {

@@ -116,7 +116,7 @@ export function timeout(
   }
   const { ms, idle } = settle(first);
   return {
-    name: "timeout",
+    pluginName: "timeout",
     middleware: async (ctx, next) => {
       const deadline = ctx.meta?.timeout ?? ms;
       if (deadline !== ms) checkDeadline(deadline, `meta.timeout: ${deadline}`);

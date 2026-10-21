@@ -53,7 +53,7 @@ describe("public surface", () => {
     // @ts-expect-error definePlugin is createPlugin since 2.0
     expectTypeOf<typeof import("./").definePlugin>().not.toBeNever();
     expectTypeOf(
-      createPlugin({ name: "x", requestInterceptor: (c) => c }),
+      createPlugin({ pluginName: "x", requestInterceptor: (c) => c }),
     ).toEqualTypeOf<Plugin>();
   });
   it("arthron() accepts no config", () => {

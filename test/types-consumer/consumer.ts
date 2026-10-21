@@ -71,7 +71,7 @@ authed.get("/x", { meta: { bearerAuth: true } });
 
 // A plugin may read, wrap or replace the fetch an attempt is sent with.
 const observed = api.use({
-  name: "observe",
+  pluginName: "observe",
   requestInterceptor: (ctx) => {
     const sendWith: typeof fetch | undefined = ctx.fetchFn;
     return sendWith
@@ -85,14 +85,16 @@ const idempotent = createMiddleware(async (ctx, next) => next(ctx));
 const markExpired = createErrorInterceptor((err) => err);
 const payments = api.use(
   createPlugin({
-    name: "idempotency",
+    pluginName: "idempotency",
     middleware: idempotent,
     errorInterceptor: markExpired,
   }),
 );
 void payments;
-// @ts-expect-error a plugin needs a name
+// @ts-expect-error a plugin needs a pluginName
 api.use({ middleware: idempotent });
+// @ts-expect-error a function is not a plugin, though it has a `name`
+api.use(idempotent);
 
 const uploads = api.use(uploadProgress());
 uploads.post("/f", new Blob([]), {
