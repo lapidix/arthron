@@ -1,6 +1,6 @@
 import { rebuildResponse } from "../../response/rebuild-response";
 import type { Plugin } from "../../types/plugin.types";
-import type { TimeoutOptions } from "./timeout.types";
+import type { ArthronMeta, TimeoutOptions } from "../../types/request.types";
 
 const MAX_TIMER_MS = 2 ** 31 - 1;
 
@@ -18,7 +18,7 @@ function guardBody(
   let onAbort = () => {};
   // The listener goes when the body does: left on a signal joined to the
   // caller's, it would keep this reader alive as long as the caller's signal.
-  const settle = () => {
+  const release = () => {
     signal.removeEventListener("abort", onAbort);
     finish();
   };
@@ -35,11 +35,11 @@ function guardBody(
       try {
         chunk = await reader.read();
       } catch (error) {
-        settle();
+        release();
         throw error;
       }
       if (chunk.done) {
-        settle();
+        release();
         controller.close();
         return;
       }
@@ -47,7 +47,7 @@ function guardBody(
       controller.enqueue(chunk.value);
     },
     cancel(reason) {
-      settle();
+      release();
       return reader.cancel(reason);
     },
   });
@@ -77,7 +77,7 @@ function deadlineTimer(
 }
 
 /** `timeout(ms)` or `timeout({ total, idle })`, checked. */
-function settle(first: number | TimeoutOptions): {
+function resolveTimeoutOptions(first: number | TimeoutOptions): {
   ms: number;
   idle: number | undefined;
 } {
@@ -96,6 +96,28 @@ function settle(first: number | TimeoutOptions): {
   return { ms: total ?? Number.POSITIVE_INFINITY, idle };
 }
 
+/** One call's deadlines: the plugin's, with `meta.timeout` applied and checked. */
+function forCall(
+  base: { ms: number; idle: number | undefined },
+  override: ArthronMeta["timeout"],
+): { ms: number; idle: number | undefined } {
+  if (override === undefined) return base;
+  if (override === false) {
+    return { ms: Number.POSITIVE_INFINITY, idle: undefined };
+  }
+  if (typeof override === "number") {
+    checkDeadline(override, `meta.timeout: ${override}`);
+    return { ...base, ms: override };
+  }
+  const { total, idle } = override;
+  if (total !== undefined) {
+    checkDeadline(total, `meta.timeout: { total: ${total} }`);
+  }
+  if (idle !== undefined)
+    checkDeadline(idle, `meta.timeout: { idle: ${idle} }`);
+  return { ms: total ?? base.ms, idle: idle ?? base.idle };
+}
+
 /**
  * Abort the request when it takes longer than `ms` — counted from the start
  * of the attempt until the body has been fully read, so a server that sends
@@ -106,7 +128,7 @@ function settle(first: number | TimeoutOptions): {
  * it is not an `ArthronError`, so error interceptors and `retry` leave it
  * alone.
  *
- * A call can change the total deadline with `meta.timeout`.
+ * A call can lift the deadlines or change them with `meta.timeout`.
  *
  * Deadlines are timers on an AbortController — not `AbortSignal.timeout`,
  * since the idle one restarts — joined to the caller's signal with
@@ -119,17 +141,17 @@ export function timeout(
   removed?: unknown,
 ): Plugin {
   // The 1.x `timeout(ms, { idle })`: from JS it would drop idle silently.
-  if (removed !== undefined) {
+  // Only an object: `[5000].map(timeout)` passes the index second.
+  if (typeof removed === "object" && removed !== null) {
     throw new TypeError(
       "arthron: timeout(ms, { idle }) was removed in 2.0 — pass one object, timeout({ total: ms, idle })",
     );
   }
-  const { ms, idle } = settle(first);
+  const base = resolveTimeoutOptions(first);
   return {
     pluginName: "timeout",
     middleware: async (ctx, next) => {
-      const deadline = ctx.meta?.timeout ?? ms;
-      if (deadline !== ms) checkDeadline(deadline, `meta.timeout: ${deadline}`);
+      const { ms: deadline, idle } = forCall(base, ctx.meta?.timeout);
       const idleMs = idle === Number.POSITIVE_INFINITY ? undefined : idle;
       if (deadline === Number.POSITIVE_INFINITY && idleMs === undefined) {
         return next(ctx);

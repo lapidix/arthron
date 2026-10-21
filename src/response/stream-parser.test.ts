@@ -19,7 +19,7 @@ const collect = async <T>(it: AsyncIterable<T>) => {
 };
 
 describe("parseSse", () => {
-  it("dispatches one event per blank line with data/event/id/retry", async () => {
+  it("dispatches one event per blank line with type, data, id and reconnectionTime", async () => {
     const events = await collect(
       parseSse(
         stream(
@@ -29,9 +29,20 @@ describe("parseSse", () => {
       ),
     );
     expect(events).toEqual([
-      { event: "tick", id: "1", lastEventId: "1", retry: 500, data: "hello" },
-      // id and retry are stream state: they carry on to the next event.
-      { data: "world", lastEventId: "1", retry: 500 },
+      {
+        type: "tick",
+        id: "1",
+        lastEventId: "1",
+        reconnectionTime: 500,
+        data: "hello",
+      },
+      // id and the reconnection time are stream state: they carry on to the next event.
+      {
+        type: "message",
+        data: "world",
+        lastEventId: "1",
+        reconnectionTime: 500,
+      },
     ]);
   });
   it("joins multiple data lines with \\n and strips one leading space", async () => {
@@ -44,18 +55,22 @@ describe("parseSse", () => {
     const events = await collect(
       parseSse(stream(": keep-alive\r\nda", 'ta: {"x":1}\r\n\r\n')),
     );
-    expect(events).toEqual([{ data: '{"x":1}', lastEventId: "" }]);
+    expect(events).toEqual([
+      { type: "message", data: '{"x":1}', lastEventId: "" },
+    ]);
   });
   it("treats a CRLF split across two chunks as one line break", async () => {
     const events = await collect(
       parseSse(stream("data: a\r", "\ndata: b\r\n\r\n")),
     );
-    expect(events).toEqual([{ data: "a\nb", lastEventId: "" }]);
+    expect(events).toEqual([
+      { type: "message", data: "a\nb", lastEventId: "" },
+    ]);
   });
   it("drops an event the stream ends before dispatching, per spec", async () => {
     expect(
       await collect(parseSse(stream("data: one\n\n", "data: cut\n"))),
-    ).toEqual([{ data: "one", lastEventId: "" }]);
+    ).toEqual([{ type: "message", data: "one", lastEventId: "" }]);
     expect(await collect(parseSse(stream("data: cut")))).toEqual([]);
   });
   it("cancels the body when the consumer stops early", async () => {
@@ -81,26 +96,26 @@ describe("parseSse", () => {
   });
 });
 
-describe("parseSse — event IDs and retry, per spec", () => {
+describe("parseSse — event IDs and the reconnection time, per spec", () => {
   it("carries the last event ID across events", async () => {
     expect(
       await collect(parseSse(stream("id: 7\ndata: a\n\ndata: b\n\n"))),
     ).toEqual([
-      { data: "a", id: "7", lastEventId: "7" },
-      { data: "b", lastEventId: "7" },
+      { type: "message", data: "a", id: "7", lastEventId: "7" },
+      { type: "message", data: "b", lastEventId: "7" },
     ]);
   });
   it("updates the last event ID from a block without data", async () => {
     expect(await collect(parseSse(stream("id: 3\n\ndata: x\n\n")))).toEqual([
-      { data: "x", lastEventId: "3" },
+      { type: "message", data: "x", lastEventId: "3" },
     ]);
   });
   it("ignores an id containing NULL", async () => {
     expect(
       await collect(parseSse(stream("id: a\u0000b\ndata: x\n\n"))),
-    ).toEqual([{ data: "x", lastEventId: "" }]);
+    ).toEqual([{ type: "message", data: "x", lastEventId: "" }]);
   });
-  it("accepts retry as ASCII digits only", async () => {
+  it("takes the retry: field as ASCII digits only", async () => {
     const events = await collect(
       parseSse(
         stream(
@@ -108,18 +123,18 @@ describe("parseSse — event IDs and retry, per spec", () => {
         ),
       ),
     );
-    expect(events.map((e) => e.retry)).toEqual([
+    expect(events.map((e) => e.reconnectionTime)).toEqual([
       undefined,
       undefined,
       undefined,
     ]);
   });
-  it("applies a retry from a block without data to the events after it", async () => {
+  it("applies a retry: field from a block without data to the events after it", async () => {
     expect(
       await collect(parseSse(stream("retry: 5000\n\ndata: a\n\ndata: b\n\n"))),
     ).toEqual([
-      { data: "a", lastEventId: "", retry: 5000 },
-      { data: "b", lastEventId: "", retry: 5000 },
+      { type: "message", data: "a", lastEventId: "", reconnectionTime: 5000 },
+      { type: "message", data: "b", lastEventId: "", reconnectionTime: 5000 },
     ]);
   });
 });
@@ -181,15 +196,15 @@ describe("stream limits", () => {
       ),
     ).toEqual(["a".repeat(48)]);
   });
-  it("rejects an SSE event whose data outgrows maxEventSize", async () => {
+  it("rejects an SSE event whose data outgrows maxDataLength", async () => {
     const { seen, response } = tracked(
       "data: 0123456789\n",
       "data: 0123456789\n",
       "data: 0123456789\n",
     );
     await expect(
-      collect(parseSse(response, { maxEventSize: 25 })),
-    ).rejects.toThrow(/maxEventSize/);
+      collect(parseSse(response, { maxDataLength: 25 })),
+    ).rejects.toThrow(/maxDataLength/);
     expect(seen.cancelled).toBe(true);
   });
   it("still parses events within the limits", async () => {
@@ -197,17 +212,17 @@ describe("stream limits", () => {
       await collect(
         parseSse(stream("data: 0123456789\n\n"), {
           maxLineLength: 20,
-          maxEventSize: 10,
+          maxDataLength: 10,
         }),
       ),
-    ).toEqual([{ data: "0123456789", lastEventId: "" }]);
+    ).toEqual([{ type: "message", data: "0123456789", lastEventId: "" }]);
   });
   it("keeps a CRLF split over three chunks as one break", async () => {
     expect(
       await collect(parseSse(stream("data: a\r", "\n", "\ndata: b\n\n"))),
     ).toEqual([
-      { data: "a", lastEventId: "" },
-      { data: "b", lastEventId: "" },
+      { type: "message", data: "a", lastEventId: "" },
+      { type: "message", data: "b", lastEventId: "" },
     ]);
   });
 });

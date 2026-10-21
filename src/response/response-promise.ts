@@ -1,9 +1,9 @@
 import { cancellationError } from "../error/create-error";
 import type {
+  ArthronSchema,
   NdjsonOptions,
   ResponsePromise,
   SseOptions,
-  StandardSchemaV1,
 } from "../types/response.types";
 import { validate } from "./schema-validation";
 import { parseNdjson, parseSse } from "./stream-parser";
@@ -38,15 +38,15 @@ export function toResponsePromise(
 ): ResponsePromise {
   // A body read the caller aborted rejects with their reason, whatever the
   // runtime's fetch reports.
-  const read = <T>(body: (res: Response) => Promise<T>): Promise<T> =>
-    promise.then(body).catch((error: unknown) => {
+  const read = <T>(readAs: (res: Response) => Promise<T>): Promise<T> =>
+    promise.then(readAs).catch((error: unknown) => {
       throw cancellationError(error, signal);
     });
   return Object.assign(promise, {
-    json: ((schema?: StandardSchemaV1) =>
+    json: ((schema?: ArthronSchema) =>
       read(async (res) => {
-        const data: unknown = await res.json();
-        return schema ? validate(schema, data) : data;
+        const body: unknown = await res.json();
+        return schema ? validate(schema, body) : body;
       })) as ResponsePromise["json"],
     text: () => read((res) => res.text()),
     blob: () => read((res) => res.blob()),

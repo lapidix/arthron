@@ -1,14 +1,27 @@
-type LogEventBase = { method: string; path: string };
+/**
+ * One step of a call, as `logging({ onEvent })` receives it. `url` is the
+ * request URL with its query and userinfo removed — the value
+ * `ArthronError.toJSON()` calls `url`. `duration` is in ms, retries
+ * included.
+ */
 export type LogEvent =
-  | ({ phase: "start" } & LogEventBase)
-  | ({ phase: "success"; status: number; ms: number } & LogEventBase)
-  | ({
+  | { phase: "start"; method: string; url: string }
+  | {
+      phase: "success";
+      method: string;
+      url: string;
+      status: number;
+      duration: number;
+    }
+  | {
       phase: "error";
+      method: string;
+      url: string;
       /** HTTP status for an ArthronError (0 = network); undefined for anything else. */
       status: number | undefined;
-      ms: number;
+      duration: number;
       error: unknown;
-    } & LogEventBase);
+    };
 
 export type LoggingOptions = {
   /** Default `true`. The library never reads `NODE_ENV` — pass `isDev` yourself. */

@@ -5,7 +5,7 @@ export function progressEvent(
   loaded: number,
   total: number | undefined,
 ): UploadProgressEvent {
-  const progress =
+  const fraction =
     total === undefined ? undefined : total === 0 ? 1 : loaded / total;
-  return { loaded, total, progress };
+  return { loaded, total, fraction };
 }

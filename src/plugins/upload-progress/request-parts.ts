@@ -1,5 +1,5 @@
 /**
- * What a transport needs from fetch's arguments, in any shape a plugin
+ * What sending an upload needs from fetch's arguments, in any shape a plugin
  * wrapping it may pass: arthron sends a URL string and a lowercase header
  * record, a wrapper may pass a Request, a URL or Headers.
  */

@@ -36,18 +36,22 @@ export function checkPlugin(plugin: unknown): asserts plugin is Plugin {
     );
   }
   const fields = plugin as Record<string, unknown>;
-  const given = fields.pluginName ?? fields.name;
+  // Own fields only: a helper method named `error` up the prototype chain is
+  // not a 1.x slot.
+  const own = (key: string) =>
+    Object.hasOwn(fields, key) ? fields[key] : undefined;
+  const given = fields.pluginName ?? own("name");
   const label =
     typeof given === "string" && given !== ""
       ? `plugin "${given}"`
       : "a plugin";
-  if (fields.name !== undefined) {
+  if (own("name") !== undefined) {
     throw new TypeError(
       `arthron: ${label}: the name field is called pluginName since 2.0 — rename it in the plugin`,
     );
   }
   for (const [old, now] of Object.entries(REPLACED_SLOTS)) {
-    if (fields[old] !== undefined) {
+    if (own(old) !== undefined) {
       throw new TypeError(
         `arthron: ${label}: the ${old} interceptor is called ${now} since 2.0 — rename it in the plugin`,
       );
@@ -61,7 +65,7 @@ export function checkPlugin(plugin: unknown): asserts plugin is Plugin {
   for (const key of Object.keys(fields)) {
     if (key !== "pluginName" && !(SLOTS as readonly string[]).includes(key)) {
       throw new TypeError(
-        `arthron: ${label} has an unknown key "${key}" — use pluginName, middleware, requestInterceptor, responseInterceptor or errorInterceptor`,
+        `arthron: ${label} has an unknown key "${key}" — use pluginName, middleware, requestInterceptor, responseInterceptor or errorInterceptor; keep state in a closure, in a function that returns createPlugin({ … })`,
       );
     }
   }
@@ -79,7 +83,7 @@ export function checkPlugin(plugin: unknown): asserts plugin is Plugin {
 
 /**
  * A plugin, checked where it is written and typed without annotations:
- * `createPlugin({ pluginName: "trace", requestInterceptor: (ctx) => … })`.
+ * `createPlugin({ pluginName: "trace", requestInterceptor: (requestContext) => … })`.
  */
 export function createPlugin(plugin: Plugin): Plugin {
   checkPlugin(plugin);
@@ -100,7 +104,7 @@ export const createMiddleware = (middleware: Middleware): Middleware =>
   aFunction(
     middleware,
     "createMiddleware",
-    "createMiddleware((ctx, next) => next(ctx))",
+    "createMiddleware((requestContext, next) => next(requestContext))",
   );
 
 /** A request interceptor written on its own, typed without annotations. */
@@ -110,7 +114,7 @@ export const createRequestInterceptor = (
   aFunction(
     interceptor,
     "createRequestInterceptor",
-    "createRequestInterceptor((ctx) => ctx)",
+    "createRequestInterceptor((requestContext) => requestContext)",
   );
 
 /** A response interceptor written on its own, typed without annotations. */
@@ -120,7 +124,7 @@ export const createResponseInterceptor = (
   aFunction(
     interceptor,
     "createResponseInterceptor",
-    "createResponseInterceptor((res) => res)",
+    "createResponseInterceptor((response) => response)",
   );
 
 /** An error interceptor written on its own, typed without annotations. */
@@ -130,5 +134,5 @@ export const createErrorInterceptor = (
   aFunction(
     interceptor,
     "createErrorInterceptor",
-    "createErrorInterceptor((err) => err)",
+    "createErrorInterceptor((error) => error)",
   );

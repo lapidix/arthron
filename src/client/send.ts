@@ -8,7 +8,7 @@ import {
 import { isReadableStream, runtimeStreamsRequestBody } from "../request/body";
 import { redactUrl, redactUrlIn } from "../request/url";
 import type { RequestContext } from "../types/request.types";
-import type { Resolved } from "./client.types";
+import type { ResolvedClientOptions } from "./client.types";
 
 /**
  * The global fetch rejects a malformed URL or method with a TypeError that
@@ -60,14 +60,21 @@ function failedByDefault(res: Response, init: RequestContext["init"]): boolean {
 
 /** The one place a failure becomes an ArthronError. Cancellation passes through. */
 export async function send(
-  resolved: Resolved,
+  resolved: ResolvedClientOptions,
   ctx: RequestContext,
   throwOn: ((res: Response) => boolean) | undefined,
 ): Promise<Response> {
   // The attempt's fetchFn, which a plugin may have replaced or wrapped.
-  // Resolved per call, not per client: a global patched after the client was
+  // ResolvedClientOptions per call, not per client: a global patched after the client was
   // created (msw's `server.listen()`, for one) must still be honoured.
   const fetchFn = ctx.fetchFn ?? resolved.fetchFn ?? globalThis.fetch;
+  // Checked before the try: calling it would throw a TypeError there, and a
+  // plugin's bug would pass for a network failure — retried, status 0.
+  if (typeof fetchFn !== "function") {
+    throw new TypeError(
+      `arthron: requestContext.fetchFn must be a function with fetch's signature, got ${fetchFn === null ? "null" : `a ${typeof fetchFn}`} — a plugin set it; return { ...requestContext, fetchFn: fn }`,
+    );
+  }
   // Here rather than before the pipeline, so they see the URL the request
   // interceptors produced. Whenever the client relies on the runtime's fetch
   // — also when a plugin wrapped or swapped it for this attempt (upload

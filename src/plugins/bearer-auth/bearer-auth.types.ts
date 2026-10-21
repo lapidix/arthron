@@ -1,10 +1,11 @@
 export type BearerAuthOptions = {
   /**
-   * Where the token may go: a URL, or several. Only their origins count, so
-   * your `baseURL` works as is. A request anywhere else — a CDN, a URL taken
-   * from a response body — is sent without the token.
+   * The origins the token may go to, as a list of URLs of which only the
+   * origin counts, so your `baseURL` works as is: `tokenOrigins: [API]`. A
+   * request anywhere else — a CDN, a URL taken from a response body — is
+   * sent without the token.
    */
-  origin: string | readonly string[];
+  tokenOrigins: readonly string[];
   /**
    * Returns the current access token; called on every attempt. `null`,
    * `undefined` or `""` sends no `authorization` header.
@@ -15,7 +16,8 @@ export type BearerAuthOptions = {
     | undefined
     | Promise<string | null | undefined>;
   /**
-   * Gets a new access token after a 401; the call is then redone once.
+   * Refreshes the session after a 401, so the next `accessTokenFn()`
+   * returns the new token; the call is then redone once.
    * Concurrent 401s share one refresh, and a call whose token was already
    * replaced retries without one. Throw when the refresh fails — every waiting call
    * rejects with that error. A request it starts through the same client

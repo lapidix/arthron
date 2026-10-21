@@ -6,7 +6,11 @@ export type {
   RequestOptions,
   RequestOptionsWithMethod,
 } from "./client/client.types";
-export { ArthronError, isArthronError } from "./error/arthron-error";
+export {
+  ArthronError,
+  type ArthronErrorOptions,
+  isArthronError,
+} from "./error/arthron-error";
 export {
   createErrorInterceptor,
   createMiddleware,
@@ -14,7 +18,7 @@ export {
   createRequestInterceptor,
   createResponseInterceptor,
 } from "./pipeline/create-plugin";
-export { SchemaError } from "./response/schema-validation";
+export { SchemaMismatchError } from "./response/schema-validation";
 export type {
   ErrorInterceptor,
   Middleware,
@@ -24,17 +28,14 @@ export type {
 } from "./types/plugin.types";
 export type {
   ArthronMeta,
-  HeadersOption,
   QueryParams,
   RequestContext,
 } from "./types/request.types";
 export type {
+  ArthronSchema,
   DescriptionExtractor,
-  InferOutput,
   NdjsonOptions,
   ResponsePromise,
-  SchemaIssue,
   SseEvent,
   SseOptions,
-  StandardSchemaV1,
 } from "./types/response.types";

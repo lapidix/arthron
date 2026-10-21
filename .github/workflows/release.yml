@@ -1,7 +1,8 @@
 name: Release
 
 # Stages a release on npm when a `vX.Y.Z` tag is pushed — by hand, or by
-# tag-release.yml when a new version lands on main — via npm Trusted
+# tag-release.yml when a new version lands on main or a `vN.x` maintenance
+# branch — under the dist-tag scripts/dist-tag.mjs picks, via npm Trusted
 # Publishing (OIDC) — no token in secrets. The trusted publisher on npmjs.com
 # (package arthron → Settings → Trusted Publisher) is GitHub Actions ·
 # lapidix/arthron · release.yml · environment npm, allowed to *stage* only:
@@ -53,8 +54,19 @@ jobs:
       # version without release notes.
       - name: CHANGELOG.md must have an entry for the version
         run: node scripts/release-notes.mjs "${GITHUB_REF_NAME#v}" > /dev/null
+      # npm refuses a prerelease, or a version below its highest, without an
+      # explicit --tag: 2.0.0-rc.1 goes to `next`, a 1.x patch after 2.0.0 to
+      # `latest-1`, anything else to `latest`.
+      - name: npm dist-tag for the version
+        id: dist-tag
+        run: |
+          tag=$(node scripts/dist-tag.mjs "${GITHUB_REF_NAME#v}")
+          echo "Staging ${GITHUB_REF_NAME#v} with dist-tag $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       # Stage only: the trusted publisher refuses a direct `npm publish`.
-      - run: npm stage publish --provenance --access public
+      - run: npm stage publish --provenance --access public --tag "$DIST_TAG"
+        env:
+          DIST_TAG: ${{ steps.dist-tag.outputs.tag }}
 
   # Its own job so the token that can write releases never runs next to the
   # npm publish, whose token stays `contents: read`.

@@ -1,9 +1,5 @@
 import type { Plugin } from "../types/plugin.types";
-import type {
-  ArthronMeta,
-  HeadersOption,
-  QueryParams,
-} from "../types/request.types";
+import type { ArthronMeta, QueryParams } from "../types/request.types";
 import type {
   DescriptionExtractor,
   ResponsePromise,
@@ -31,8 +27,13 @@ export type HttpMethod =
  */
 export interface RequestOptions
   extends Omit<RequestInit, "body" | "method" | "headers"> {
-  /** Per-call headers; a `null`/`undefined` value drops a client default. */
-  headers?: HeadersOption;
+  /**
+   * Per-call headers: anything fetch's `headers` takes, or a record whose
+   * `null`/`undefined` values drop a client default. Not typed with
+   * `HeadersInit`: that name exists only in the DOM lib, and a Node project
+   * typed with `@types/node` alone does not have it.
+   */
+  headers?: RequestInit["headers"] | Record<string, string | null | undefined>;
   /**
    * The query string: `null`/`undefined` values are skipped, an array becomes
    * repeated keys (`ids=1&ids=2`), and a `URLSearchParams` is used as is.
@@ -47,7 +48,7 @@ export interface RequestOptions
   /** Settings for plugins on this call only (see `ArthronMeta`). Not sent. */
   meta?: ArthronMeta;
   /** Which non-ok responses reject on this call; overrides the client's `throwOn`. */
-  throwOn?: (res: Response) => boolean;
+  throwOn?: (response: Response) => boolean;
 }
 
 /** `request()`'s options: any method, with the same body rules as `post`. */
@@ -57,50 +58,55 @@ export interface RequestOptionsWithMethod extends RequestOptions {
 }
 
 /**
- * The fetch options a client can set as defaults: the same `RequestInit`
- * fields per-call options take, minus what only makes sense per call —
+ * Client options. Besides arthron's own keys it takes any fetch option as a
+ * default (`credentials`, `cache`, `redirect`, `mode`, …), flat like per-call
+ * options; a per-call value wins. Left out: what only makes sense per call —
  * `body`, `method`, `signal` (one client-wide signal, once aborted, would
  * fail every later call) and `window`. `headers` has its own merge rules.
  */
-export type FetchDefaults = Omit<
-  RequestInit,
-  "body" | "method" | "headers" | "signal" | "window"
->;
-
-/**
- * Client config. Besides arthron's own keys it takes any fetch option as a
- * default (`credentials`, `cache`, `redirect`, `mode`, …), flat like per-call
- * options; a per-call value wins.
- */
-export interface ArthronClientOptions extends FetchDefaults {
+export interface ArthronClientOptions
+  extends Omit<
+    RequestInit,
+    "body" | "method" | "headers" | "signal" | "window"
+  > {
   /** Prefix for relative paths. Without it only absolute URLs are accepted. */
   baseURL?: string;
   /**
    * Origins an absolute URL may go to besides `baseURL`'s, as URLs of which
    * only the origin counts: `["https://cdn.example.com"]`. Any other origin
    * is a TypeError, so a path from user input or an API response cannot send
-   * requests elsewhere, and config `headers` go to `baseURL`'s origin only,
-   * never to these. Without a `baseURL` this list alone limits absolute
-   * URLs, and config `headers` go to every origin on it — list only origins
-   * you would hand them to; with neither, any http(s) URL goes.
+   * requests elsewhere. Config `headers` go to `baseURL`'s origin only, never
+   * to these — calls there carry per-call headers alone. Without a
+   * `baseURL` this list alone limits absolute URLs, and config `headers`
+   * are refused (they would have nowhere to go); with neither, any http(s)
+   * URL goes, config headers included.
    */
   allowedOrigins?: readonly string[];
-  /** Default headers. Per-call headers win, compared case-insensitively; `extend` can drop one with `null`. */
-  headers?: HeadersOption;
+  /**
+   * Default headers, sent to baseURL's origin only: anything fetch's
+   * `headers` takes, or a record. Per-call headers win, compared
+   * case-insensitively; `extend` can drop one with `null`.
+   */
+  headers?: RequestInit["headers"] | Record<string, string | null | undefined>;
   /**
    * The function requests are sent with: anything with fetch's signature,
    * `(input, init) => Promise<Response>`. Default: the global `fetch`, read
    * per call. Pass a fake in tests, a polyfill, or a framework's fetch
-   * (SvelteKit's `event.fetch`). Plugins see it as `ctx.fetchFn`.
+   * (SvelteKit's `event.fetch`). Plugins see it as `requestContext.fetchFn`.
    */
   fetchFn?: typeof fetch;
-  /** Plugins, outermost first. A named one replaces an earlier one of that name. */
-  plugins?: Plugin[];
+  /**
+   * Plugins, outermost first. One with the pluginName of an earlier one
+   * replaces it in place.
+   */
+  plugins?: readonly Plugin[];
   /**
    * Extracts `ArthronError.description` from a failed response's payload, for
-   * an API that puts it somewhere else: `(payload) => payload.errors?.[0]?.msg`.
-   * Called only for failed responses. Default: the payload's `message`, else
-   * `error` (a string), else `error.message`, else `detail`.
+   * an API that puts it somewhere else:
+   * `(payload) => (payload as { errors?: { msg?: string }[] }).errors?.[0]?.msg`.
+   * Called only for failed responses; if it throws, the error simply has no
+   * description. Default: the payload's `message`, else `error` (a string),
+   * else `error.message`, else `detail`.
    */
   extractDescription?: DescriptionExtractor;
   /**
@@ -109,33 +115,55 @@ export interface ArthronClientOptions extends FetchDefaults {
    * rejects. Default: every non-ok response except an opaque one
    * (`mode: "no-cors"`) and the 3xx of `redirect: "manual"`.
    */
-  throwOn?: (res: Response) => boolean;
+  throwOn?: (response: Response) => boolean;
 }
 
 export interface ArthronClient {
-  get(path: string, init?: RequestOptions): ResponsePromise;
-  delete(path: string, init?: RequestOptions): ResponsePromise;
-  head(path: string, init?: RequestOptions): ResponsePromise;
-  post(path: string, body?: unknown, init?: RequestOptions): ResponsePromise;
-  put(path: string, body?: unknown, init?: RequestOptions): ResponsePromise;
-  patch(path: string, body?: unknown, init?: RequestOptions): ResponsePromise;
+  get(path: string, requestOptions?: RequestOptions): ResponsePromise;
+  delete(path: string, requestOptions?: RequestOptions): ResponsePromise;
+  head(path: string, requestOptions?: RequestOptions): ResponsePromise;
+  post(
+    path: string,
+    body?: unknown,
+    requestOptions?: RequestOptions,
+  ): ResponsePromise;
+  put(
+    path: string,
+    body?: unknown,
+    requestOptions?: RequestOptions,
+  ): ResponsePromise;
+  patch(
+    path: string,
+    body?: unknown,
+    requestOptions?: RequestOptions,
+  ): ResponsePromise;
   /** RFC 10008 QUERY: safe and idempotent like GET, but the query travels in the body. */
-  query(path: string, body?: unknown, init?: RequestOptions): ResponsePromise;
+  query(
+    path: string,
+    body?: unknown,
+    requestOptions?: RequestOptions,
+  ): ResponsePromise;
   /** Any method — the extension point for verbs without their own helper. */
-  request(path: string, init: RequestOptionsWithMethod): ResponsePromise;
+  request(
+    path: string,
+    requestOptions: RequestOptionsWithMethod,
+  ): ResponsePromise;
   /**
    * New client with these plugins added: a plugin replaces the one with its
    * pluginName in place; other names append. The receiver is untouched.
    */
   use(...plugins: Plugin[]): ArthronClient;
-  /** New client with config shallow-merged, headers merged, plugins added as `use` adds them. */
-  extend(config: Partial<ArthronClientOptions>): ArthronClient;
+  /** New client with these options shallow-merged, headers merged, plugins added as `use` adds them. */
+  extend(clientOptions: Partial<ArthronClientOptions>): ArthronClient;
   /** New client without the plugins of these pluginNames. The receiver is untouched. */
   without(...pluginNames: string[]): ArthronClient;
 }
 
-/** `ArthronClientOptions` after `resolveConfig`: headers as one record, plugins de-duplicated by name. Internal. */
-export type Resolved = Omit<ArthronClientOptions, "headers" | "plugins"> & {
+/** `ArthronClientOptions` after `resolveClientOptions`: headers as one record, plugins de-duplicated by pluginName. Internal. */
+export type ResolvedClientOptions = Omit<
+  ArthronClientOptions,
+  "headers" | "plugins"
+> & {
   headers: Record<string, string>;
   plugins: readonly Plugin[];
 };

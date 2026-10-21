@@ -42,7 +42,7 @@ describe("countingFetch", () => {
     expect(events.at(-1)).toEqual({
       loaded: 200_000,
       total: 200_000,
-      progress: 1,
+      fraction: 1,
     });
     const loaded = events.map((e) => e.loaded);
     expect(loaded).toEqual([...loaded].sort((a, b) => a - b));
@@ -72,7 +72,7 @@ describe("countingFetch", () => {
     const { got, events } = await send("한글");
     expect(got.headers["content-length"]).toBe("6");
     expect(got.headers["content-type"]).toBe("text/plain;charset=UTF-8");
-    expect(events.at(-1)).toEqual({ loaded: 6, total: 6, progress: 1 });
+    expect(events.at(-1)).toEqual({ loaded: 6, total: 6, fraction: 1 });
     expect(new TextDecoder().decode(got.body)).toBe("한글");
   });
 
@@ -124,7 +124,7 @@ describe("countingFetch", () => {
 
   it("reports a 0-byte body once, as complete", async () => {
     const { events } = await send(new Blob([]));
-    expect(events).toEqual([{ loaded: 0, total: 0, progress: 1 }]);
+    expect(events).toEqual([{ loaded: 0, total: 0, fraction: 1 }]);
   });
 
   it("leaves total unknown for a stream without content-length", async () => {
@@ -139,7 +139,7 @@ describe("countingFetch", () => {
     expect(events.at(-1)).toEqual({
       loaded: 20,
       total: undefined,
-      progress: undefined,
+      fraction: undefined,
     });
     expect(got.headers["content-length"]).toBeUndefined();
   });

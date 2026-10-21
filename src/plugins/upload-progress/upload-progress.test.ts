@@ -10,7 +10,7 @@ import type {
 } from "../../types/request.types";
 import { bearerAuth } from "../bearer-auth/bearer-auth";
 import { retry } from "../retry/retry";
-import { transportFor, uploadProgress, xhrRefusal } from "./upload-progress";
+import { uploadModeFor, uploadProgress, xhrRefusal } from "./upload-progress";
 
 /** What the plugin hands to send, for a context built here. */
 const sent = async (ctx: Partial<RequestContext>) => {
@@ -40,11 +40,26 @@ describe("uploadProgress", () => {
     expect(out.init.body).toBe("x");
   });
 
+  it("refuses a bare callback, naming { onProgress }", async () => {
+    const bare = {
+      uploadProgress: () => {},
+    } as unknown as RequestContext["meta"];
+    await expect(
+      sent({
+        fetchFn: globalThis.fetch,
+        init: { method: "PUT", body: "x", headers: {} },
+        meta: bare,
+      }),
+    ).rejects.toThrow(
+      "arthron: meta.uploadProgress takes options — pass meta: { uploadProgress: { onProgress } }",
+    );
+  });
+
   it("leaves a call without a body untouched", async () => {
     const events: UploadProgressEvent[] = [];
     const out = await sent({
       fetchFn: globalThis.fetch,
-      meta: { uploadProgress: (e) => events.push(e) },
+      meta: { uploadProgress: { onProgress: (e) => events.push(e) } },
     });
     expect(out.fetchFn).toBe(globalThis.fetch);
     expect(events).toEqual([]);
@@ -55,7 +70,7 @@ describe("uploadProgress", () => {
     const out = await sent({
       fetchFn: injected,
       init: { method: "PUT", body: "x", headers: {} },
-      meta: { uploadProgress: () => {} },
+      meta: { uploadProgress: { onProgress: () => {} } },
     });
     expect(out.fetchFn).toBe(injected);
   });
@@ -65,7 +80,7 @@ describe("uploadProgress", () => {
     const out = await sent({
       fetchFn: globalThis.fetch,
       init: { method: "PUT", body: blob, headers: {} },
-      meta: { uploadProgress: () => {} },
+      meta: { uploadProgress: { onProgress: () => {} } },
     });
     expect(out.fetchFn).not.toBe(globalThis.fetch);
     expect(typeof out.fetchFn).toBe("function");
@@ -80,18 +95,18 @@ describe("uploadProgress", () => {
         // @ts-expect-error onUploadProgress is uploadProgress since 2.0
         meta: { onUploadProgress: () => {} },
       }),
-    ).rejects.toThrow("meta: { uploadProgress }");
+    ).rejects.toThrow("meta: { uploadProgress: { onProgress } }");
   });
 });
 
-describe("transportFor", () => {
+describe("uploadModeFor", () => {
   const node = { node: "22.0.0" };
   it.each([
-    ["Node", { versions: node, hasXhr: false }, "count"],
+    ["Node", { versions: node, hasXhr: false }, "countedFetch"],
     [
       "jsdom on Node",
       { versions: node, hasXhr: true, userAgent: "Mozilla/5.0 jsdom/26" },
-      "count",
+      "countedFetch",
     ],
     ["a browser", { hasXhr: true }, "xhr"],
     [
@@ -108,7 +123,7 @@ describe("transportFor", () => {
     ],
     ["a service worker", { hasXhr: false }, undefined],
   ] as const)("%s → %s", (_, env, expected) => {
-    expect(transportFor(env)).toBe(expected);
+    expect(uploadModeFor(env)).toBe(expected);
   });
 });
 
@@ -166,7 +181,7 @@ describe("uploadProgress keeps argument errors", () => {
     });
     const err = await api
       .put("http://exa mple.test/x", "hello", {
-        meta: { uploadProgress: () => {} },
+        meta: { uploadProgress: { onProgress: () => {} } },
       })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TypeError);
@@ -229,8 +244,10 @@ describe("uploadProgress against a real server", () => {
     const err = await api
       .put("/u", new Blob([new Uint8Array(300_000)]), {
         meta: {
-          uploadProgress: () => {
-            throw boom;
+          uploadProgress: {
+            onProgress: () => {
+              throw boom;
+            },
           },
         },
       })
@@ -246,7 +263,7 @@ describe("uploadProgress against a real server", () => {
       baseURL: base,
       plugins: [
         bearerAuth({
-          origin: base,
+          tokenOrigins: [base],
           accessTokenFn: () => token,
           refreshFn: async () => {
             token = "new";
@@ -259,7 +276,7 @@ describe("uploadProgress against a real server", () => {
     const events: UploadProgressEvent[] = [];
     const out = await api
       .put("/u", new Blob([new Uint8Array(300_000)]), {
-        meta: { uploadProgress: (e) => events.push(e) },
+        meta: { uploadProgress: { onProgress: (e) => events.push(e) } },
       })
       .json();
     expect(out).toEqual({ n: 300_000, cl: "300000" });
@@ -272,7 +289,7 @@ describe("uploadProgress against a real server", () => {
     expect(events.at(-1)).toEqual({
       loaded: 300_000,
       total: 300_000,
-      progress: 1,
+      fraction: 1,
     });
   });
 });

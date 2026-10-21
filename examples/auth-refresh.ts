@@ -17,25 +17,25 @@ export const api = arthron({
   credentials: "include", // the refresh token is an httpOnly cookie
   plugins: [
     bearerAuth({
-      origin: API,
+      tokenOrigins: [API],
       accessTokenFn: () => accessToken,
       refreshFn: async () => {
         // Rejects with an ArthronError when the session is gone — every
         // waiting call sees it. Send the user to the login page from here.
-        const res = await api
+        const tokens = await api
           .post("/token/refresh", undefined, { meta: { bearerAuth: false } })
           .json<{ access_token: string }>();
-        accessToken = res.access_token;
+        accessToken = tokens.access_token;
       },
     }),
   ],
 });
 
 export const login = async (username: string, password: string) => {
-  const res = await api
+  const tokens = await api
     .post("/login", { username, password }, { meta: { bearerAuth: false } })
     .json<{ access_token: string }>();
-  accessToken = res.access_token;
+  accessToken = tokens.access_token;
 };
 
 export const me = () => api.get("/me").json<{ id: string; name: string }>();

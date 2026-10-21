@@ -1,5 +1,6 @@
 export type {
   RetryOptions,
+  TimeoutOptions,
   UploadProgressEvent,
 } from "../types/request.types";
 export { bearerAuth } from "./bearer-auth/bearer-auth";
@@ -8,5 +9,4 @@ export { logging } from "./logging/logging";
 export type { LogEvent, LoggingOptions } from "./logging/logging.types";
 export { retry } from "./retry/retry";
 export { timeout } from "./timeout/timeout";
-export type { TimeoutOptions } from "./timeout/timeout.types";
 export { uploadProgress } from "./upload-progress/upload-progress";

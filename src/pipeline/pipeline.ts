@@ -76,6 +76,18 @@ function normalize(
 }
 
 /**
+ * The 1.x name of `fetchFn`. TypeScript does not flag it on a spread
+ * (`{ ...ctx, fetch }`), and ignored, a test's mock would be passed over for
+ * the real network.
+ */
+function refuseFetchField(ctx: RequestContext, problem: string, fix: string) {
+  if ((ctx as { fetch?: unknown }).fetch === undefined) return;
+  throw new TypeError(
+    `arthron: ${problem}, which is requestContext.fetchFn since 2.0 — ${fix} { ...requestContext, fetchFn }`,
+  );
+}
+
+/**
  * A plugin written in JS (or with a cast) that forgets to return would hand
  * `undefined` on — and an error interceptor's would be what the caller
  * catches. Name the plugin slot instead.
@@ -111,14 +123,17 @@ export function createPipeline(
   plugins: readonly Plugin[],
 ): (ctx: RequestContext, send: Send) => Promise<Response> {
   const middlewares: Middleware[] = [];
-  const request: RequestInterceptor[] = [];
-  const response: ResponseInterceptor[] = [];
-  const error: ErrorInterceptor[] = [];
+  const requestInterceptors: RequestInterceptor[] = [];
+  const responseInterceptors: ResponseInterceptor[] = [];
+  const errorInterceptors: ErrorInterceptor[] = [];
   for (const plugin of plugins) {
     if (plugin.middleware) middlewares.push(plugin.middleware);
-    if (plugin.requestInterceptor) request.push(plugin.requestInterceptor);
-    if (plugin.responseInterceptor) response.push(plugin.responseInterceptor);
-    if (plugin.errorInterceptor) error.push(plugin.errorInterceptor);
+    if (plugin.requestInterceptor)
+      requestInterceptors.push(plugin.requestInterceptor);
+    if (plugin.responseInterceptor)
+      responseInterceptors.push(plugin.responseInterceptor);
+    if (plugin.errorInterceptor)
+      errorInterceptors.push(plugin.errorInterceptor);
   }
 
   const attempt = async (
@@ -126,13 +141,18 @@ export function createPipeline(
     send: Send,
   ): Promise<Response> => {
     let current = cloneContext(input);
-    for (const interceptor of request) {
-      const next = returned(
+    for (const interceptor of requestInterceptors) {
+      const changed = returned(
         await interceptor(current),
         "a request interceptor",
-        "the context (ctx or a changed copy)",
+        "the context (requestContext or a changed copy)",
       );
-      current = normalize(next, current);
+      refuseFetchField(
+        changed,
+        "a request interceptor set requestContext.fetch",
+        "return",
+      );
+      current = normalize(changed, current);
     }
     let res: Response;
     try {
@@ -142,27 +162,27 @@ export function createPipeline(
       // throws (its own call failed) is a plugin exception like any other.
       if (!isArthronError(thrown)) throw thrown;
       let err = thrown;
-      for (const interceptor of error) {
+      for (const interceptor of errorInterceptors) {
         err = returned(
           await interceptor(err, current),
           "an error interceptor",
-          "the error (err or a changed one)",
+          "the error (error or a changed one)",
           thrown,
         );
       }
       throw err;
     }
-    for (const interceptor of response) {
+    for (const interceptor of responseInterceptors) {
       res = returned(
         await interceptor(res, current),
         "a response interceptor",
-        "the Response (res or a new one)",
+        "the Response (response or a new one)",
       );
     }
     return res;
   };
 
-  const dispatch = async (
+  const runFrom = async (
     index: number,
     input: RequestContext,
     send: Send,
@@ -171,21 +191,29 @@ export function createPipeline(
     if (!middleware) return attempt(input, send);
     // A middleware that builds a fresh `{ url, init }` keeps the call's meta
     // and fetchFn.
-    const res = await middleware(input, (next) => {
-      const ctx: RequestContext = { ...next, meta: next.meta ?? input.meta };
-      const fetchFn = next.fetchFn ?? input.fetchFn;
+    const res = await middleware(input, (passed) => {
+      refuseFetchField(
+        passed,
+        "a middleware passed requestContext.fetch to next",
+        "pass",
+      );
+      const ctx: RequestContext = {
+        ...passed,
+        meta: passed.meta ?? input.meta,
+      };
+      const fetchFn = passed.fetchFn ?? input.fetchFn;
       if (fetchFn) ctx.fetchFn = fetchFn;
-      return dispatch(index + 1, ctx, send);
+      return runFrom(index + 1, ctx, send);
     });
     return returned(
       res,
       "a middleware",
-      "the Response, usually `return next(ctx)`",
+      "the Response, usually `return next(requestContext)`",
       undefined,
       "resolved with",
     );
   };
-  return (ctx, send) => dispatch(0, ctx, send);
+  return (ctx, send) => runFrom(0, ctx, send);
 }
 
 /** One request through `plugins` — `createPipeline` for a single use, as tests run it. */

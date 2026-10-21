@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { networkError, responseError } from "../../error/create-error";
 import { runPipeline } from "../../pipeline/pipeline";
 import { jsonResponse } from "../../testkit/fetch.testkit";
-import { logging, loggingWith } from "./logging";
+import { logging, loggingWithClock } from "./logging";
 import type { LogEvent } from "./logging.types";
 
 const ctx = {
@@ -23,7 +23,7 @@ describe("logging", () => {
   });
   it("logs start and success without the query string", async () => {
     const logger = spyLogger();
-    await runPipeline([loggingWith({ logger }, clock())], ctx, async () =>
+    await runPipeline([loggingWithClock({ logger }, clock())], ctx, async () =>
       jsonResponse({}, { status: 201 }),
     );
     expect(logger.log.mock.calls).toEqual([
@@ -35,7 +35,7 @@ describe("logging", () => {
   it("logs failures with status and rethrows", async () => {
     const logger = spyLogger();
     await expect(
-      runPipeline([loggingWith({ logger }, clock())], ctx, async (c) => {
+      runPipeline([loggingWithClock({ logger }, clock())], ctx, async (c) => {
         throw networkError(new Error("x"), c);
       }),
     ).rejects.toMatchObject({ status: 0 });
@@ -46,7 +46,7 @@ describe("logging", () => {
   it("logs non-ArthronError failures with '-' for status", async () => {
     const logger = spyLogger();
     await expect(
-      runPipeline([loggingWith({ logger }, clock())], ctx, async () => {
+      runPipeline([loggingWithClock({ logger }, clock())], ctx, async () => {
         throw new RangeError("bug");
       }),
     ).rejects.toBeInstanceOf(RangeError);
@@ -138,18 +138,18 @@ describe("logging", () => {
     const logger = spyLogger();
     const events: unknown[] = [];
     await runPipeline(
-      [loggingWith({ logger, onEvent: (e) => events.push(e) }, clock())],
+      [loggingWithClock({ logger, onEvent: (e) => events.push(e) }, clock())],
       ctx,
       async () => jsonResponse({}, { status: 201 }),
     );
     expect(events).toEqual([
-      { phase: "start", method: "POST", path: "https://a/u" },
+      { phase: "start", method: "POST", url: "https://a/u" },
       {
         phase: "success",
         method: "POST",
-        path: "https://a/u",
+        url: "https://a/u",
         status: 201,
-        ms: 12,
+        duration: 12,
       },
     ]);
     expect(logger.log).not.toHaveBeenCalled();
@@ -157,7 +157,7 @@ describe("logging", () => {
   it("onEvent error events carry the status for ArthronError and undefined otherwise", async () => {
     const events: LogEvent[] = [];
     const plugin = () =>
-      loggingWith({ onEvent: (e) => events.push(e) }, clock());
+      loggingWithClock({ onEvent: (e) => events.push(e) }, clock());
     await runPipeline([plugin()], ctx, async (c) => {
       throw networkError(new Error("x"), c);
     }).catch(() => {});
@@ -166,11 +166,11 @@ describe("logging", () => {
       throw bug;
     }).catch(() => {});
     expect(events.filter((e) => e.phase === "error")).toEqual([
-      expect.objectContaining({ phase: "error", status: 0, ms: 12 }),
+      expect.objectContaining({ phase: "error", status: 0, duration: 12 }),
       expect.objectContaining({
         phase: "error",
         status: undefined,
-        ms: 12,
+        duration: 12,
         error: bug,
       }),
     ]);

@@ -1,7 +1,10 @@
-import type { HeadersOption } from "../types/request.types";
+/** One set of headers, as client and per-call options take it. */
+type HeaderLayer =
+  | NonNullable<RequestInit["headers"]>
+  | Record<string, string | null | undefined>;
 
 const isPlainRecord = (
-  headers: HeadersOption,
+  headers: HeaderLayer,
 ): headers is Record<string, string | null | undefined> =>
   !Array.isArray(headers) &&
   Object.prototype.toString.call(headers) !== "[object Headers]";
@@ -13,7 +16,7 @@ const isPlainRecord = (
  * sending both values joined. `Headers` validates every value it sets.
  */
 export function mergeHeaders(
-  ...layers: (HeadersOption | undefined)[]
+  ...layers: (HeaderLayer | undefined)[]
 ): Record<string, string> {
   const merged = new Headers();
   for (const layer of layers) {
@@ -32,7 +35,7 @@ export function mergeHeaders(
 
 /** Normalize any header shape into a plain record with lowercased names. */
 export function toHeaderRecord(
-  headers: HeadersOption | undefined,
+  headers: HeaderLayer | undefined,
 ): Record<string, string> {
   return mergeHeaders(headers);
 }

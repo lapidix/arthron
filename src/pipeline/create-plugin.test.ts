@@ -56,8 +56,17 @@ describe("createPlugin", () => {
     // @ts-expect-error a typo
     const typo = () => createPlugin({ pluginName: "trace", requset: (c) => c });
     expect(typo).toThrow(
-      'plugin "trace" has an unknown key "requset" — use pluginName, middleware, requestInterceptor, responseInterceptor or errorInterceptor',
+      'plugin "trace" has an unknown key "requset" — use pluginName, middleware, requestInterceptor, responseInterceptor or errorInterceptor; keep state in a closure, in a function that returns createPlugin({ … })',
     );
+  });
+  it("reads the 1.x names from the plugin itself, not from what it inherits", () => {
+    // A helper method named like a 1.x slot, on the prototype.
+    const helpers = { error: () => {}, name: "helpers" };
+    const plugin = Object.assign(Object.create(helpers), {
+      pluginName: "trace",
+      requestInterceptor: (c: RequestContext) => c,
+    }) as Plugin;
+    expect(createPlugin(plugin)).toBe(plugin);
   });
   it("refuses a slot that is not a function", () => {
     const header = "x-trace-id" as unknown as RequestInterceptor;
@@ -103,13 +112,40 @@ describe("createMiddleware and the create…Interceptor helpers", () => {
     expect(createMiddleware(fn)).toBe(fn);
   });
   it.each([
-    ["createMiddleware", createMiddleware],
-    ["createRequestInterceptor", createRequestInterceptor],
-    ["createResponseInterceptor", createResponseInterceptor],
-    ["createErrorInterceptor", createErrorInterceptor],
-  ] as const)("%s refuses anything but a function", (name, create) => {
+    [
+      "createMiddleware",
+      createMiddleware,
+      "createMiddleware((requestContext, next) => next(requestContext))",
+    ],
+    [
+      "createRequestInterceptor",
+      createRequestInterceptor,
+      "createRequestInterceptor((requestContext) => requestContext)",
+    ],
+    [
+      "createResponseInterceptor",
+      createResponseInterceptor,
+      "createResponseInterceptor((response) => response)",
+    ],
+    [
+      "createErrorInterceptor",
+      createErrorInterceptor,
+      "createErrorInterceptor((error) => error)",
+    ],
+  ] as const)("%s refuses anything but a function", (name, create, example) => {
     expect(() => (create as (x: unknown) => unknown)("x")).toThrow(
-      `${name} needs a function`,
+      `arthron: ${name} needs a function — e.g. ${example}`,
     );
+  });
+  it("names the parameters after the types they hold", () => {
+    expectTypeOf<Parameters<Middleware>>().toEqualTypeOf<
+      [
+        requestContext: RequestContext,
+        next: (requestContext: RequestContext) => Promise<Response>,
+      ]
+    >();
+    expectTypeOf<Parameters<ResponseInterceptor>>().toEqualTypeOf<
+      [response: Response, requestContext: RequestContext]
+    >();
   });
 });

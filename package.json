@@ -1,7 +1,7 @@
 {
   "name": "arthron",
   "version": "1.2.0",
-  "description": "Composable fetch client — create from config, plug in interceptors and middleware",
+  "description": "A lightweight fetch client you assemble from plugins. Zero dependencies, returns native Response.",
   "license": "MIT",
   "author": "lapidix",
   "repository": {
@@ -62,11 +62,12 @@
     "check:types-consumer": "node test/types-consumer/check.mjs",
     "check:browsers": "pnpm --dir test/browser test",
     "release:approve": "node scripts/approve-release.mjs",
-    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm check:types-pkg"
+    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && node scripts/smoke.mjs && pnpm check:types-pkg"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
     "@biomejs/biome": "^2.5.15",
+    "@standard-schema/spec": "^1.1.0",
     "@types/node": "^26.6.5",
     "tsdown": "^0.23.1",
     "typescript": "^7.0.2",

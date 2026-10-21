@@ -7,12 +7,14 @@ import type { LogEvent, LoggingOptions } from "./logging.types";
 function consoleSink(logger: Pick<Console, "log" | "error">) {
   return (e: LogEvent) => {
     if (e.phase === "start") {
-      logger.log(`[arthron] → ${e.method} ${e.path}`);
+      logger.log(`[arthron] → ${e.method} ${e.url}`);
     } else if (e.phase === "success") {
-      logger.log(`[arthron] ← ${e.method} ${e.path} ${e.status} ${e.ms}ms`);
+      logger.log(
+        `[arthron] ← ${e.method} ${e.url} ${e.status} ${e.duration}ms`,
+      );
     } else {
       logger.error(
-        `[arthron] ✕ ${e.method} ${e.path} ${e.status ?? "-"} ${e.ms}ms`,
+        `[arthron] ✕ ${e.method} ${e.url} ${e.status ?? "-"} ${e.duration}ms`,
       );
     }
   };
@@ -31,11 +33,11 @@ export function logging(options: LoggingOptions = {}): Plugin {
       'arthron: logging\'s now option left the public options in 2.0 — mock performance.now in tests (vi.spyOn(performance, "now"))',
     );
   }
-  return loggingWith(options, () => performance.now());
+  return loggingWithClock(options, () => performance.now());
 }
 
 /** `logging()` with the clock injected — for this package's tests; `arthron/plugins` does not export it. */
-export function loggingWith(
+export function loggingWithClock(
   options: LoggingOptions,
   now: () => number,
 ): Plugin {
@@ -46,23 +48,36 @@ export function loggingWith(
     middleware: async (ctx, next) => {
       if (!enabled) return next(ctx);
       const method = ctx.init.method ?? "GET";
-      const path = redactUrl(ctx.url);
+      const url = redactUrl(ctx.url);
       const started = now();
-      const ms = () => Math.round(now() - started);
+      const duration = () => Math.round(now() - started);
 
-      emit({ phase: "start", method, path });
+      emit({ phase: "start", method, url });
       let res: Response;
       try {
         res = await next(ctx);
       } catch (error) {
         if (!isCancellation(error, ctx.init.signal)) {
           const status = isArthronError(error) ? error.status : undefined;
-          emit({ phase: "error", method, path, status, ms: ms(), error });
+          emit({
+            phase: "error",
+            method,
+            url,
+            status,
+            duration: duration(),
+            error,
+          });
         }
         throw error;
       }
       // Outside the try: a sink that throws is a plugin bug, not a failed request.
-      emit({ phase: "success", method, path, status: res.status, ms: ms() });
+      emit({
+        phase: "success",
+        method,
+        url,
+        status: res.status,
+        duration: duration(),
+      });
       return res;
     },
   };

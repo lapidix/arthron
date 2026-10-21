@@ -61,6 +61,21 @@ describe("resolveUrl", () => {
       resolveUrl("https://a/v1", "https://b/x?token=s3cret"),
     ).not.toThrow(/s3cret/);
   });
+  it("says an absolute URL that does not parse is not a URL, rather than naming an undefined origin", () => {
+    expect(() =>
+      resolveUrl("https://a/v1", "https://exa mple.test/x?token=s3cret"),
+    ).toThrow(
+      'arthron: "https://exa mple.test/x" is not a valid URL — check it, or pass a path relative to baseURL',
+    );
+  });
+  it("leaves a relative baseURL's query out of the outside-baseURL message", () => {
+    expect(() => resolveUrl("/api?apikey=s3cret", "https://b/x")).toThrow(
+      /outside baseURL \/api /,
+    );
+    expect(() => resolveUrl("/api?apikey=s3cret", "https://b/x")).not.toThrow(
+      /s3cret/,
+    );
+  });
   it("throws when no baseURL and path is relative", () => {
     expect(() => resolveUrl(undefined, "/users")).toThrow(TypeError);
   });
@@ -132,7 +147,7 @@ describe("fillPath", () => {
   });
   it.each(["", ".", ".."])("rejects %j, which would change the path", (id) => {
     expect(() => fillPath("/users/{id}", { id })).toThrow(
-      /would change the path/,
+      `arthron: pathParams.id=${JSON.stringify(id)} would change the path, not fill a segment — pass a real id`,
     );
   });
   it("rejects a missing or an unused value", () => {
