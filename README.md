@@ -1,4 +1,9 @@
-# arthron
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo/arthron-lockup-dark.svg">
+    <img alt="arthron" src=".github/assets/logo/arthron-lockup.svg" width="300">
+  </picture>
+</h1>
 
 A `fetch` client you assemble from plugins.
 
