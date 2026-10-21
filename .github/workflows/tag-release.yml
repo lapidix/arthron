@@ -1,9 +1,11 @@
 name: Tag release
 
-# Tags a release when its version lands on main, so the tag can never point
-# at a commit whose package.json says something else. A push to main that
+# Tags a release when its version lands on main, or on a `vN.x` maintenance
+# branch (`v1.x` for 1.x patches once 2.x is out), so the tag can never point
+# at a commit whose package.json says something else. A push to either that
 # changes package.json's version gets `vX.Y.Z` on that commit, and the
-# Release workflow is started on the tag.
+# Release workflow is started on the tag. A maintenance branch runs the copy
+# of this file and of release.yml on that branch, so it needs both.
 #
 # A tag pushed with this job's GITHUB_TOKEN does not start other workflows,
 # so Release is dispatched on the tag instead (workflow_dispatch is the
@@ -14,7 +16,7 @@ name: Tag release
 # Pushing a tag by hand still works; this job then finds it and does nothing.
 on:
   push:
-    branches: [main]
+    branches: [main, "v*.x"]
     paths: [package.json]
 
 permissions:
