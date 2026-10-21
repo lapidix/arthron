@@ -94,8 +94,12 @@ function returned<T>(
   );
 }
 
+type Send = (ctx: RequestContext) => Promise<Response>;
+
 /**
- * Owns the order of one request.
+ * Owns the order of every request a client sends. The plugins are sorted
+ * into their slots once, when the client is created — a client's plugins
+ * never change.
  *
  * Middleware wraps the whole call, outermost first in registration order.
  * Each attempt below it runs request interceptors → `send` → response
@@ -103,11 +107,9 @@ function returned<T>(
  * they return is thrown. Anything else that is thrown — cancellation, a bug
  * in a plugin — propagates untouched.
  */
-export async function runPipeline(
+export function createPipeline(
   plugins: readonly Plugin[],
-  ctx: RequestContext,
-  send: (ctx: RequestContext) => Promise<Response>,
-): Promise<Response> {
+): (ctx: RequestContext, send: Send) => Promise<Response> {
   const middlewares: Middleware[] = [];
   const request: RequestInterceptor[] = [];
   const response: ResponseInterceptor[] = [];
@@ -119,7 +121,10 @@ export async function runPipeline(
     if (plugin.errorInterceptor) error.push(plugin.errorInterceptor);
   }
 
-  const attempt = async (input: RequestContext): Promise<Response> => {
+  const attempt = async (
+    input: RequestContext,
+    send: Send,
+  ): Promise<Response> => {
     let current = cloneContext(input);
     for (const interceptor of request) {
       const next = returned(
@@ -160,16 +165,17 @@ export async function runPipeline(
   const dispatch = async (
     index: number,
     input: RequestContext,
+    send: Send,
   ): Promise<Response> => {
     const middleware = middlewares[index];
-    if (!middleware) return attempt(input);
+    if (!middleware) return attempt(input, send);
     // A middleware that builds a fresh `{ url, init }` keeps the call's meta
     // and fetchFn.
     const res = await middleware(input, (next) => {
       const ctx: RequestContext = { ...next, meta: next.meta ?? input.meta };
       const fetchFn = next.fetchFn ?? input.fetchFn;
       if (fetchFn) ctx.fetchFn = fetchFn;
-      return dispatch(index + 1, ctx);
+      return dispatch(index + 1, ctx, send);
     });
     return returned(
       res,
@@ -179,5 +185,14 @@ export async function runPipeline(
       "resolved with",
     );
   };
-  return dispatch(0, ctx);
+  return (ctx, send) => dispatch(0, ctx, send);
+}
+
+/** One request through `plugins` — `createPipeline` for a single use, as tests run it. */
+export function runPipeline(
+  plugins: readonly Plugin[],
+  ctx: RequestContext,
+  send: Send,
+): Promise<Response> {
+  return createPipeline(plugins)(ctx, send);
 }
