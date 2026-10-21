@@ -62,7 +62,7 @@ const api = arthron({
 });
 ```
 
-Every field is optional. Without `baseURL`, only absolute URLs are accepted. With one, an absolute URL must stay on `baseURL`'s origin or one you list in `allowedOrigins: ["https://cdn.example.com"]` — and config `headers` are only sent to `baseURL`'s origin. Without a `baseURL`, `allowedOrigins` alone limits where requests go.
+Every field is optional. Without `baseURL`, only absolute URLs are accepted. With one, an absolute URL must stay on `baseURL`'s origin or one you list in `allowedOrigins: ["https://cdn.example.com"]` — and config `headers` are only sent to `baseURL`'s origin. Without a `baseURL`, `allowedOrigins` alone limits where requests go, and config `headers` go to every origin on it.
 
 ### Make requests
 
@@ -393,7 +393,7 @@ const traced = api.use({ pluginName: "trace", requestInterceptor: (ctx) => ({ ..
 ```ts
 type ArthronClientOptions = {
   baseURL?: string;
-  allowedOrigins?: string[]; // other origins absolute URLs may go to (only the origin of each URL counts; no config headers there)
+  allowedOrigins?: string[]; // other origins absolute URLs may go to (only the origin of each URL counts; no config headers there — without baseURL, the client's origins, config headers included)
   headers?: HeadersOption; // anything fetch's headers take, or a record whose null drops a header (in extend)
   fetchFn?: typeof fetch; // the function requests are sent with: a fake in tests, a polyfill, a framework's fetch; default the global fetch, read per request
   plugins?: Plugin[]; // outermost first; one with the pluginName of an earlier one replaces it
@@ -441,7 +441,7 @@ class ArthronError extends Error {
 
 - **Fill path segments with `pathParams`.** `{name}` placeholders are encoded per segment; `""`, `.` and `..` are refused, as are missing or unused values. Without `pathParams`, braces are left alone.
 - **URLs are joined by string concatenation.** `baseURL: "https://a/v1"` + `"/users"` → `https://a/v1/users`. The `/v1` survives, unlike with `new URL()`.
-- **Absolute URLs stay on `baseURL`'s origin.** `api.get("https://other.example/x")` on a client with a `baseURL` rejects with a `TypeError`, because a path built from user input or an API response must not carry your credentials elsewhere. Same-origin absolute URLs work. List other origins in `allowedOrigins`; they get per-call headers only. To call any origin, use a client without `baseURL` or `allowedOrigins`. Only `http(s)` URLs are accepted.
+- **Absolute URLs stay on `baseURL`'s origin.** `api.get("https://other.example/x")` on a client with a `baseURL` rejects with a `TypeError`, because a path built from user input or an API response must not carry your credentials elsewhere. Same-origin absolute URLs work. List other origins in `allowedOrigins`; they get per-call headers only. A client without `baseURL` sends its config headers to every origin it lists. To call any origin, use a client without `baseURL` or `allowedOrigins`. Only `http(s)` URLs are accepted.
 - **Error bodies are read up to 64 KiB.** That is enough for any error message and keeps a huge or endless error body from filling memory. Past the limit `payload` is the raw text and the rest of the body is cancelled.
 - **Redirects follow fetch's rules.** On a redirect to another origin, fetch drops `Authorization` but keeps other headers such as `x-api-key`. Pass `redirect: "error"` (or `"manual"`) for calls that carry such keys if the server could redirect off-origin.
 - **Bodies.** `string`, `FormData`, `Blob`, `ArrayBuffer`/views, `URLSearchParams` and `ReadableStream` go through untouched — recognised by type tag, so polyfill and cross-realm instances count too. A `ReadableStream` is sent with `duplex: "half"`, which fetch requires. Anything else — including `null` — becomes JSON with `content-type: application/json`; a content type you set must be a JSON one. Bodies JSON would mangle — a `Map`, `Set`, generator, Node stream or function — are rejected with a `TypeError` that says what to pass instead. A `FormData` body is always sent without a `content-type` header, even with a JSON default, so the runtime can add the multipart boundary. `GET`/`HEAD` with a body is rejected with a `TypeError`.

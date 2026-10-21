@@ -282,6 +282,20 @@ describe("arthron — config", () => {
     expect(fetch.calls[0]?.url).toBe("https://b/x");
     expect(fetch.calls[0]?.init.headers).toEqual({ "x-call": "1" });
   });
+  it("without a baseURL, sends config headers to every origin in allowedOrigins", async () => {
+    const fetch = fakeFetch(jsonResponse({}));
+    const api = arthron({
+      fetchFn: fetch,
+      headers: { "x-api-key": "k" },
+      allowedOrigins: ["https://b", "https://c"],
+    });
+    await api.get("https://b/x");
+    await api.get("https://c/x");
+    expect(fetch.calls.map((c) => c.init.headers)).toEqual([
+      { "x-api-key": "k" },
+      { "x-api-key": "k" },
+    ]);
+  });
   it("counts only the origin of an allowedOrigins URL", async () => {
     const { api, fetch } = make(undefined, {
       allowedOrigins: ["https://b/any/path"],

@@ -81,7 +81,8 @@ export interface ArthronClientOptions extends FetchDefaults {
    * is a TypeError, so a path from user input or an API response cannot send
    * requests elsewhere, and config `headers` go to `baseURL`'s origin only,
    * never to these. Without a `baseURL` this list alone limits absolute
-   * URLs; with neither, any http(s) URL goes.
+   * URLs, and config `headers` go to every origin on it — list only origins
+   * you would hand them to; with neither, any http(s) URL goes.
    */
   allowedOrigins?: readonly string[];
   /** Default headers. Per-call headers win, compared case-insensitively; `extend` can drop one with `null`. */
