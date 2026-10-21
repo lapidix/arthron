@@ -31,14 +31,14 @@ assert(
   "arthron/plugins loads, with the same names in ESM and CJS",
 );
 assert(
-  esm.retry === esmPlugins.retry && cjs.timeout === cjsPlugins.timeout,
-  "the deprecated main-entry plugins are the arthron/plugins functions",
+  !("retry" in esm) && !("timeout" in cjs),
+  "the built-in plugins come from arthron/plugins only",
 );
 
 const crossCopy = await cjs
   .arthron({
     baseURL: "https://copies.test",
-    fetch: async () => new Response("", { status: 500 }),
+    fetchFn: async () => new Response("", { status: 500 }),
   })
   .get("/x")
   .catch((e) => e);
@@ -274,7 +274,7 @@ try {
     use: [esmPlugins.uploadProgress()],
   })
     .put("/progress-upload", new Blob([new Uint8Array(1024 * 1024)]), {
-      meta: { onUploadProgress: (e) => progress.push(e) },
+      meta: { uploadProgress: (e) => progress.push(e) },
     })
     .json();
   assert(

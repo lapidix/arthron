@@ -12,9 +12,9 @@ const OWN_KEYS: Record<
   true
 > = {
   baseURL: true,
-  allowAbsoluteUrls: true,
+  allowedOrigins: true,
   headers: true,
-  fetch: true,
+  fetchFn: true,
   use: true,
   errorDetail: true,
   throwOn: true,
@@ -62,6 +62,13 @@ export function resolveConfig(config: ArthronConfig): Resolved {
         `arthron: ${key} cannot be a client default, it belongs to one request — pass it per call (api.get(path, { signal }), api.post(path, body), api.request(path, { method }))`,
       );
     }
+  }
+  // The 1.x name: as an unknown key it would become a fetch default and be
+  // ignored, sending a test's requests to the real network.
+  if ((config as Record<string, unknown>).fetch !== undefined) {
+    throw new TypeError(
+      "arthron: the fetch option is called fetchFn since 2.0 — pass arthron({ fetchFn })",
+    );
   }
   const { headers, use, ...rest } = config;
   return {

@@ -48,6 +48,34 @@ function originOf(url: string): string | undefined {
   }
 }
 
+/** The origin of an absolute http(s) URL; `undefined` for anything else. */
+export function httpOrigin(url: string): string | undefined {
+  try {
+    const { protocol, origin } = new URL(url);
+    return protocol === "http:" || protocol === "https:" ? origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** `allowedOrigins` as origins, checked once when the client is created. */
+export function originSet(urls: readonly string[]): Set<string> {
+  if (urls.length === 0) {
+    throw new TypeError(
+      "arthron: allowedOrigins needs at least one URL — leave it out to stay on baseURL's origin",
+    );
+  }
+  return new Set(
+    urls.map((url) => {
+      const origin = httpOrigin(url);
+      if (origin) return origin;
+      throw new TypeError(
+        `arthron: allowedOrigins needs http(s) URLs, got ${JSON.stringify(url)} — e.g. allowedOrigins: ["https://cdn.example.com"]`,
+      );
+    }),
+  );
+}
+
 /** `path` is absolute and points away from `baseURL`'s origin. */
 export function leavesBase(baseURL: string | undefined, path: string): boolean {
   if (baseURL === undefined || !isAbsoluteUrl(path)) return false;
@@ -116,15 +144,15 @@ export function fillPath(
  * Join `baseURL` and `path` by plain string concatenation so a path prefix in
  * the base (`/v1`) survives a leading slash in the path. WHATWG `new URL()`
  * would drop it. An absolute path replaces the base only when it stays on the
- * base's origin, or when `allowAbsoluteUrls` says other origins are fine — a
- * path built from user input or an API response must not carry the client's
- * credentials somewhere else.
+ * base's origin or goes to one in `allowed` (`allowedOrigins`) — a path built
+ * from user input or an API response must not carry the client's
+ * credentials somewhere else. Without a baseURL, `allowed` alone limits it.
  */
 export function resolveUrl(
   baseURL: string | undefined,
   path: string,
   params?: QueryParams,
-  allowAbsoluteUrls = false,
+  allowed?: ReadonlySet<string>,
 ): string {
   let url: string;
   if (isAbsoluteUrl(path)) {
@@ -134,9 +162,16 @@ export function resolveUrl(
         `arthron: only http(s) URLs can be requested, got a "${scheme}" URL — use an http:// or https:// URL`,
       );
     }
-    if (!allowAbsoluteUrls && leavesBase(baseURL, path)) {
+    const target = originOf(path);
+    const listed = target !== undefined && allowed?.has(target) === true;
+    if (!listed && leavesBase(baseURL, path)) {
       throw new TypeError(
-        `arthron: ${originOf(path)} is outside baseURL ${(baseURL && originOf(baseURL)) ?? baseURL} — pass a path relative to baseURL, or set arthron({ allowAbsoluteUrls: true }) to allow other origins (config headers are not sent to them)`,
+        `arthron: ${target} is outside baseURL ${(baseURL && originOf(baseURL)) ?? baseURL} — pass a path relative to baseURL, or add ${target} to arthron({ allowedOrigins }) (config headers are not sent there)`,
+      );
+    }
+    if (!listed && baseURL === undefined && allowed) {
+      throw new TypeError(
+        `arthron: ${target} is not in allowedOrigins — add it to arthron({ allowedOrigins }) or request a listed origin`,
       );
     }
     url = path;

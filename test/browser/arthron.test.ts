@@ -172,7 +172,7 @@ describe("uploadProgress in the browser", () => {
     });
     const echo = await uploads
       .post("/echo", file, {
-        meta: { onUploadProgress: (e) => events.push(e) },
+        meta: { uploadProgress: (e) => events.push(e) },
       })
       .json<Echo>();
     expect(echo.size).toBe(8 * 1024 * 1024);
@@ -188,17 +188,17 @@ describe("uploadProgress in the browser", () => {
   });
 
   it("retries a 503 and reports a 404 as ArthronError", async () => {
-    const onUploadProgress = () => {};
+    const onProgress = () => {};
     const retried = await uploads
       .use(retry({ methods: ["POST"], delay: () => 0 }))
       .post("/flaky", "x", {
         params: { id: `upload-${Math.random()}` },
-        meta: { onUploadProgress },
+        meta: { uploadProgress: onProgress },
       })
       .json();
     expect(retried).toEqual({ attempts: 2 });
     const err = await uploads
-      .post("/missing", "x", { meta: { onUploadProgress } })
+      .post("/missing", "x", { meta: { uploadProgress: onProgress } })
       .catch((e: unknown) => e);
     expect(isArthronError(err) && err.status).toBe(404);
     expect(isArthronError(err) && err.detail).toBe("no such user");
@@ -207,7 +207,7 @@ describe("uploadProgress in the browser", () => {
   it("times out with TimeoutError", async () => {
     const err = await uploads
       .use(timeout(100))
-      .post("/slow", "x", { meta: { onUploadProgress: () => {} } })
+      .post("/slow", "x", { meta: { uploadProgress: () => {} } })
       .catch((e: unknown) => e);
     expect((err as Error).name).toBe("TimeoutError");
   });
@@ -216,19 +216,19 @@ describe("uploadProgress in the browser", () => {
     const err = await uploads
       .post("/echo", "x", {
         redirect: "manual",
-        meta: { onUploadProgress: () => {} },
+        meta: { uploadProgress: () => {} },
       })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TypeError);
     expect((err as Error).message).toMatch(
-      /onUploadProgress cannot be combined/,
+      /meta\.uploadProgress cannot be combined/,
     );
   });
 
   it("reports a 0-byte body as complete", async () => {
     const events: UploadProgressEvent[] = [];
     await uploads.post("/echo", new Blob([]), {
-      meta: { onUploadProgress: (e) => events.push(e) },
+      meta: { uploadProgress: (e) => events.push(e) },
     });
     expect(events.at(-1)).toEqual({ loaded: 0, total: 0, progress: 1 });
     expect(events.some((e) => Number.isNaN(e.progress))).toBe(false);
@@ -243,7 +243,7 @@ describe("uploadProgress in the browser", () => {
       .post("/echo", new Blob([new Uint8Array(8 * 1024 * 1024)]), {
         signal: controller.signal,
         meta: {
-          onUploadProgress: (e) => {
+          uploadProgress: (e) => {
             events.push(e);
             if (controller.signal.aborted) afterAbort += 1;
           },
@@ -260,7 +260,7 @@ describe("uploadProgress in the browser", () => {
     const err = await uploads
       .post("/echo", new Blob([new Uint8Array(1024 * 1024)]), {
         meta: {
-          onUploadProgress: () => {
+          uploadProgress: () => {
             throw boom;
           },
         },

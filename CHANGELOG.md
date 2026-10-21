@@ -12,6 +12,42 @@ From 1.0.0 arthron follows [Semantic Versioning](https://semver.org/):
 
 A deprecated API keeps working, is marked `@deprecated` with what to use instead, is listed here, and is removed only in the next major.
 
+## [Unreleased]
+
+Removes what 1.1.0 deprecated, renames what read as something else, and turns `allowAbsoluteUrls` into a list of origins: each plugin has one import path, `timeout()` one way to take `idle`, every built-in plugin reads the `meta` key named after it, the function requests are sent with has one name, and a client names the origins it may call. Moving from 1.x means changing imports and names.
+
+### Breaking
+
+- `logging`, `retry` and `timeout`, and the `LogEvent`, `LoggingOptions` and `TimeoutOptions` types, are no longer exported from `arthron` — import them from `arthron/plugins`, where they have been since 1.1.0. So is `RetryOptions`, which 1.1.0 had left on the main entry without a deprecation.
+- `timeout(ms, { idle })` is gone — write `timeout({ total: ms, idle })`. A second argument is a `TypeError` that names the replacement.
+- `meta.onUploadProgress` is now `meta.uploadProgress`, like `meta.bearerAuth`, `meta.retry` and `meta.timeout`: plugin X's per-call setting is `meta.X`.
+- The `fetch` option is now `fetchFn`, and `RequestContext.fetch` is `RequestContext.fetchFn` — one name for the function requests are sent with: the client's, and each attempt's, which a plugin may replace (`uploadProgress()` sends over XMLHttpRequest) or wrap. As `fetch`, it read like the global function. `arthron({ fetch })` and `extend({ fetch })` throw a `TypeError` naming `fetchFn` rather than send a test's requests to the real network.
+- `allowAbsoluteUrls` is replaced by `allowedOrigins`, a list: with a `baseURL`, an absolute URL may go to `baseURL`'s origin or a listed one, and any other origin is a `TypeError`. Only the origin of each entry counts; an empty list or a non-http(s) entry is a `TypeError` when the client is created. Without a `baseURL`, the list alone limits absolute URLs. Config `headers` still go to `baseURL`'s origin only. To reach any origin, as `allowAbsoluteUrls: true` did, use a client without `baseURL`.
+
+### Moving from 1.x
+
+```diff
+-import { arthron, retry, timeout, type RetryOptions } from "arthron";
++import { arthron } from "arthron";
++import { retry, timeout, type RetryOptions } from "arthron/plugins";
+
+-timeout(60_000, { idle: 30_000 })
++timeout({ total: 60_000, idle: 30_000 })
+-timeout(Infinity, { idle: 30_000 })
++timeout({ idle: 30_000 })
+
+-api.post("/upload", file, { meta: { onUploadProgress: setBar } })
++api.post("/upload", file, { meta: { uploadProgress: setBar } })
+
+-arthron({ baseURL: API, fetch: fakeFetch })
++arthron({ baseURL: API, fetchFn: fakeFetch })
+-request: (ctx) => ({ ...ctx, fetch: traced(ctx.fetch) })
++request: (ctx) => ({ ...ctx, fetchFn: traced(ctx.fetchFn) })
+
+-arthron({ baseURL: API, allowAbsoluteUrls: true })
++arthron({ baseURL: API, allowedOrigins: ["https://cdn.example.com"] })
+```
+
 ## [1.2.0] — 2026-10-20
 
 ### Added

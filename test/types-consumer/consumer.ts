@@ -4,8 +4,6 @@ import {
   type ArthronPromise,
   arthron,
   isArthronError,
-  // Deprecated, still exported until the next major.
-  logging as legacyLogging,
   SchemaError,
   type SseEvent,
   type StandardSchemaV1,
@@ -13,6 +11,7 @@ import {
 import {
   type BearerAuthOptions,
   bearerAuth,
+  logging,
   type RetryOptions,
   retry,
   timeout,
@@ -41,10 +40,11 @@ const userSchema: StandardSchemaV1<unknown, User> = {
 
 const api = arthron({
   baseURL: "https://api.example.com",
+  allowedOrigins: ["https://cdn.example.com"],
   credentials: "include",
   headers: { authorization: "Bearer token" },
   use: [
-    legacyLogging({ enabled: false }),
+    logging({ enabled: false }),
     retry({ retries: 2 } satisfies RetryOptions),
     timeout(5_000),
     timeout({ idle: 30_000 }),
@@ -69,9 +69,9 @@ authed.get("/x", { meta: { bearerAuth: true } });
 // A plugin may read, wrap or replace the fetch an attempt is sent with.
 const observed = api.use({
   request: (ctx) => {
-    const sendWith: typeof fetch | undefined = ctx.fetch;
+    const sendWith: typeof fetch | undefined = ctx.fetchFn;
     return sendWith
-      ? { ...ctx, fetch: (input, init) => sendWith(input, init) }
+      ? { ...ctx, fetchFn: (input, init) => sendWith(input, init) }
       : ctx;
   },
 });
@@ -80,11 +80,11 @@ void observed;
 const uploads = api.use(uploadProgress());
 uploads.post("/f", new Blob([]), {
   meta: {
-    onUploadProgress: (e: UploadProgressEvent) => e.progress ?? e.loaded,
+    uploadProgress: (e: UploadProgressEvent) => e.progress ?? e.loaded,
   },
 });
-// @ts-expect-error onUploadProgress is a callback
-uploads.post("/f", new Blob([]), { meta: { onUploadProgress: 1 } });
+// @ts-expect-error meta.uploadProgress is a callback
+uploads.post("/f", new Blob([]), { meta: { uploadProgress: 1 } });
 
 export async function run(): Promise<void> {
   const pending: ArthronPromise = api.get("/users/{id}", {

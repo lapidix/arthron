@@ -12,7 +12,7 @@ const err = (status: number, headers?: Record<string, string>) =>
 const make = (fetch: ReturnType<typeof fakeFetch>, opts: RetryOptions = {}) =>
   arthron({
     baseURL: "https://a",
-    fetch,
+    fetchFn: fetch,
     use: [retry({ ...noSleep, ...opts })],
   });
 
@@ -64,7 +64,7 @@ describe("retry", () => {
     const fetch = fakeFetch(jsonResponse({}));
     const api = arthron({
       baseURL: "https://a",
-      fetch,
+      fetchFn: fetch,
       use: [
         retry(noSleep),
         {
@@ -241,7 +241,7 @@ describe("retry", () => {
       }) as unknown as typeof fetch;
       const api = arthron({
         baseURL: "https://a",
-        fetch: hangsOnce,
+        fetchFn: hangsOnce,
         use: [
           retry({
             ...noSleep,

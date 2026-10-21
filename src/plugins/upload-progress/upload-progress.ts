@@ -97,13 +97,13 @@ function withOwnSignal(
 }
 
 /**
- * Does nothing by itself — only a call that passes `meta.onUploadProgress`
+ * Does nothing by itself — only a call that passes `meta.uploadProgress`
  * reports upload progress. On such a call it changes how that one attempt
  * is sent: over XMLHttpRequest in a browser, with a counted body in Node.
  * Every other call, on this client too, goes out exactly as before.
  *
  * Progress needs the runtime's own fetch: with an injected `fetch`, another
- * plugin's transport, or a runtime that is neither (Deno, Bun, Cloudflare
+ * plugin's fetchFn, or a runtime that is neither (Deno, Bun, Cloudflare
  * Workers, a service worker), the call is sent as usual without progress.
  * Put it last in `use`: the call's signal carries a throwing callback's
  * error, and an interceptor after it that replaces the signal would cut it.
@@ -112,10 +112,10 @@ export function uploadProgress(): Plugin {
   return {
     name: "uploadProgress",
     request: (ctx) => {
-      const onProgress = ctx.meta?.onUploadProgress;
+      const onProgress = ctx.meta?.uploadProgress;
       const { body } = ctx.init;
       if (!onProgress || body === undefined || body === null) return ctx;
-      if (ctx.fetch !== globalThis.fetch) return ctx;
+      if (ctx.fetchFn !== globalThis.fetch) return ctx;
       const transport = transportFor(currentRuntime());
       if (!transport) return ctx;
       if (transport === "xhr") {
@@ -124,7 +124,7 @@ export function uploadProgress(): Plugin {
         const refusal = xhrRefusal(ctx.init, ctx.url, page);
         if (refusal) {
           throw new TypeError(
-            `arthron: onUploadProgress cannot be combined with ${refusal}; drop one of them`,
+            `arthron: meta.uploadProgress cannot be combined with ${refusal}; drop one of them`,
           );
         }
         // XHR cannot send a stream; it goes out as usual, without progress.
@@ -133,10 +133,10 @@ export function uploadProgress(): Plugin {
       const { ctx: next, report } = withOwnSignal(ctx, onProgress);
       return {
         ...next,
-        fetch:
+        fetchFn:
           transport === "xhr"
             ? xhrFetch(report)
-            : countingFetch(ctx.fetch, report),
+            : countingFetch(ctx.fetchFn, report),
       };
     },
   };

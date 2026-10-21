@@ -16,19 +16,20 @@ export interface RequestContext {
   /** Per-call settings for plugins (`RequestOptions.meta`); never sent. */
   meta: ArthronMeta;
   /**
-   * The fetch this attempt is sent with — the client's `fetch`, else the
-   * global one. Always set on contexts arthron creates; replace it to change
-   * the transport for this attempt, wrap it to observe. Optional so a
-   * context you build yourself stays valid.
+   * The function this attempt is sent with — the client's `fetchFn` at first,
+   * else the global `fetch`. A plugin may replace it for this attempt
+   * (`uploadProgress()` sends over XMLHttpRequest) or wrap it to observe.
+   * Always set on contexts arthron creates; optional so a context you build
+   * yourself stays valid.
    */
-  fetch?: typeof fetch;
+  fetchFn?: typeof fetch;
 }
 
 /**
  * Per-call settings for plugins, passed as `api.get(path, { meta })` and
- * carried next to `init` — never sent to fetch. The built-in plugins read
- * `bearerAuth`, `onUploadProgress`, `retry` and `timeout`; your own add keys
- * by augmentation:
+ * carried next to `init` — never sent to fetch. Each built-in plugin reads
+ * the key named after it — `bearerAuth`, `retry`, `timeout`,
+ * `uploadProgress`; your own add keys by augmentation:
  *
  * ```ts
  * declare module "arthron" {
@@ -46,17 +47,17 @@ export interface ArthronMeta {
    * Upload progress for this call, with `uploadProgress()` on the client.
    * Never called without that plugin or without a body, nor where progress
    * cannot be had: a client with an injected `fetch`, another plugin's
-   * transport, Deno, Bun, Cloudflare Workers, a service worker, or a
+   * `fetchFn`, Deno, Bun, Cloudflare Workers, a service worker, or a
    * `ReadableStream` body in a browser — those calls are sent as usual.
    */
-  onUploadProgress?: (event: UploadProgressEvent) => void;
+  uploadProgress?: (event: UploadProgressEvent) => void;
   /** `false` turns `retry()` off for this call; an object overrides its options. */
   retry?: false | Omit<RetryOptions, "sleep">;
   /** Deadline for this call in ms, overriding `timeout(ms)`. `Infinity` lifts it. */
   timeout?: number;
 }
 
-/** One step of an upload, as `meta.onUploadProgress` receives it. */
+/** One step of an upload, as `meta.uploadProgress` receives it. */
 export type UploadProgressEvent = {
   /** Bytes sent so far. */
   loaded: number;

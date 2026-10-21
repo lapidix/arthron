@@ -23,27 +23,40 @@ describe("resolveUrl", () => {
       TypeError,
     );
   });
-  it("lets allowAbsoluteUrls send to another origin", () => {
-    expect(resolveUrl("https://a/v1", "https://b/x", undefined, true)).toBe(
+  it("lets an origin in allowedOrigins through, and no other", () => {
+    const allowed = new Set(["https://b"]);
+    expect(resolveUrl("https://a/v1", "https://b/x", undefined, allowed)).toBe(
       "https://b/x",
     );
+    expect(() =>
+      resolveUrl("https://a/v1", "https://c/x", undefined, allowed),
+    ).toThrow(TypeError);
+  });
+  it("without baseURL, limits absolute URLs to allowedOrigins when given", () => {
+    const allowed = new Set(["https://b"]);
+    expect(resolveUrl(undefined, "https://b/x", undefined, allowed)).toBe(
+      "https://b/x",
+    );
+    expect(() =>
+      resolveUrl(undefined, "https://c/x", undefined, allowed),
+    ).toThrow(/https:\/\/c is not in allowedOrigins/);
   });
   it("rejects absolute URLs that are not http(s), with or without baseURL", () => {
     expect(() => resolveUrl(undefined, "data://x/,{}")).toThrow(TypeError);
-    expect(() => resolveUrl("https://a", "ftp://a/x", undefined, true)).toThrow(
-      TypeError,
-    );
+    expect(() =>
+      resolveUrl("https://a", "ftp://a/x", undefined, new Set(["https://b"])),
+    ).toThrow(TypeError);
   });
   it("treats a baseURL with no origin of its own (relative, outside a browser) as another origin", () => {
     expect(() => resolveUrl("/api", "https://a/x")).toThrow(TypeError);
-    expect(resolveUrl("/api", "https://a/x", undefined, true)).toBe(
-      "https://a/x",
-    );
+    expect(
+      resolveUrl("/api", "https://a/x", undefined, new Set(["https://a"])),
+    ).toBe("https://a/x");
   });
   it("names the fix and leaves the query out of the message", () => {
     expect(() =>
       resolveUrl("https://a/v1", "https://b/x?token=s3cret"),
-    ).toThrow(/allowAbsoluteUrls/);
+    ).toThrow(/allowedOrigins/);
     expect(() =>
       resolveUrl("https://a/v1", "https://b/x?token=s3cret"),
     ).not.toThrow(/s3cret/);

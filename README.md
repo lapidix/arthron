@@ -62,7 +62,7 @@ const api = arthron({
 });
 ```
 
-Every field is optional. Without `baseURL`, only absolute URLs are accepted. With one, an absolute URL must stay on `baseURL`'s origin unless you set `allowAbsoluteUrls: true` — and even then config `headers` are only sent to that origin.
+Every field is optional. Without `baseURL`, only absolute URLs are accepted. With one, an absolute URL must stay on `baseURL`'s origin or one you list in `allowedOrigins: ["https://cdn.example.com"]` — and config `headers` are only sent to `baseURL`'s origin. Without a `baseURL`, `allowedOrigins` alone limits where requests go.
 
 ### Make requests
 
@@ -169,7 +169,7 @@ type RequestContext = {
   url: string;
   init: Omit<RequestInit, "headers"> & { headers: Record<string, string> }; // lowercase names
   meta: ArthronMeta; // per-call plugin settings, never sent
-  fetch?: typeof fetch; // the fetch this attempt is sent with — replace it to change the transport, wrap it to observe
+  fetchFn?: typeof fetch; // the function this attempt is sent with (the client's fetchFn, else the global fetch) — replace it to send another way, wrap it to observe
 };
 ```
 
@@ -197,7 +197,7 @@ Every attempt starts from a fresh copy of the context, so a header set by an int
 
 ### Built in
 
-The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging, retry, timeout, uploadProgress } from "arthron/plugins"`. They are plain plugins — anything they do, yours can. `logging`, `retry` and `timeout` are also exported from `arthron` itself, as they were in 1.0; those exports are deprecated and go in the next major.
+The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging, retry, timeout, uploadProgress } from "arthron/plugins"`. They are plain plugins — anything they do, yours can.
 
 | plugin | slots | per call |
 |---|---|---|
@@ -205,7 +205,7 @@ The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging,
 | `retry` | middleware | `meta: { retry: false \| options }` |
 | `timeout` | middleware | `meta: { timeout: ms }` |
 | `logging` | middleware | — |
-| `uploadProgress` | request interceptor (picks the transport) | `meta: { onUploadProgress }` — only calls that pass it |
+| `uploadProgress` | request interceptor (swaps `ctx.fetchFn`) | `meta: { uploadProgress }` — only calls that pass it |
 
 Order is meaning: the first plugin is outermost. A good default:
 
@@ -244,8 +244,6 @@ Opting a non-idempotent method in (`methods: ["POST"]`) means a network failure 
 Aborts the attempt after `ms`, counted until the body has been fully read — a server that sends headers and then stalls still trips it. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore. Combines with a `signal` you pass yourself. `Infinity` means no deadline. The timer never keeps a Node process alive on its own. Per call, `meta: { timeout: 120_000 }` replaces the deadline (`Infinity` lifts it).
 
 A total deadline also cuts off a stream that is still flowing. For streams, bound the silence instead: `timeout({ idle: 30_000 })` aborts only after 30 s without data — waiting for headers or between chunks — however long the stream runs. Both can be combined: `timeout({ total: 600_000, idle: 30_000 })`; `timeout(ms)` is `timeout({ total: ms })`. Options with neither are a `TypeError`.
-
-`timeout(ms, { idle })` still works but is deprecated; it goes in the next major.
 
 ```ts
 arthron({ use: [retry(), timeout(5_000)] }); // 5 s per attempt — a timed-out attempt is not retried
@@ -302,14 +300,14 @@ The token is treated as opaque: to refresh a JWT ahead of its `exp`, do it insid
 
 #### `uploadProgress()`
 
-Does nothing by itself — only a call that passes `meta.onUploadProgress` reports progress. Every other call, on the same client too, goes out exactly as before.
+Does nothing by itself — only a call that passes `meta.uploadProgress` reports progress. Every other call, on the same client too, goes out exactly as before.
 
 ```ts
 const api = arthron({ baseURL: API, use: [retry(), uploadProgress()] }); // last in use
 
 await api.get("/me"); // as usual
 await api.post("/files", file, {
-  meta: { onUploadProgress: ({ loaded, total, progress }) => setBar(progress) }, // this call only
+  meta: { uploadProgress: ({ loaded, total, progress }) => setBar(progress) }, // this call only
 });
 ```
 
@@ -319,7 +317,7 @@ How that call is sent depends on where it runs:
 
 - **Browser:** over `XMLHttpRequest`, the only browser API that reports upload progress. On another origin, the upload listener makes every such call send a CORS preflight — an S3 bucket's CORS rules must allow the method and headers. The response arrives whole: `.sse()` / `.ndjson()` are not live on that call. What XHR cannot honour and would change the call is refused with a `TypeError` before sending: `redirect: "manual" | "error"`, `mode: "no-cors"`, and `credentials: "omit"` to the page's own origin (XHR always sends its cookies there). What only tunes fetch — `cache`, `priority`, `referrerPolicy`, `integrity`, `keepalive` — is ignored on that call. A `ReadableStream` body is sent as usual, without progress.
 - **Node:** with `fetch` as usual, the body counted as it is read, in steps of at most 64 KiB. `content-length` and the content type a `Blob` would set are kept, so an S3 presigned `PUT` accepts it. A `FormData` body is encoded with its length known up front, its files streamed rather than read into memory. jsdom on Node counts the same way.
-- **Anywhere else** — Deno, Bun, Cloudflare Workers, an Electron main process, a service worker — and on a client with an injected `fetch` or another plugin's transport: sent as usual, without progress.
+- **Anywhere else** — Deno, Bun, Cloudflare Workers, an Electron main process, a service worker — and on a client with its own `fetchFn`, or with another plugin's: sent as usual, without progress.
 
 A callback that throws fails the call with its own error, untouched: not an `ArthronError`, not retried. Put `uploadProgress()` last in `use`: a request interceptor after it that replaces `init.signal` would cut that path, and the error would come back as a network failure.
 
@@ -395,9 +393,9 @@ const traced = api.use({ request: (ctx) => ({ ...ctx, init: { ...ctx.init, heade
 ```ts
 type ArthronConfig = {
   baseURL?: string;
-  allowAbsoluteUrls?: boolean; // let absolute URLs leave baseURL's origin (without config headers)
+  allowedOrigins?: string[]; // other origins absolute URLs may go to (only the origin of each URL counts; no config headers there)
   headers?: HeadersOption; // anything fetch's headers take, or a record whose null drops a header (in extend)
-  fetch?: typeof fetch; // inject for tests or a polyfill; resolved per request
+  fetchFn?: typeof fetch; // the function requests are sent with: a fake in tests, a polyfill, a framework's fetch; default the global fetch, read per request
   use?: Plugin[];
   errorDetail?: (data: unknown, res: Response) => string | undefined; // picks ArthronError.detail out of the body
   throwOn?: (res: Response) => boolean; // which non-ok responses reject (also per call)
@@ -443,14 +441,14 @@ class ArthronError extends Error {
 
 - **Fill path segments with `path`.** `{name}` placeholders are encoded per segment; `""`, `.` and `..` are refused, as are missing or unused values. Without `path`, braces are left alone.
 - **URLs are joined by string concatenation.** `baseURL: "https://a/v1"` + `"/users"` → `https://a/v1/users`. The `/v1` survives, unlike with `new URL()`.
-- **Absolute URLs stay on `baseURL`'s origin.** `api.get("https://other.example/x")` on a client with a `baseURL` rejects with a `TypeError`, because a path built from user input or an API response must not carry your credentials elsewhere. Same-origin absolute URLs work. `allowAbsoluteUrls: true` lets other origins through, with per-call headers only. Only `http(s)` URLs are accepted.
+- **Absolute URLs stay on `baseURL`'s origin.** `api.get("https://other.example/x")` on a client with a `baseURL` rejects with a `TypeError`, because a path built from user input or an API response must not carry your credentials elsewhere. Same-origin absolute URLs work. List other origins in `allowedOrigins`; they get per-call headers only. To call any origin, use a client without `baseURL` or `allowedOrigins`. Only `http(s)` URLs are accepted.
 - **Error bodies are read up to 64 KiB.** That is enough for any error message and keeps a huge or endless error body from filling memory. Past the limit `data` is the raw text and the rest of the body is cancelled.
 - **Redirects follow fetch's rules.** On a redirect to another origin, fetch drops `Authorization` but keeps other headers such as `x-api-key`. Pass `redirect: "error"` (or `"manual"`) for calls that carry such keys if the server could redirect off-origin.
 - **Bodies.** `string`, `FormData`, `Blob`, `ArrayBuffer`/views, `URLSearchParams` and `ReadableStream` go through untouched — recognised by type tag, so polyfill and cross-realm instances count too. A `ReadableStream` is sent with `duplex: "half"`, which fetch requires. Anything else — including `null` — becomes JSON with `content-type: application/json`; a content type you set must be a JSON one. Bodies JSON would mangle — a `Map`, `Set`, generator, Node stream or function — are rejected with a `TypeError` that says what to pass instead. A `FormData` body is always sent without a `content-type` header, even with a JSON default, so the runtime can add the multipart boundary. `GET`/`HEAD` with a body is rejected with a `TypeError`.
 - **Fetch defaults are flat and only sent when set.** Config takes the same fetch options per-call calls do (`credentials`, `cache`, `redirect`, …) as defaults; a per-call value wins and `extend` overrides. Nothing is sent that you did not set — cross-origin cookies need `credentials: "include"`. `signal`, `body` and `method` are per call: a client-wide signal would fail every call once aborted.
 - **In browsers, CORS and the engine have the last word.** CI runs the built package in Chromium, Firefox and WebKit against a server on another origin. A JSON body, a custom header and `query()`'s QUERY method each make the browser send a preflight, so the API must allow them (`Access-Control-Allow-Methods: QUERY`, `Access-Control-Allow-Headers`). `retry()` reads `Retry-After` only if the API exposes it (`Access-Control-Expose-Headers: retry-after`); otherwise it waits its own delay. `redirect: "manual"` gives an opaque redirect (`status` 0, `type` `"opaqueredirect"`), returned rather than thrown. A `ReadableStream` body streams only over HTTP/2 (Chromium, WebKit), and the `ArthronError` for one sent to an HTTP/1.1 server says so. Where the browser cannot stream a request body at all (Firefox would send the text `"[object ReadableStream]"`), the call rejects with a `TypeError` before anything is sent. Either way, send a `Blob` or `ArrayBuffer` there.
 - **Response bodies are single-use.** A response interceptor that wants to inspect the body must `res.clone()`; one that changes it returns a new `Response`.
-- **Argument errors reject, they don't throw.** No `baseURL` with a relative path, a URL the global fetch cannot parse (`baseURL: "api.example.com"` without `https://`), a `BigInt` in a JSON body, a missing `method` in `request` — all surface as a rejected `TypeError` before anything is sent, never as a retried `status: 0`. An injected `fetch` is the judge of its own URLs: arthron does not pre-check them, so one that accepts relative URLs (SvelteKit's server-side `fetch`) works with `baseURL: "/api"`.
+- **Argument errors reject, they don't throw.** No `baseURL` with a relative path, a URL the global fetch cannot parse (`baseURL: "api.example.com"` without `https://`), a `BigInt` in a JSON body, a missing `method` in `request` — all surface as a rejected `TypeError` before anything is sent, never as a retried `status: 0`. A `fetchFn` you pass is the judge of its own URLs: arthron does not pre-check them, so one that accepts relative URLs (SvelteKit's server-side `fetch`) works with `baseURL: "/api"`.
 
 ## For tooling and agents
 

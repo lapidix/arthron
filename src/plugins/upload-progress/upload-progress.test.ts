@@ -33,42 +33,42 @@ describe("uploadProgress", () => {
 
   it("leaves a call without the callback untouched", async () => {
     const out = await sent({
-      fetch: globalThis.fetch,
+      fetchFn: globalThis.fetch,
       init: { method: "PUT", body: "x", headers: {} },
     });
-    expect(out.fetch).toBe(globalThis.fetch);
+    expect(out.fetchFn).toBe(globalThis.fetch);
     expect(out.init.body).toBe("x");
   });
 
   it("leaves a call without a body untouched", async () => {
     const events: UploadProgressEvent[] = [];
     const out = await sent({
-      fetch: globalThis.fetch,
-      meta: { onUploadProgress: (e) => events.push(e) },
+      fetchFn: globalThis.fetch,
+      meta: { uploadProgress: (e) => events.push(e) },
     });
-    expect(out.fetch).toBe(globalThis.fetch);
+    expect(out.fetchFn).toBe(globalThis.fetch);
     expect(events).toEqual([]);
   });
 
   it("steps aside for an injected fetch", async () => {
     const injected = fakeFetch(jsonResponse({}));
     const out = await sent({
-      fetch: injected,
+      fetchFn: injected,
       init: { method: "PUT", body: "x", headers: {} },
-      meta: { onUploadProgress: () => {} },
+      meta: { uploadProgress: () => {} },
     });
-    expect(out.fetch).toBe(injected);
+    expect(out.fetchFn).toBe(injected);
   });
 
   it("wraps the runtime fetch in Node and keeps the original body", async () => {
     const blob = new Blob(["abc"]);
     const out = await sent({
-      fetch: globalThis.fetch,
+      fetchFn: globalThis.fetch,
       init: { method: "PUT", body: blob, headers: {} },
-      meta: { onUploadProgress: () => {} },
+      meta: { uploadProgress: () => {} },
     });
-    expect(out.fetch).not.toBe(globalThis.fetch);
-    expect(typeof out.fetch).toBe("function");
+    expect(out.fetchFn).not.toBe(globalThis.fetch);
+    expect(typeof out.fetchFn).toBe("function");
     expect(out.init.body).toBe(blob);
   });
 });
@@ -137,7 +137,7 @@ describe("uploadProgress keeps argument errors", () => {
     });
     const err = await api
       .put("http://exa mple.test/x", "hello", {
-        meta: { onUploadProgress: () => {} },
+        meta: { uploadProgress: () => {} },
       })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TypeError);
@@ -199,7 +199,7 @@ describe("uploadProgress against a real server", () => {
     const err = await api
       .put("/u", new Blob([new Uint8Array(300_000)]), {
         meta: {
-          onUploadProgress: () => {
+          uploadProgress: () => {
             throw boom;
           },
         },
@@ -229,7 +229,7 @@ describe("uploadProgress against a real server", () => {
     const events: UploadProgressEvent[] = [];
     const out = await api
       .put("/u", new Blob([new Uint8Array(300_000)]), {
-        meta: { onUploadProgress: (e) => events.push(e) },
+        meta: { uploadProgress: (e) => events.push(e) },
       })
       .json();
     expect(out).toEqual({ n: 300_000, cl: "300000" });

@@ -1,7 +1,7 @@
 import { runPipeline } from "../pipeline/pipeline";
 import { isReadableStream, serializeBody } from "../request/body";
 import { mergeHeaders } from "../request/headers";
-import { fillPath, leavesBase, resolveUrl } from "../request/url";
+import { fillPath, leavesBase, originSet, resolveUrl } from "../request/url";
 import { toArthronPromise } from "../response/arthron-promise";
 import type { RequestContext } from "../types/request.types";
 import type { ArthronPromise } from "../types/response.types";
@@ -34,6 +34,8 @@ const STANDARD_METHODS = new Set([
 export function arthron(config: ArthronConfig = {}): Arthron {
   const resolved = resolveConfig(config);
   const initDefaults = fetchDefaults(resolved);
+  // Checked here, so a bad entry fails when the client is created.
+  const allowed = resolved.allowedOrigins && originSet(resolved.allowedOrigins);
 
   const dispatch = (
     path: string,
@@ -58,14 +60,9 @@ export function arthron(config: ArthronConfig = {}): Arthron {
         );
       }
       if (pathValues) path = fillPath(path, pathValues);
-      const url = resolveUrl(
-        resolved.baseURL,
-        path,
-        params,
-        resolved.allowAbsoluteUrls,
-      );
+      const url = resolveUrl(resolved.baseURL, path, params, allowed);
       // Config headers (credentials, typically) belong to baseURL's origin.
-      // Another origin, reachable only with allowAbsoluteUrls, gets per-call
+      // Another origin, reachable only through allowedOrigins, gets per-call
       // headers alone.
       const defaults = leavesBase(resolved.baseURL, path)
         ? undefined
@@ -94,7 +91,7 @@ export function arthron(config: ArthronConfig = {}): Arthron {
             meta: { ...meta },
             // Read per call: a global patched after the client was created
             // (msw's `server.listen()`, for one) is still honoured.
-            fetch: resolved.fetch ?? globalThis.fetch,
+            fetchFn: resolved.fetchFn ?? globalThis.fetch,
           },
           (ctx) => send(resolved, ctx, throwOn),
         ),
