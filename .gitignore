@@ -6,3 +6,5 @@ coverage
 docs/superpowers
 .vitest
 .claude/worktrees
+docs/.vitepress/cache
+docs/.vitepress/dist

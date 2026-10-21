@@ -7,7 +7,10 @@
       "!.superpowers",
       "!.claude",
       "!.vitest",
-      "!.omc"
+      "!.omc",
+      "!docs/superpowers",
+      "!docs/.vitepress/cache",
+      "!docs/.vitepress/dist"
     ]
   },
   "formatter": {
@@ -19,5 +22,21 @@
     "rules": {
       "preset": "recommended"
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["docs/**/*.vue"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off",
+            "noUnusedImports": "off"
+          },
+          "style": {
+            "useVueMultiWordComponentNames": "off"
+          }
+        }
+      }
+    }
+  ]
 }

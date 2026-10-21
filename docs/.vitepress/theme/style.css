@@ -1,0 +1,296 @@
+/* Colors and fonts. */
+
+:root {
+  --vp-c-brand-1: #0f766e;
+  --vp-c-brand-2: #115e59;
+  --vp-c-brand-3: #0f766e;
+  --vp-c-brand-soft: rgba(20, 184, 166, 0.14);
+  --vp-c-text-1: #18181b;
+  --vp-c-text-2: #52525b;
+  --vp-c-text-3: #a1a1aa;
+  --vp-c-bg: #ffffff;
+  --vp-c-bg-alt: #fafafa;
+  --vp-c-bg-soft: #f4f4f5;
+  --vp-c-divider: #e4e4e7;
+
+  --vp-font-family-base: "IBM Plex Sans", system-ui, sans-serif;
+  --vp-font-family-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* The second button is outlined, not filled. */
+  --vp-button-alt-border: var(--vp-c-divider);
+  --vp-button-alt-bg: var(--vp-c-bg);
+  --vp-button-alt-hover-border: var(--vp-c-divider);
+  --vp-button-alt-hover-bg: var(--vp-c-bg-soft);
+  --vp-button-alt-active-border: var(--vp-c-divider);
+}
+
+.dark {
+  --vp-c-brand-1: #2dd4bf;
+  --vp-c-brand-2: #5eead4;
+  --vp-c-brand-3: #0f766e;
+  --vp-c-brand-soft: rgba(45, 212, 191, 0.16);
+  --vp-c-text-1: #fafafa;
+  --vp-c-text-2: #a1a1aa;
+  --vp-c-text-3: #71717a;
+  --vp-c-bg: #18181b;
+  --vp-c-bg-alt: #09090b;
+  --vp-c-bg-soft: #27272a;
+  --vp-c-divider: #3f3f46;
+
+  /* A brand button turns brand-2 on hover and brand-1 when pressed. Those are
+     light teals in dark mode and would leave its white text unreadable. */
+  --vp-button-brand-hover-bg: #115e59;
+  --vp-button-brand-active-bg: #134e4a;
+}
+
+/* Home page. The default home styles are scoped, so these rules add
+   .VPHome or .VPContent.is-home to outweigh them; where the weights tie,
+   these load later. */
+
+/* The hero and the cards span the same width as the nav bar, so their edges
+   line up with the logo and the last nav item. --home-space is the gap above
+   the hero, between the hero and the cards, and below the cards. */
+
+.VPHome {
+  --home-space: 48px;
+}
+
+@media (min-width: 640px) {
+  .VPHome {
+    --home-space: 64px;
+  }
+}
+
+@media (min-width: 960px) {
+  .VPHome {
+    --home-space: 80px;
+  }
+}
+
+.VPHome .VPHero.VPHomeHero,
+.VPHome .VPFeatures.VPHomeFeatures {
+  padding-right: 24px;
+  padding-left: 24px;
+}
+
+@media (min-width: 768px) {
+  .VPHome .VPHero.VPHomeHero,
+  .VPHome .VPFeatures.VPHomeFeatures {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+}
+
+.VPHome .VPHomeHero .container,
+.VPHome .VPHomeFeatures .container {
+  max-width: calc(var(--vp-layout-max-width) - 64px);
+}
+
+.VPHome .VPHero.VPHomeHero {
+  padding-top: calc(
+    var(--vp-nav-height) +
+    var(--vp-layout-top-height, 0px) +
+    var(--home-space)
+  );
+  padding-bottom: var(--home-space);
+}
+
+.VPContent.is-home .VPHome {
+  margin-bottom: var(--home-space);
+}
+
+/* On a screen taller than the page, the spare height goes above and below
+   the content in equal parts, not all of it above the footer. */
+.VPContent.is-home {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Hero: text first and code under it on narrow screens; from 960px, the text
+   takes about 45% of the row and the code the rest. */
+
+.VPHome .hero-mark {
+  margin: 0 auto 20px;
+  width: 48px;
+  height: 48px;
+}
+
+.VPHome .VPHero .text {
+  letter-spacing: -0.02em;
+}
+
+.VPHome .VPHero .text .accent {
+  color: var(--vp-c-brand-1);
+}
+
+.VPHome .VPHero .tagline {
+  font-weight: 400;
+}
+
+.VPHome .tagline code {
+  border-radius: 4px;
+  padding: 3px 6px;
+  background-color: var(--vp-code-bg);
+  color: var(--vp-code-color);
+  font-size: 0.875em;
+}
+
+.VPHome .VPHero .VPButton.medium {
+  border-radius: 8px;
+}
+
+.VPHome .VPHero .main {
+  order: 1;
+}
+
+.VPHome .VPHero .image {
+  order: 2;
+  margin: 40px 0 0;
+}
+
+.VPHome .VPHero .image-container {
+  width: auto;
+  height: auto;
+}
+
+.VPHome .VPHero .image-bg {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .VPHome .VPHero .text {
+    line-height: 48px;
+    font-size: 40px;
+  }
+
+  .VPHome .VPHero .tagline {
+    line-height: 28px;
+    font-size: 18px;
+  }
+}
+
+@media (min-width: 960px) {
+  .VPHome .hero-mark {
+    margin: 0 0 20px;
+    width: 56px;
+    height: 56px;
+  }
+
+  .VPHome .VPHero .main {
+    flex: 0 0 calc(45% - 24px);
+  }
+
+  .VPHome .VPHero .image {
+    margin: 0 0 0 48px;
+    min-width: 0;
+  }
+
+  .VPHome .VPHero .image-container {
+    height: 100%;
+    transform: none;
+  }
+}
+
+/* The install command is a button that copies it. */
+
+.VPHome .hero-install {
+  position: relative;
+  display: inline-flex;
+  margin-top: 16px;
+}
+
+.VPHome .hero-install-button {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  padding: 0 12px 0 16px;
+  height: 40px;
+  background-color: var(--vp-c-bg-alt);
+  font-family: var(--vp-font-family-mono);
+  font-size: 14px;
+  color: var(--vp-c-text-1);
+  cursor: pointer;
+  transition: background-color 0.25s;
+}
+
+.VPHome .hero-install-button:hover {
+  background-color: var(--vp-c-bg-soft);
+}
+
+.VPHome .hero-install-button::after {
+  width: 16px;
+  height: 16px;
+  background: var(--vp-icon-copy) center / 16px no-repeat;
+  content: "";
+}
+
+.VPHome .hero-install-button.copied::after {
+  background-image: var(--vp-icon-copied);
+}
+
+.VPHome .hero-install-prompt {
+  color: var(--vp-c-brand-1);
+  user-select: none;
+}
+
+.VPHome .hero-install-status:not(:empty) {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 8px);
+  transform: translateY(-50%);
+  border: 1px solid var(--vp-code-copy-code-hover-border-color);
+  border-radius: 4px;
+  padding: 0 10px;
+  line-height: 28px;
+  background-color: var(--vp-code-copy-code-hover-bg);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--vp-code-copy-code-active-text);
+  white-space: nowrap;
+}
+
+/* The hero code wraps a line that does not fit instead of scrolling, and
+   indents the rest of the line under its start. */
+
+.VPHome .hero-code {
+  width: 100%;
+  min-width: 0;
+}
+
+.VPHome .hero-code div[class*="language-"] {
+  margin: 0;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+}
+
+.VPHome .hero-code pre code {
+  width: auto;
+  white-space: normal;
+}
+
+.VPHome .hero-code .line {
+  display: block;
+  padding-left: 6ch;
+  text-indent: -6ch;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.VPHome .hero-code .line:empty::before {
+  content: " ";
+}
+
+/* Features: three cards on the page background. */
+
+.VPHome .VPHomeFeatures .VPFeature {
+  border-color: var(--vp-c-divider);
+  border-radius: 8px;
+  background-color: var(--vp-c-bg);
+}
+
+.VPHome .VPHomeFeatures .details {
+  font-weight: 400;
+}
