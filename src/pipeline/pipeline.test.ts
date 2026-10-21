@@ -19,6 +19,40 @@ const ctx = (): RequestContext => ({
 });
 const ok = async () => jsonResponse({});
 
+/** FormData / URLSearchParams look-alikes: the right type tag, their own class. */
+class PolyfillEntries {
+  readonly #entries: [string, string][] = [];
+  append(k: string, v: string) {
+    this.#entries.push([k, v]);
+  }
+  getAll(k: string) {
+    return this.#entries.filter(([key]) => key === k).map(([, v]) => v);
+  }
+  *[Symbol.iterator]() {
+    yield* this.#entries;
+  }
+  toString() {
+    return this.#entries.map(([k, v]) => `${k}=${v}`).join("&");
+  }
+}
+class PolyfillFormData extends PolyfillEntries {
+  get [Symbol.toStringTag]() {
+    return "FormData";
+  }
+}
+class PolyfillSearchParams extends PolyfillEntries {
+  constructor(init = "") {
+    super();
+    for (const pair of init ? init.split("&") : []) {
+      const [k = "", v = ""] = pair.split("=");
+      this.append(k, v);
+    }
+  }
+  get [Symbol.toStringTag]() {
+    return "URLSearchParams";
+  }
+}
+
 describe("runPipeline", () => {
   it("runs middleware outside-in in registration order and interceptors in order", async () => {
     const log: string[] = [];
@@ -125,6 +159,9 @@ describe("runPipeline", () => {
   it.each([
     ["FormData", () => new FormData()],
     ["URLSearchParams", () => new URLSearchParams()],
+    // Not instanceof the global class, like formdata-node or another realm's.
+    ["polyfill FormData", () => new PolyfillFormData()],
+    ["polyfill URLSearchParams", () => new PolyfillSearchParams()],
   ] as const)(
     "clones a %s body per attempt so in-place appends do not pile up",
     async (_, make) => {
@@ -151,7 +188,7 @@ describe("runPipeline", () => {
         [twice, addToken],
         {
           url: "https://a/x",
-          init: { method: "POST", body: make(), headers: {} },
+          init: { method: "POST", body: make() as BodyInit, headers: {} },
           meta: {},
         },
         async (c) => {

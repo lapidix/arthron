@@ -1,6 +1,6 @@
 import { isArthronError } from "../../error/arthron-error";
 import { isReadableStream } from "../../request/body";
-import { httpOrigin } from "../../request/url";
+import { httpOrigins, originOf } from "../../request/url";
 import type { Plugin } from "../../types/plugin.types";
 import type { BearerAuthOptions } from "./bearer-auth.types";
 
@@ -10,21 +10,12 @@ const REPLACED = [
 ] as const;
 
 function allowedOrigins(origin: BearerAuthOptions["origin"]): Set<string> {
-  const urls = typeof origin === "string" ? [origin] : origin;
-  if (urls.length === 0) {
-    throw new TypeError(
+  return httpOrigins(typeof origin === "string" ? [origin] : origin, {
+    empty:
       'arthron: bearerAuth({ origin }) needs at least one URL — e.g. origin: "https://api.example.com"',
-    );
-  }
-  return new Set(
-    urls.map((url) => {
-      const found = httpOrigin(url);
-      if (found) return found;
-      throw new TypeError(
-        `arthron: bearerAuth({ origin }) needs an http(s) URL, got ${JSON.stringify(url)} — e.g. origin: "https://api.example.com"`,
-      );
-    }),
-  );
+    invalid: (url) =>
+      `arthron: bearerAuth({ origin }) needs an http(s) URL, got ${url} — e.g. origin: "https://api.example.com"`,
+  });
 }
 
 /**
@@ -46,12 +37,26 @@ export function bearerAuth(options: BearerAuthOptions): Plugin {
   }
   const { accessTokenFn, refreshFn } = options;
   const allowed = allowedOrigins(options.origin);
-  const ours = (url: string) => allowed.has(httpOrigin(url) ?? "");
+  // A relative URL (baseURL "/api") is on the page's origin.
+  const ours = (url: string) => allowed.has(originOf(url) ?? "");
   const bearer = async () => {
     const value = await accessTokenFn();
     return value ? `Bearer ${value}` : undefined;
   };
   let refreshing: Promise<void> | undefined;
+  // True while refreshFn runs up to its first await: a call that starts then
+  // is the refresh's own, and on a 401 it would wait for itself.
+  let inRefresh = false;
+  const startRefresh = (refresh: () => Promise<void>): Promise<void> => {
+    inRefresh = true;
+    try {
+      return refresh().finally(() => {
+        refreshing = undefined;
+      });
+    } finally {
+      inRefresh = false;
+    }
+  };
 
   return {
     pluginName: "bearerAuth",
@@ -69,6 +74,10 @@ export function bearerAuth(options: BearerAuthOptions): Plugin {
     },
     middleware: async (ctx, next) => {
       if (!refreshFn || ctx.meta?.bearerAuth === false) return next(ctx);
+      // The refresh's own call goes out as if it had meta.bearerAuth: false.
+      if (inRefresh) {
+        return next({ ...ctx, meta: { ...ctx.meta, bearerAuth: false } });
+      }
       // A stream is read by the first try; there is nothing left to resend.
       if (isReadableStream(ctx.init.body)) return next(ctx);
       try {
@@ -79,9 +88,7 @@ export function bearerAuth(options: BearerAuthOptions): Plugin {
         // Refresh only if the token that failed is still the current one —
         // otherwise another call has refreshed it already.
         if (error.request.init.headers.authorization === (await bearer())) {
-          refreshing ??= refreshFn().finally(() => {
-            refreshing = undefined;
-          });
+          refreshing ??= startRefresh(refreshFn);
           await refreshing;
         }
         return next(ctx);

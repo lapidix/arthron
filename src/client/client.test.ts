@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import { ArthronError } from "../error/arthron-error";
 import { logging } from "../plugins/logging/logging";
@@ -173,6 +174,8 @@ describe("arthron — argument errors reject instead of throwing synchronously",
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TypeError);
     expect((err as Error).message).not.toContain("s3cret");
+    // Nor in the runtime's error it carries as the cause.
+    expect(inspect(err, { depth: 10 })).not.toContain("s3cret");
   });
   it("leaves URL rules to an injected fetch — relative URLs reach one that accepts them", async () => {
     // e.g. SvelteKit's server-side `event.fetch`
@@ -278,6 +281,20 @@ describe("arthron — config", () => {
     await api.get("https://b/x", { headers: { "x-call": "1" } });
     expect(fetch.calls[0]?.url).toBe("https://b/x");
     expect(fetch.calls[0]?.init.headers).toEqual({ "x-call": "1" });
+  });
+  it("without a baseURL, sends config headers to every origin in allowedOrigins", async () => {
+    const fetch = fakeFetch(jsonResponse({}));
+    const api = arthron({
+      fetchFn: fetch,
+      headers: { "x-api-key": "k" },
+      allowedOrigins: ["https://b", "https://c"],
+    });
+    await api.get("https://b/x");
+    await api.get("https://c/x");
+    expect(fetch.calls.map((c) => c.init.headers)).toEqual([
+      { "x-api-key": "k" },
+      { "x-api-key": "k" },
+    ]);
   });
   it("counts only the origin of an allowedOrigins URL", async () => {
     const { api, fetch } = make(undefined, {

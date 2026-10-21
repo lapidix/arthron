@@ -15,29 +15,39 @@ function guardBody(
   onChunk: () => void,
 ): ReadableStream<Uint8Array> {
   const reader = body.getReader();
+  let onAbort = () => {};
+  // The listener goes when the body does: left on a signal joined to the
+  // caller's, it would keep this reader alive as long as the caller's signal.
+  const settle = () => {
+    signal.removeEventListener("abort", onAbort);
+    finish();
+  };
   return new ReadableStream<Uint8Array>({
     start(controller) {
-      signal.addEventListener(
-        "abort",
-        () => {
-          controller.error(signal.reason);
-          reader.cancel(signal.reason).catch(() => {});
-        },
-        { once: true },
-      );
+      onAbort = () => {
+        controller.error(signal.reason);
+        reader.cancel(signal.reason).catch(() => {});
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
     },
     async pull(controller) {
-      const { value, done } = await reader.read();
-      if (done) {
-        finish();
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await reader.read();
+      } catch (error) {
+        settle();
+        throw error;
+      }
+      if (chunk.done) {
+        settle();
         controller.close();
         return;
       }
       onChunk();
-      controller.enqueue(value);
+      controller.enqueue(chunk.value);
     },
     cancel(reason) {
-      finish();
+      settle();
       return reader.cancel(reason);
     },
   });

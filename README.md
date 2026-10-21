@@ -62,7 +62,7 @@ const api = arthron({
 });
 ```
 
-Every field is optional. Without `baseURL`, only absolute URLs are accepted. With one, an absolute URL must stay on `baseURL`'s origin or one you list in `allowedOrigins: ["https://cdn.example.com"]` — and config `headers` are only sent to `baseURL`'s origin. Without a `baseURL`, `allowedOrigins` alone limits where requests go.
+Every field is optional. Without `baseURL`, only absolute URLs are accepted. With one, an absolute URL must stay on `baseURL`'s origin or one you list in `allowedOrigins: ["https://cdn.example.com"]` — and config `headers` are only sent to `baseURL`'s origin. Without a `baseURL`, `allowedOrigins` alone limits where requests go, and config `headers` go to every origin on it.
 
 ### Make requests
 
@@ -288,13 +288,13 @@ const api = arthron({
 
 | option | default | |
 |---|---|---|
-| `origin` | required | a URL or several; only their origins count, so `baseURL` works as is. Anything that is not an http(s) URL is a `TypeError` |
+| `origin` | required | a URL or several; only their origins count, so `baseURL` works as is — a relative one (`"/api"`) is on the page's origin. Anything that is not an http(s) URL is a `TypeError` |
 | `accessTokenFn` | required | `() => string \| null \| undefined`, or a promise of one; read on every attempt. No token, no header |
 | `refreshFn` | — | `() => Promise<void>`, called after a 401; then the call is redone once. Without it, a 401 is thrown as is |
 
 The token goes to `origin` only — never to a CDN or a URL taken from a response body. Concurrent 401s share one refresh: with refresh-token rotation, parallel refreshes would revoke each other and log the user out. A call whose token was already replaced by another call's refresh retries without refreshing again. A second 401 is thrown, and so is a failed refresh — every call waiting on it rejects with the error `refreshFn` threw, so that is the place to send the user to a login page. The 401 of a `ReadableStream` body is thrown without a refresh: the first try has read the stream, so there is nothing to resend.
 
-Per call, `meta: { bearerAuth: false }` sends no token and never refreshes. Use it for the login and refresh endpoints: a refresh request that went through `bearerAuth()` would, on its own 401, wait for itself.
+Per call, `meta: { bearerAuth: false }` sends no token and never refreshes. Use it for the login and refresh endpoints. A request `refreshFn` starts through the same client before its first `await` is sent that way on its own; one it starts after an `await` needs the meta, or its 401 would wait for the refresh it is part of.
 
 The token is treated as opaque: to refresh a JWT ahead of its `exp`, do it inside `accessTokenFn`. It is not for cookie sessions: it tells whether another call already refreshed by comparing the `authorization` header a call sent with the current one, and an httpOnly cookie cannot be read to compare.
 
@@ -315,7 +315,7 @@ The event: `loaded` (bytes sent), `total` (bytes in the body, `undefined` when u
 
 How that call is sent depends on where it runs:
 
-- **Browser:** over `XMLHttpRequest`, the only browser API that reports upload progress. On another origin, the upload listener makes every such call send a CORS preflight — an S3 bucket's CORS rules must allow the method and headers. The response arrives whole: `.sse()` / `.ndjson()` are not live on that call. What XHR cannot honour and would change the call is refused with a `TypeError` before sending: `redirect: "manual" | "error"`, `mode: "no-cors"`, and `credentials: "omit"` to the page's own origin (XHR always sends its cookies there). What only tunes fetch — `cache`, `priority`, `referrerPolicy`, `integrity`, `keepalive` — is ignored on that call. A `ReadableStream` body is sent as usual, without progress.
+- **Browser:** over `XMLHttpRequest`, the only browser API that reports upload progress. On another origin, the upload listener makes every such call send a CORS preflight — an S3 bucket's CORS rules must allow the method and headers. The response arrives whole: `.sse()` / `.ndjson()` are not live on that call. What XHR cannot honour and would change the call is refused with a `TypeError` before sending: `redirect: "manual" | "error"`, `mode: "no-cors"`, `credentials: "omit"` to the page's own origin (XHR always sends its cookies there), a `referrerPolicy` or `referrer` of its own (XHR sends the page's referrer) and `integrity` (XHR cannot check it). What only tunes fetch — `cache`, `priority`, `keepalive` — is ignored on that call. A `ReadableStream` body is sent as usual, without progress.
 - **Node:** with `fetch` as usual, the body counted as it is read, in steps of at most 64 KiB. `content-length` and the content type a `Blob` would set are kept, so an S3 presigned `PUT` accepts it. A `FormData` body is encoded with its length known up front, its files streamed rather than read into memory. jsdom on Node counts the same way.
 - **Anywhere else** — Deno, Bun, Cloudflare Workers, an Electron main process, a service worker — and on a client with its own `fetchFn`, or with another plugin's: sent as usual, without progress.
 
@@ -393,7 +393,7 @@ const traced = api.use({ pluginName: "trace", requestInterceptor: (ctx) => ({ ..
 ```ts
 type ArthronClientOptions = {
   baseURL?: string;
-  allowedOrigins?: string[]; // other origins absolute URLs may go to (only the origin of each URL counts; no config headers there)
+  allowedOrigins?: string[]; // other origins absolute URLs may go to (only the origin of each URL counts; no config headers there — without baseURL, the client's origins, config headers included)
   headers?: HeadersOption; // anything fetch's headers take, or a record whose null drops a header (in extend)
   fetchFn?: typeof fetch; // the function requests are sent with: a fake in tests, a polyfill, a framework's fetch; default the global fetch, read per request
   plugins?: Plugin[]; // outermost first; one with the pluginName of an earlier one replaces it
@@ -432,7 +432,7 @@ class ArthronError extends Error {
   description?: string; // the server's description of the failure, extracted from payload; untrusted text
   response?: Response; // absent for network failures; not enumerable
   request: RequestContext; // not enumerable — holds credentials
-  cause?: unknown; // the underlying error for network failures
+  cause?: unknown; // the underlying error for network failures (query and userinfo redacted)
   toJSON(): { name; message; description; status; statusText; method; url; payload }; // url without query/userinfo
 }
 ```
@@ -441,7 +441,7 @@ class ArthronError extends Error {
 
 - **Fill path segments with `pathParams`.** `{name}` placeholders are encoded per segment; `""`, `.` and `..` are refused, as are missing or unused values. Without `pathParams`, braces are left alone.
 - **URLs are joined by string concatenation.** `baseURL: "https://a/v1"` + `"/users"` → `https://a/v1/users`. The `/v1` survives, unlike with `new URL()`.
-- **Absolute URLs stay on `baseURL`'s origin.** `api.get("https://other.example/x")` on a client with a `baseURL` rejects with a `TypeError`, because a path built from user input or an API response must not carry your credentials elsewhere. Same-origin absolute URLs work. List other origins in `allowedOrigins`; they get per-call headers only. To call any origin, use a client without `baseURL` or `allowedOrigins`. Only `http(s)` URLs are accepted.
+- **Absolute URLs stay on `baseURL`'s origin.** `api.get("https://other.example/x")` on a client with a `baseURL` rejects with a `TypeError`, because a path built from user input or an API response must not carry your credentials elsewhere. Same-origin absolute URLs work. List other origins in `allowedOrigins`; they get per-call headers only. A client without `baseURL` sends its config headers to every origin it lists. To call any origin, use a client without `baseURL` or `allowedOrigins`. Only `http(s)` URLs are accepted.
 - **Error bodies are read up to 64 KiB.** That is enough for any error message and keeps a huge or endless error body from filling memory. Past the limit `payload` is the raw text and the rest of the body is cancelled.
 - **Redirects follow fetch's rules.** On a redirect to another origin, fetch drops `Authorization` but keeps other headers such as `x-api-key`. Pass `redirect: "error"` (or `"manual"`) for calls that carry such keys if the server could redirect off-origin.
 - **Bodies.** `string`, `FormData`, `Blob`, `ArrayBuffer`/views, `URLSearchParams` and `ReadableStream` go through untouched — recognised by type tag, so polyfill and cross-realm instances count too. A `ReadableStream` is sent with `duplex: "half"`, which fetch requires. Anything else — including `null` — becomes JSON with `content-type: application/json`; a content type you set must be a JSON one. Bodies JSON would mangle — a `Map`, `Set`, generator, Node stream or function — are rejected with a `TypeError` that says what to pass instead. A `FormData` body is always sent without a `content-type` header, even with a JSON default, so the runtime can add the multipart boundary. `GET`/`HEAD` with a body is rejected with a `TypeError`.

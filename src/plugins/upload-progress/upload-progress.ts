@@ -49,11 +49,20 @@ function currentRuntime(): Runtime {
 
 /**
  * What an XHR cannot honour and whose loss would change the call: it always
- * follows redirects, has no no-cors mode, and always sends cookies to its own
- * origin. `undefined` when the call can go over XHR.
+ * follows redirects, has no no-cors mode, always sends cookies to its own
+ * origin, sends the page's referrer whatever the call asked for, and checks
+ * no integrity. `undefined` when the call can go over XHR.
  */
 export function xhrRefusal(
-  init: Pick<RequestInit, "redirect" | "mode" | "credentials">,
+  init: Pick<
+    RequestInit,
+    | "redirect"
+    | "mode"
+    | "credentials"
+    | "referrer"
+    | "referrerPolicy"
+    | "integrity"
+  >,
   url: string,
   pageHref: string | undefined,
 ): string | undefined {
@@ -68,6 +77,16 @@ export function xhrRefusal(
     if (new URL(url, pageHref).origin === page) {
       return 'credentials: "omit" on this origin — XMLHttpRequest always sends cookies to its own origin';
     }
+  }
+  // "" and "about:client" are the defaults: the page's policy and referrer.
+  if (init.referrerPolicy) {
+    return `referrerPolicy: "${init.referrerPolicy}" — XMLHttpRequest sends the page's referrer under the page's policy`;
+  }
+  if (init.referrer !== undefined && init.referrer !== "about:client") {
+    return `referrer: ${JSON.stringify(init.referrer)} — XMLHttpRequest sends the page's referrer`;
+  }
+  if (init.integrity) {
+    return `integrity: "${init.integrity}" — XMLHttpRequest cannot check it`;
   }
   return undefined;
 }
@@ -112,6 +131,14 @@ export function uploadProgress(): Plugin {
   return {
     pluginName: "uploadProgress",
     requestInterceptor: (ctx) => {
+      // The 1.x name: from JS it would be ignored, and progress never come.
+      if (
+        (ctx.meta as Record<string, unknown>)?.onUploadProgress !== undefined
+      ) {
+        throw new TypeError(
+          "arthron: meta.onUploadProgress was replaced by meta.uploadProgress in 2.0 — pass meta: { uploadProgress }",
+        );
+      }
       const onProgress = ctx.meta?.uploadProgress;
       const { body } = ctx.init;
       if (!onProgress || body === undefined || body === null) return ctx;

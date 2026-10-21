@@ -1,4 +1,4 @@
-import { runPipeline } from "../pipeline/pipeline";
+import { createPipeline } from "../pipeline/pipeline";
 import { isReadableStream, serializeBody } from "../request/body";
 import { mergeHeaders } from "../request/headers";
 import { fillPath, leavesBase, originSet, resolveUrl } from "../request/url";
@@ -45,6 +45,7 @@ export function arthron(config: ArthronClientOptions = {}): ArthronClient {
   const initDefaults = fetchDefaults(resolved);
   // Checked here, so a bad entry fails when the client is created.
   const allowed = resolved.allowedOrigins && originSet(resolved.allowedOrigins);
+  const pipeline = createPipeline(resolved.plugins);
 
   const dispatch = (
     path: string,
@@ -99,8 +100,7 @@ export function arthron(config: ArthronClientOptions = {}): ArthronClient {
       if (isReadableStream(body))
         Object.assign(requestInit, { duplex: "half" });
       return toResponsePromise(
-        runPipeline(
-          resolved.plugins,
+        pipeline(
           {
             url,
             init: requestInit,
