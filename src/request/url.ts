@@ -96,7 +96,7 @@ function toQueryString(params: QueryParams | undefined): string {
       // neither is what a server expects.
       if (typeof item === "object" || typeof item === "function") {
         throw new TypeError(
-          `arthron: params.${key} is not a string, number or boolean — pass one of those or an array of them (dates: date.toISOString())`,
+          `arthron: queryParams.${key} is not a string, number or boolean — pass one of those or an array of them (dates: date.toISOString())`,
         );
       }
       search.append(key, String(item));

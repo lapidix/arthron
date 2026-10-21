@@ -28,6 +28,15 @@ const STANDARD_METHODS = new Set([
 ]);
 
 /**
+ * 1.x per-call option names and what replaced them. Left in init they would
+ * reach fetch and be ignored: {id} sent unfilled, the query left off.
+ */
+const REPLACED_PER_CALL = {
+  path: "pathParams",
+  params: "queryParams",
+} as const;
+
+/**
  * Build a client from config. The result is immutable — `use` and `extend`
  * return new clients and never touch the one they were called on.
  */
@@ -42,7 +51,7 @@ export function arthron(config: ArthronClientOptions = {}): ArthronClient {
     method: string,
     rawBody: unknown,
     {
-      params,
+      queryParams,
       headers: callHeaders,
       meta,
       throwOn = resolved.throwOn,
@@ -51,23 +60,23 @@ export function arthron(config: ArthronClientOptions = {}): ArthronClient {
     }: RequestOptions,
   ): ResponsePromise => {
     try {
-      // The 1.x name: left in init it would reach fetch, and {id} would go
-      // out unfilled.
-      if ((init as Record<string, unknown>).path !== undefined) {
-        throw new TypeError(
-          "arthron: the path option is called pathParams since 2.0 — pass { pathParams: { … } }",
-        );
+      for (const [old, now] of Object.entries(REPLACED_PER_CALL)) {
+        if ((init as Record<string, unknown>)[old] !== undefined) {
+          throw new TypeError(
+            `arthron: the ${old} option was replaced by ${now} in 2.0 — pass { ${now}: { … } }`,
+          );
+        }
       }
       const upper = method.toUpperCase();
       const verb = STANDARD_METHODS.has(upper) ? upper : method;
       if (rawBody !== undefined && BODYLESS_METHODS.has(upper)) {
         // fetch rejects these with a TypeError that would otherwise be mistaken for a network failure and retried.
         throw new TypeError(
-          `arthron: ${upper} requests cannot carry a body — send it as params (query) or switch to POST`,
+          `arthron: ${upper} requests cannot carry a body — send it as queryParams or switch to POST`,
         );
       }
       if (pathParams) path = fillPath(path, pathParams);
-      const url = resolveUrl(resolved.baseURL, path, params, allowed);
+      const url = resolveUrl(resolved.baseURL, path, queryParams, allowed);
       // Config headers (credentials, typically) belong to baseURL's origin.
       // Another origin, reachable only through allowedOrigins, gets per-call
       // headers alone.

@@ -30,7 +30,11 @@ export interface RequestOptions
   extends Omit<RequestInit, "body" | "method" | "headers"> {
   /** Per-call headers; a `null`/`undefined` value drops a client default. */
   headers?: HeadersOption;
-  params?: QueryParams;
+  /**
+   * The query string: `null`/`undefined` values are skipped, an array becomes
+   * repeated keys (`ids=1&ids=2`), and a `URLSearchParams` is used as is.
+   */
+  queryParams?: QueryParams;
   /**
    * Values for `{name}` placeholders in the path, each encoded into its own
    * segment: `get("/users/{id}", { pathParams: { id } })`. Interpolating ids

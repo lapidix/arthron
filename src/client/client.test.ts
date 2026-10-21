@@ -6,7 +6,7 @@ import { timeout } from "../plugins/timeout/timeout";
 import { fakeFetch, jsonResponse } from "../testkit/fetch.testkit";
 import type { Plugin } from "../types/plugin.types";
 import { arthron } from "./client";
-import type { ArthronClientOptions } from "./client.types";
+import type { ArthronClientOptions, RequestOptions } from "./client.types";
 
 // Public types are interfaces, so a plugin package can extend them.
 declare module "./client.types" {
@@ -29,7 +29,7 @@ const headersOf = (init: RequestInit | undefined) =>
 describe("arthron — requests", () => {
   it("get sends GET to baseURL + path with params and returns the Response", async () => {
     const { api, fetch } = make();
-    const res = await api.get("/u", { params: { q: 1 } });
+    const res = await api.get("/u", { queryParams: { q: 1 } });
     expect(res).toBeInstanceOf(Response);
     expect(fetch.calls[0]).toMatchObject({
       url: "https://a/v1/u?q=1",
@@ -38,8 +38,8 @@ describe("arthron — requests", () => {
   });
   it("sends array params as repeated keys and takes URLSearchParams", async () => {
     const { api, fetch } = make();
-    await api.get("/u", { params: { ids: [1, 2] } });
-    await api.get("/u", { params: new URLSearchParams("a=1&a=2") });
+    await api.get("/u", { queryParams: { ids: [1, 2] } });
+    await api.get("/u", { queryParams: new URLSearchParams("a=1&a=2") });
     expect(fetch.calls.map((c) => c.url)).toEqual([
       "https://a/v1/u?ids=1&ids=2",
       "https://a/v1/u?a=1&a=2",
@@ -169,7 +169,7 @@ describe("arthron — argument errors reject instead of throwing synchronously",
   });
   it("keeps the query out of the URL-check message", async () => {
     const err = await arthron({ baseURL: "api.example.com" })
-      .get("/x", { params: { token: "s3cret" } })
+      .get("/x", { queryParams: { token: "s3cret" } })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TypeError);
     expect((err as Error).message).not.toContain("s3cret");
@@ -749,11 +749,14 @@ describe("arthron — 1.x option names", () => {
     expect(create).toThrow(TypeError);
     expect(create).toThrow(`arthron({ ${now} })`);
   });
-  it("refuses the per-call path option, naming pathParams", async () => {
+  it.each([
+    ["path", "pathParams"],
+    ["params", "queryParams"],
+  ])("refuses the per-call %s option, naming %s", async (old, now) => {
     const { api } = make();
-    // @ts-expect-error the option is pathParams since 2.0
-    await expect(api.get("/users/{id}", { path: { id: 1 } })).rejects.toThrow(
-      /\{ pathParams: \{ … \} \}/,
+    const init = { [old]: { id: 1 } } as RequestOptions;
+    await expect(api.get("/users/{id}", init)).rejects.toThrow(
+      `{ ${now}: { … } }`,
     );
   });
 });

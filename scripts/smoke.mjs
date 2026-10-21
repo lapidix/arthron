@@ -136,7 +136,7 @@ try {
     plugins: [retry({ delayFn: () => 0 }), timeout(500)],
   });
 
-  const body = await api.get("/echo", { params: { q: 1 } }).json();
+  const body = await api.get("/echo", { queryParams: { q: 1 } }).json();
   assert(
     body.method === "GET" && body.url === "/echo?q=1",
     "GET with params reaches the server",
@@ -210,7 +210,7 @@ try {
     baseURL,
     headers: { authorization: "Bearer SMOKE-TOKEN" },
   })
-    .get("/fail", { params: { key: "SMOKE-QUERY" } })
+    .get("/fail", { queryParams: { key: "SMOKE-QUERY" } })
     .catch((e) => e);
   const serialized = JSON.stringify(leaky);
   assert(

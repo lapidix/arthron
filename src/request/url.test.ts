@@ -111,7 +111,7 @@ describe("resolveUrl", () => {
   it("rejects object values (Date included) instead of sending [object Object]", () => {
     expect(() =>
       resolveUrl("https://a", "/u", { f: { a: 1 } } as never),
-    ).toThrow(/params\.f/);
+    ).toThrow(/queryParams\.f/);
     expect(() =>
       resolveUrl("https://a", "/u", { at: new Date(0) } as never),
     ).toThrow(/toISOString/);

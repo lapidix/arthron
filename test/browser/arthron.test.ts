@@ -32,7 +32,7 @@ describe("arthron in the browser", () => {
       .post(
         "/echo",
         { a: 1 },
-        { params: { q: "x" }, headers: { "x-trace": "t1" } },
+        { queryParams: { q: "x" }, headers: { "x-trace": "t1" } },
       )
       .json<Echo>();
     expect(echo).toMatchObject({
@@ -99,7 +99,7 @@ describe("arthron in the browser", () => {
   it("retries a 503 that sends retry-after", async () => {
     const res = await api
       .use(retry({ retries: 1 }))
-      .get("/flaky", { params: { id: crypto.randomUUID() } })
+      .get("/flaky", { queryParams: { id: crypto.randomUUID() } })
       .json<{ attempts: number }>();
     expect(res.attempts).toBe(2);
   });
@@ -192,7 +192,7 @@ describe("uploadProgress in the browser", () => {
     const retried = await uploads
       .use(retry({ methods: ["POST"], delayFn: () => 0 }))
       .post("/flaky", "x", {
-        params: { id: `upload-${Math.random()}` },
+        queryParams: { id: `upload-${Math.random()}` },
         meta: { uploadProgress: onProgress },
       })
       .json();
