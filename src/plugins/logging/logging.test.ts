@@ -143,13 +143,13 @@ describe("logging", () => {
       async () => jsonResponse({}, { status: 201 }),
     );
     expect(events).toEqual([
-      { phase: "start", method: "POST", path: "https://a/u" },
+      { phase: "start", method: "POST", url: "https://a/u" },
       {
         phase: "success",
         method: "POST",
-        path: "https://a/u",
+        url: "https://a/u",
         status: 201,
-        ms: 12,
+        duration: 12,
       },
     ]);
     expect(logger.log).not.toHaveBeenCalled();
@@ -166,11 +166,11 @@ describe("logging", () => {
       throw bug;
     }).catch(() => {});
     expect(events.filter((e) => e.phase === "error")).toEqual([
-      expect.objectContaining({ phase: "error", status: 0, ms: 12 }),
+      expect.objectContaining({ phase: "error", status: 0, duration: 12 }),
       expect.objectContaining({
         phase: "error",
         status: undefined,
-        ms: 12,
+        duration: 12,
         error: bug,
       }),
     ]);

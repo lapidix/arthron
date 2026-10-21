@@ -341,8 +341,8 @@ describe("retry", () => {
     it("onRetry hears each retry with the wait it is about to take", async () => {
       const heard: [number, number][] = [];
       await make(fakeFetch(err(503), err(503), jsonResponse({})), {
-        delayFn: (n) => (n + 1) * 10,
-        onRetry: (_e, attempt, wait) => heard.push([attempt, wait]),
+        delayFn: (attempt) => (attempt + 1) * 10,
+        onRetry: (_e, attempt, delay) => heard.push([attempt, delay]),
       }).get("/u");
       expect(heard).toEqual([
         [0, 10],

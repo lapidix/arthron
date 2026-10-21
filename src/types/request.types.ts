@@ -91,28 +91,37 @@ export type RetryOptions = {
   retries?: number;
   /** Statuses worth retrying. Default 408, 429, 500, 502, 503, 504; network errors (status 0) always are. */
   statuses?: readonly number[];
-  /** Methods safe to repeat (QUERY is, per RFC 10008). Compared case-insensitively. */
+  /**
+   * Methods safe to repeat (QUERY is, per RFC 10008). Compared
+   * case-insensitively. Default GET, HEAD, OPTIONS, QUERY, PUT, DELETE.
+   */
   methods?: readonly string[];
   /**
-   * Returns the wait in ms before retry number `retry` (0-based). Default
-   * "full jitter": a random share of 300 · 2^retry, so clients that failed
-   * together do not retry together. A `Retry-After` header wins over it.
+   * Returns the wait in ms before the next attempt. `attempt` is 0-based: 0
+   * after the first request failed. Default "full jitter": a random share
+   * of 300 · 2^attempt, so clients that failed together do not retry
+   * together. A `Retry-After` header wins over it. Must return a finite
+   * number ≥ 0, or the call rejects with a TypeError.
    */
-  delayFn?: (retry: number, error: unknown) => number;
+  delayFn?: (attempt: number, error: unknown) => number;
   /**
-   * Your own verdict on one failure: `true` retries, `false` stops,
-   * `undefined` leaves it to `statuses`/`methods`. It sees every error — a
-   * TimeoutError from a `timeout()` placed after `retry()` included — but
-   * cannot exceed `retries`, resend a `ReadableStream` body, or retry a call
-   * the caller aborted.
+   * Your own verdict on one failure (`attempt` 0-based, as for `delayFn`):
+   * `true` retries, `false` stops, `undefined` leaves it to
+   * `statuses`/`methods`. It sees every error — a TimeoutError from a
+   * `timeout()` placed after `retry()` included — but cannot exceed
+   * `retries`, resend a `ReadableStream` body, retry a call the caller
+   * aborted, or wait out a `Retry-After` longer than `maxRetryAfter`.
    */
   shouldRetry?: (
     error: unknown,
     attempt: number,
     ctx: RequestContext,
   ) => boolean | undefined;
-  /** Called before each wait, for logs and metrics. */
-  onRetry?: (error: unknown, attempt: number, waitMs: number) => void;
+  /**
+   * Called before each wait, for logs and metrics, with the same 0-based
+   * `attempt` and the `delay` in ms about to be waited.
+   */
+  onRetry?: (error: unknown, attempt: number, delay: number) => void;
   /**
    * Longest `Retry-After` (ms) worth honouring. Beyond it the request is not
    * retried at all. Default 60 000.

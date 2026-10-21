@@ -72,7 +72,7 @@ type Settings = {
   retries: number;
   statuses: readonly number[];
   allowed: Set<string>;
-  delayFn: (retry: number, error: unknown) => number;
+  delayFn: (attempt: number, error: unknown) => number;
   maxRetryAfter: number;
   shouldRetry: RetryOptions["shouldRetry"];
   onRetry: RetryOptions["onRetry"];
@@ -108,7 +108,7 @@ function settle(
     retries = 2,
     statuses = DEFAULT_STATUSES,
     methods = DEFAULT_METHODS,
-    delayFn = (retry) => Math.random() * 300 * 2 ** retry,
+    delayFn = (attempt) => Math.random() * 300 * 2 ** attempt,
     maxRetryAfter = DEFAULT_MAX_RETRY_AFTER,
     shouldRetry,
     onRetry,
@@ -173,12 +173,12 @@ export function retryWith(options: RetryOptions, sleep: Sleep): Plugin {
           if (retryAfter !== undefined && retryAfter > settings.maxRetryAfter) {
             throw thrown;
           }
-          const wait = Math.min(
+          const delay = Math.min(
             retryAfter ?? checkedDelay(settings.delayFn(attempt, thrown)),
             MAX_TIMER_MS,
           );
-          settings.onRetry?.(thrown, attempt, wait);
-          await sleep(wait, ctx.init.signal);
+          settings.onRetry?.(thrown, attempt, delay);
+          await sleep(delay, ctx.init.signal);
         }
       }
     },
