@@ -758,6 +758,10 @@ describe("arthron — plugins by name", () => {
       /a plugin is an object, got a function/,
     );
   });
+  it("takes a readonly list of plugins, as const and all", () => {
+    const shared = [retry(), timeout(1000)] as const;
+    expect(() => arthron({ plugins: shared })).not.toThrow();
+  });
   it("plugins with other names append", async () => {
     const log: string[] = [];
     const base = arthron({

@@ -95,7 +95,7 @@ export interface ArthronClientOptions extends FetchDefaults {
    */
   fetchFn?: typeof fetch;
   /** Plugins, outermost first. A named one replaces an earlier one of that name. */
-  plugins?: Plugin[];
+  plugins?: readonly Plugin[];
   /**
    * Extracts `ArthronError.description` from a failed response's payload, for
    * an API that puts it somewhere else: `(payload) => payload.errors?.[0]?.msg`.
