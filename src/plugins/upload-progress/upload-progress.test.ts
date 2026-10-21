@@ -71,6 +71,17 @@ describe("uploadProgress", () => {
     expect(typeof out.fetchFn).toBe("function");
     expect(out.init.body).toBe(blob);
   });
+
+  it("refuses the 1.x meta.onUploadProgress, naming uploadProgress", async () => {
+    await expect(
+      sent({
+        fetchFn: globalThis.fetch,
+        init: { method: "PUT", body: "x", headers: {} },
+        // @ts-expect-error onUploadProgress is uploadProgress since 2.0
+        meta: { onUploadProgress: () => {} },
+      }),
+    ).rejects.toThrow("meta: { uploadProgress }");
+  });
 });
 
 describe("transportFor", () => {
@@ -108,6 +119,19 @@ describe("xhrRefusal", () => {
     [{ redirect: "error" }, "https://api.test/u", /redirect: "error"/],
     [{ mode: "no-cors" }, "https://api.test/u", /mode: "no-cors"/],
     [{ credentials: "omit" }, "https://app.test/u", /credentials: "omit"/],
+    // XHR sends the page's referrer and checks no integrity: privacy and
+    // security settings, not tuning.
+    [
+      { referrerPolicy: "no-referrer" },
+      "https://api.test/u",
+      /referrerPolicy: "no-referrer"/,
+    ],
+    [{ referrer: "" }, "https://api.test/u", /referrer: ""/],
+    [
+      { integrity: "sha256-abc" },
+      "https://api.test/u",
+      /integrity: "sha256-abc"/,
+    ],
   ] as const)("refuses %o to %s", (init, url, message) => {
     expect(xhrRefusal(init, url, page)).toMatch(message);
   });
@@ -115,6 +139,11 @@ describe("xhrRefusal", () => {
     [{}, "https://app.test/u"],
     [{ credentials: "omit" }, "https://api.test/u"],
     [{ credentials: "include", redirect: "follow" }, "https://app.test/u"],
+    // The defaults: what XHR does anyway.
+    [
+      { referrerPolicy: "", referrer: "about:client", integrity: "" },
+      "https://api.test/u",
+    ],
   ] as const)("lets %o to %s through", (init, url) => {
     expect(xhrRefusal(init, url, page)).toBeUndefined();
   });
