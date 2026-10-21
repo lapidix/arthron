@@ -82,8 +82,11 @@ export type UploadProgressEvent = {
   loaded: number;
   /** Bytes in the whole body; `undefined` when it cannot be known (a stream without content-length). */
   total: number | undefined;
-  /** `loaded / total`, from 0 to 1; `undefined` when `total` is. */
-  progress: number | undefined;
+  /**
+   * `loaded / total`, a fraction from 0 to 1 — not a percentage: multiply
+   * by 100 for one. `undefined` when `total` is.
+   */
+  fraction: number | undefined;
 };
 
 export type RetryOptions = {

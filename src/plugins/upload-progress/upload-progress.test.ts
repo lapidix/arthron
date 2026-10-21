@@ -272,7 +272,7 @@ describe("uploadProgress against a real server", () => {
     expect(events.at(-1)).toEqual({
       loaded: 300_000,
       total: 300_000,
-      progress: 1,
+      fraction: 1,
     });
   });
 });

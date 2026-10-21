@@ -178,7 +178,7 @@ describe("uploadProgress in the browser", () => {
     expect(echo.size).toBe(8 * 1024 * 1024);
     expect(echo.contentType).toBe("application/octet-stream");
     expect(events.length).toBeGreaterThanOrEqual(1);
-    expect(events.at(-1)?.progress).toBe(1);
+    expect(events.at(-1)?.fraction).toBe(1);
   });
 
   it("leaves a call without the callback on fetch", async () => {
@@ -230,8 +230,8 @@ describe("uploadProgress in the browser", () => {
     await uploads.post("/echo", new Blob([]), {
       meta: { uploadProgress: (e) => events.push(e) },
     });
-    expect(events.at(-1)).toEqual({ loaded: 0, total: 0, progress: 1 });
-    expect(events.some((e) => Number.isNaN(e.progress))).toBe(false);
+    expect(events.at(-1)).toEqual({ loaded: 0, total: 0, fraction: 1 });
+    expect(events.some((e) => Number.isNaN(e.fraction))).toBe(false);
   });
 
   it("rejects an aborted upload with its reason and reports nothing after", async () => {

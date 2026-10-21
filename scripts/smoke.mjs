@@ -281,7 +281,7 @@ try {
     counted.cl === "1048576" &&
       counted.n === 1048576 &&
       progress.length > 1 &&
-      progress.at(-1).progress === 1,
+      progress.at(-1).fraction === 1,
     "uploadProgress counts a Node upload in steps and keeps content-length",
   );
 } finally {
