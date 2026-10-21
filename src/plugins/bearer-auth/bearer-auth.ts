@@ -4,23 +4,33 @@ import { httpOrigins, originOf } from "../../request/url";
 import type { Plugin } from "../../types/plugin.types";
 import type { BearerAuthOptions } from "./bearer-auth.types";
 
+/** 1.x option, its replacement, and how to pass it. */
 const REPLACED = [
-  ["token", "accessTokenFn"],
-  ["refresh", "refreshFn"],
+  ["token", "accessTokenFn", "accessTokenFn"],
+  ["refresh", "refreshFn", "refreshFn"],
+  ["origin", "tokenOrigins", "tokenOrigins: [url]"],
 ] as const;
 
-function allowedOrigins(origin: BearerAuthOptions["origin"]): Set<string> {
-  return httpOrigins(typeof origin === "string" ? [origin] : origin, {
-    empty:
-      'arthron: bearerAuth({ origin }) needs at least one URL — e.g. origin: "https://api.example.com"',
+const EXAMPLE = 'tokenOrigins: ["https://api.example.com"]';
+
+/** `tokenOrigins` as origins, checked when the plugin is created. */
+function tokenOriginSet(urls: BearerAuthOptions["tokenOrigins"]): Set<string> {
+  if (!Array.isArray(urls)) {
+    const kind = typeof urls === "string" ? "a string" : String(urls);
+    throw new TypeError(
+      `arthron: bearerAuth({ tokenOrigins }) takes a list of URLs, got ${kind} — e.g. ${EXAMPLE}`,
+    );
+  }
+  return httpOrigins(urls, {
+    empty: `arthron: bearerAuth({ tokenOrigins }) needs at least one URL — e.g. ${EXAMPLE}`,
     invalid: (url) =>
-      `arthron: bearerAuth({ origin }) needs an http(s) URL, got ${url} — e.g. origin: "https://api.example.com"`,
+      `arthron: bearerAuth({ tokenOrigins }) needs http(s) URLs, got ${url} — e.g. ${EXAMPLE}`,
   });
 }
 
 /**
  * Bearer-token auth. A request interceptor sets `authorization: Bearer
- * <token>` on every attempt to `origin`; with `refreshFn`, a middleware turns a
+ * <token>` on every attempt to `tokenOrigins`; with `refreshFn`, a middleware turns a
  * 401 into one refresh and one more try. Concurrent 401s share the refresh
  * (with refresh-token rotation, parallel refreshes revoke each other), and a
  * call whose token was replaced meanwhile just retries. A call opts out with
@@ -28,15 +38,15 @@ function allowedOrigins(origin: BearerAuthOptions["origin"]): Set<string> {
  */
 export function bearerAuth(options: BearerAuthOptions): Plugin {
   // The 1.x names: unknown keys would be ignored, and no token ever sent.
-  for (const [old, now] of REPLACED) {
+  for (const [old, now, fix] of REPLACED) {
     if ((options as Record<string, unknown>)[old] !== undefined) {
       throw new TypeError(
-        `arthron: bearerAuth's ${old} option was replaced by ${now} in 2.0 — pass bearerAuth({ ${now} })`,
+        `arthron: bearerAuth's ${old} option was replaced by ${now} in 2.0 — pass bearerAuth({ ${fix} })`,
       );
     }
   }
   const { accessTokenFn, refreshFn } = options;
-  const allowed = allowedOrigins(options.origin);
+  const allowed = tokenOriginSet(options.tokenOrigins);
   // A relative URL (baseURL "/api") is on the page's origin.
   const ours = (url: string) => allowed.has(originOf(url) ?? "");
   const bearer = async () => {

@@ -257,7 +257,7 @@ try {
     baseURL,
     plugins: [
       bearerAuth({
-        origin: baseURL,
+        tokenOrigins: [baseURL],
         accessTokenFn: () => token,
         refreshFn: async () => {
           refreshes += 1;

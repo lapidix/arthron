@@ -246,7 +246,7 @@ describe("uploadProgress against a real server", () => {
       baseURL: base,
       plugins: [
         bearerAuth({
-          origin: base,
+          tokenOrigins: [base],
           accessTokenFn: () => token,
           refreshFn: async () => {
             token = "new";

@@ -17,7 +17,7 @@ export const api = arthron({
   credentials: "include", // the refresh token is an httpOnly cookie
   plugins: [
     bearerAuth({
-      origin: API,
+      tokenOrigins: [API],
       accessTokenFn: () => accessToken,
       refreshFn: async () => {
         // Rejects with an ArthronError when the session is gone — every

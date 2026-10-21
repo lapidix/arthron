@@ -1,10 +1,11 @@
 export type BearerAuthOptions = {
   /**
-   * Where the token may go: a URL, or several. Only their origins count, so
-   * your `baseURL` works as is. A request anywhere else — a CDN, a URL taken
-   * from a response body — is sent without the token.
+   * The origins the token may go to, as a list of URLs of which only the
+   * origin counts, so your `baseURL` works as is: `tokenOrigins: [API]`. A
+   * request anywhere else — a CDN, a URL taken from a response body — is
+   * sent without the token.
    */
-  origin: string | readonly string[];
+  tokenOrigins: readonly string[];
   /**
    * Returns the current access token; called on every attempt. `null`,
    * `undefined` or `""` sends no `authorization` header.

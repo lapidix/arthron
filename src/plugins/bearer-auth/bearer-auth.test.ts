@@ -6,6 +6,7 @@ import { fakeFetch, jsonResponse } from "../../testkit/fetch.testkit";
 import type { RequestContext } from "../../types/request.types";
 import { retryWithSleep } from "../retry/retry";
 import { bearerAuth } from "./bearer-auth";
+import type { BearerAuthOptions } from "./bearer-auth.types";
 
 const API = "https://api.test";
 const sentAuth = (fetch: { calls: { init: RequestInit }[] }) =>
@@ -41,16 +42,18 @@ describe("bearerAuth", () => {
     const accessTokenFn = () => "t";
     expect(() =>
       // @ts-expect-error token is accessTokenFn since 2.0
-      bearerAuth({ origin: API, token: accessTokenFn }),
+      bearerAuth({ tokenOrigins: [API], token: accessTokenFn }),
     ).toThrow("bearerAuth({ accessTokenFn })");
-    expect(() =>
-      // @ts-expect-error refresh is refreshFn since 2.0
-      bearerAuth({ origin: API, accessTokenFn, refresh: async () => {} }),
-    ).toThrow("bearerAuth({ refreshFn })");
+    const withRefresh = {
+      tokenOrigins: [API],
+      accessTokenFn,
+      refresh: async () => {},
+    } as unknown as BearerAuthOptions;
+    expect(() => bearerAuth(withRefresh)).toThrow("bearerAuth({ refreshFn })");
   });
   it("is named bearerAuth", () => {
     expect(
-      bearerAuth({ origin: API, accessTokenFn: () => "t" }).pluginName,
+      bearerAuth({ tokenOrigins: [API], accessTokenFn: () => "t" }).pluginName,
     ).toBe("bearerAuth");
   });
 
@@ -59,7 +62,9 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      plugins: [bearerAuth({ origin: API, accessTokenFn: () => "abc" })],
+      plugins: [
+        bearerAuth({ tokenOrigins: [API], accessTokenFn: () => "abc" }),
+      ],
     });
     await api.get("/me");
     expect(sentAuth(fetch)).toEqual(["Bearer abc"]);
@@ -76,7 +81,10 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         retryWithSleep({}, async () => {}),
-        bearerAuth({ origin: API, accessTokenFn: async () => `t${++n}` }),
+        bearerAuth({
+          tokenOrigins: [API],
+          accessTokenFn: async () => `t${++n}`,
+        }),
       ],
     });
     await api.get("/me");
@@ -89,7 +97,9 @@ describe("bearerAuth", () => {
       const api = arthron({
         baseURL: API,
         fetchFn: fetch,
-        plugins: [bearerAuth({ origin: API, accessTokenFn: () => token })],
+        plugins: [
+          bearerAuth({ tokenOrigins: [API], accessTokenFn: () => token }),
+        ],
       });
       await api.get("/me");
       expect(sentAuth(fetch)).toEqual([undefined]);
@@ -108,7 +118,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: [`${API}/v1/`, "https://files.test"],
+          tokenOrigins: [`${API}/v1/`, "https://files.test"],
           accessTokenFn: () => "abc",
         }),
       ],
@@ -128,7 +138,7 @@ describe("bearerAuth", () => {
   it("sends no token when the URL is not absolute", async () => {
     const seen: RequestContext[] = [];
     await runPipeline(
-      [bearerAuth({ origin: API, accessTokenFn: () => "abc" })],
+      [bearerAuth({ tokenOrigins: [API], accessTokenFn: () => "abc" })],
       { url: "/relative", init: { headers: {} }, meta: {} },
       async (ctx) => {
         seen.push(ctx);
@@ -145,7 +155,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: API,
+          tokenOrigins: [API],
           accessTokenFn: () => session.current,
           refreshFn: refresh,
         }),
@@ -174,7 +184,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: API,
+          tokenOrigins: [API],
           accessTokenFn: () => session.current,
           refreshFn: refresh,
         }),
@@ -200,7 +210,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: API,
+          tokenOrigins: [API],
           accessTokenFn: () => session.current,
           refreshFn: refresh,
         }),
@@ -219,7 +229,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: API,
+          tokenOrigins: [API],
           accessTokenFn: () => session.current,
           refreshFn: refresh,
         }),
@@ -236,7 +246,9 @@ describe("bearerAuth", () => {
     const api = arthron({
       baseURL: API,
       fetchFn: fetch,
-      plugins: [bearerAuth({ origin: API, accessTokenFn: () => "abc" })],
+      plugins: [
+        bearerAuth({ tokenOrigins: [API], accessTokenFn: () => "abc" }),
+      ],
     });
     await expect(api.get("/me")).rejects.toMatchObject({ status: 401 });
     expect(fetch.calls).toHaveLength(1);
@@ -250,7 +262,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: API,
+          tokenOrigins: [API],
           accessTokenFn: () => session.current,
           refreshFn: refresh,
         }),
@@ -274,7 +286,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: API,
+          tokenOrigins: [API],
           accessTokenFn: () => session.current,
           refreshFn: refresh,
         }),
@@ -294,7 +306,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: API,
+          tokenOrigins: [API],
           accessTokenFn: () => session.current,
           refreshFn: refresh,
         }),
@@ -315,7 +327,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: API,
+          tokenOrigins: [API],
           accessTokenFn: () => "old",
           refreshFn: async () => {
             refreshes += 1;
@@ -341,7 +353,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: API,
+          tokenOrigins: [API],
           accessTokenFn: () => "old",
           refreshFn: async () => {
             refreshes += 1;
@@ -363,7 +375,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: API,
+          tokenOrigins: [API],
           accessTokenFn: () => session.current,
           refreshFn: refresh,
         }),
@@ -390,7 +402,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: API,
+          tokenOrigins: [API],
           accessTokenFn: () => current,
           refreshFn: async () => {
             const res = await api
@@ -415,7 +427,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: API,
+          tokenOrigins: [API],
           accessTokenFn: () => current,
           // No meta: { bearerAuth: false } on the refresh call.
           refreshFn: async () => {
@@ -435,7 +447,7 @@ describe("bearerAuth", () => {
       fetchFn: fetch,
       plugins: [
         bearerAuth({
-          origin: API,
+          tokenOrigins: [API],
           accessTokenFn: () => "expired",
           refreshFn: async () => {
             await api.post("/token", {});
@@ -454,11 +466,16 @@ describe("bearerAuth", () => {
     vi.stubGlobal("location", { href: "https://app.test/dashboard" });
     try {
       const fetch = fakeFetch(jsonResponse({}));
-      const client = (origin: string) =>
+      const client = (tokenOrigin: string) =>
         arthron({
           baseURL: "/api",
           fetchFn: fetch,
-          plugins: [bearerAuth({ origin, accessTokenFn: () => "abc" })],
+          plugins: [
+            bearerAuth({
+              tokenOrigins: [tokenOrigin],
+              accessTokenFn: () => "abc",
+            }),
+          ],
         });
       await client("https://app.test").get("/me");
       await client(API).get("/me");
@@ -468,14 +485,31 @@ describe("bearerAuth", () => {
     }
   });
 
-  it("rejects an origin that is not an http(s) URL", () => {
-    for (const origin of ["api.test", "", "mailto:a@b.test"]) {
-      expect(() => bearerAuth({ origin, accessTokenFn: () => "t" })).toThrow(
-        /bearerAuth\(\{ origin \}\) needs an http\(s\) URL/,
-      );
+  it("rejects a tokenOrigins entry that is not an http(s) URL, and an empty list", () => {
+    for (const url of ["api.test", "", "mailto:a@b.test"]) {
+      expect(() =>
+        bearerAuth({ tokenOrigins: [url], accessTokenFn: () => "t" }),
+      ).toThrow(/bearerAuth\(\{ tokenOrigins \}\) needs http\(s\) URLs/);
     }
-    expect(() => bearerAuth({ origin: [], accessTokenFn: () => "t" })).toThrow(
-      TypeError,
+    expect(() =>
+      bearerAuth({ tokenOrigins: [], accessTokenFn: () => "t" }),
+    ).toThrow(/bearerAuth\(\{ tokenOrigins \}\) needs at least one URL/);
+  });
+  it("refuses one URL instead of a list, naming the list it takes", () => {
+    const one = API as unknown as string[];
+    expect(() =>
+      bearerAuth({ tokenOrigins: one, accessTokenFn: () => "t" }),
+    ).toThrow(
+      `arthron: bearerAuth({ tokenOrigins }) takes a list of URLs, got a string — e.g. tokenOrigins: ["https://api.example.com"]`,
+    );
+  });
+  it("refuses the 1.x origin option, naming tokenOrigins", () => {
+    const old = {
+      origin: API,
+      accessTokenFn: () => "t",
+    } as unknown as BearerAuthOptions;
+    expect(() => bearerAuth(old)).toThrow(
+      "arthron: bearerAuth's origin option was replaced by tokenOrigins in 2.0 — pass bearerAuth({ tokenOrigins: [url] })",
     );
   });
 });

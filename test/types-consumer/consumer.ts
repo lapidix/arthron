@@ -87,7 +87,7 @@ const options: ArthronClientOptions = {
 const api: ArthronClient = arthron(options);
 
 const authOptions: BearerAuthOptions = {
-  origin: ["https://api.example.com"],
+  tokenOrigins: ["https://api.example.com"],
   accessTokenFn: async () => null,
   refreshFn: async () => {
     await authed.post("/token/refresh", undefined, {
@@ -153,7 +153,7 @@ api.get("/x", { params: { q: 1 } });
 // @ts-expect-error retryOn is statuses since 2.0
 retry({ retryOn: [503] });
 // @ts-expect-error token is accessTokenFn since 2.0
-bearerAuth({ origin: "https://api.example.com", token: () => "t" });
+bearerAuth({ tokenOrigins: ["https://api.example.com"], token: () => "t" });
 // @ts-expect-error the built-in plugins come from arthron/plugins
 export type FromMain = typeof import("arthron").retry;
 
@@ -208,3 +208,5 @@ export async function run(): Promise<void> {
     }
   }
 }
+// @ts-expect-error origin is tokenOrigins since 2.0
+bearerAuth({ origin: "https://api.example.com", accessTokenFn: () => "t" });
