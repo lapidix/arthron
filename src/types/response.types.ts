@@ -2,10 +2,11 @@ export interface ResponsePromise extends Promise<Response> {
   /** The body as JSON. `T` is a cast — nothing checks it. */
   json<T = unknown>(): Promise<T>;
   /**
-   * The body as JSON, validated by a Standard Schema (Zod, Valibot, ArkType…)
-   * and typed by it. A mismatch rejects with a `SchemaError`.
+   * The body as JSON, checked by a schema from Zod, Valibot, ArkType or any
+   * other Standard Schema library — passed as is — and typed by it. A body
+   * that does not match rejects with a `SchemaMismatchError`.
    */
-  json<S extends StandardSchemaV1>(schema: S): Promise<InferOutput<S>>;
+  json<S extends ArthronSchema>(schema: S): Promise<ArthronSchema.Infer<S>>;
   text(): Promise<string>;
   blob(): Promise<Blob>;
   arrayBuffer(): Promise<ArrayBuffer>;
@@ -68,38 +69,44 @@ export type SseOptions = {
 };
 
 /**
- * The Standard Schema interface (https://standardschema.dev), vendored as
- * types only so arthron keeps zero dependencies. Zod, Valibot, ArkType and
- * others implement it, so their schemas can be passed to `.json(schema)`.
+ * A schema `.json(schema)` checks the body against. It is `StandardSchemaV1`
+ * from `@standard-schema/spec` (https://standardschema.dev) under arthron's
+ * name, copied as types so arthron keeps zero dependencies: pass a Zod,
+ * Valibot, ArkType or any other Standard Schema as is — there is no
+ * arthron-specific format.
  */
-export interface StandardSchemaV1<Input = unknown, Output = Input> {
+export interface ArthronSchema<Input = unknown, Output = Input> {
   readonly "~standard": {
     readonly version: 1;
     readonly vendor: string;
     readonly validate: (
       value: unknown,
-    ) => SchemaResult<Output> | Promise<SchemaResult<Output>>;
+    ) =>
+      | ArthronSchema.ValidationResult<Output>
+      | Promise<ArthronSchema.ValidationResult<Output>>;
     readonly types?:
       | { readonly input: Input; readonly output: Output }
       | undefined;
   };
 }
 
-export type SchemaResult<Output> =
-  | { readonly value: Output; readonly issues?: undefined }
-  | { readonly issues: readonly SchemaIssue[] };
-
-export interface SchemaIssue {
-  readonly message: string;
-  readonly path?:
-    | readonly (PropertyKey | { readonly key: PropertyKey })[]
-    | undefined;
+export declare namespace ArthronSchema {
+  /** The type a schema produces — what `.json(schema)` resolves with. */
+  type Infer<S extends ArthronSchema> = NonNullable<
+    S["~standard"]["types"]
+  >["output"];
+  /** One way the body does not match, with the path to it (`StandardSchemaV1.Issue`). */
+  interface Issue {
+    readonly message: string;
+    readonly path?:
+      | readonly (PropertyKey | { readonly key: PropertyKey })[]
+      | undefined;
+  }
+  /** What a schema's `validate` returns: the value, or the issues (`StandardSchemaV1.Result`). */
+  type ValidationResult<Output> =
+    | { readonly value: Output; readonly issues?: undefined }
+    | { readonly issues: readonly Issue[] };
 }
-
-/** The type a schema produces. */
-export type InferOutput<S extends StandardSchemaV1> = NonNullable<
-  S["~standard"]["types"]
->["output"];
 
 /**
  * Extracts `ArthronError.description` from a failed response's payload

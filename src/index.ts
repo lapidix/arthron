@@ -18,7 +18,7 @@ export {
   createRequestInterceptor,
   createResponseInterceptor,
 } from "./pipeline/create-plugin";
-export { SchemaError } from "./response/schema-validation";
+export { SchemaMismatchError } from "./response/schema-validation";
 export type {
   ErrorInterceptor,
   Middleware,
@@ -33,12 +33,10 @@ export type {
   RequestContext,
 } from "./types/request.types";
 export type {
+  ArthronSchema,
   DescriptionExtractor,
-  InferOutput,
   NdjsonOptions,
   ResponsePromise,
-  SchemaIssue,
   SseEvent,
   SseOptions,
-  StandardSchemaV1,
 } from "./types/response.types";

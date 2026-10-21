@@ -1,9 +1,9 @@
 import { cancellationError } from "../error/create-error";
 import type {
+  ArthronSchema,
   NdjsonOptions,
   ResponsePromise,
   SseOptions,
-  StandardSchemaV1,
 } from "../types/response.types";
 import { validate } from "./schema-validation";
 import { parseNdjson, parseSse } from "./stream-parser";
@@ -43,7 +43,7 @@ export function toResponsePromise(
       throw cancellationError(error, signal);
     });
   return Object.assign(promise, {
-    json: ((schema?: StandardSchemaV1) =>
+    json: ((schema?: ArthronSchema) =>
       read(async (res) => {
         const data: unknown = await res.json();
         return schema ? validate(schema, data) : data;

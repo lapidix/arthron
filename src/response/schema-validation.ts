@@ -1,10 +1,6 @@
-import type {
-  InferOutput,
-  SchemaIssue,
-  StandardSchemaV1,
-} from "../types/response.types";
+import type { ArthronSchema } from "../types/response.types";
 
-const pathOf = (issue: SchemaIssue): string =>
+const pathOf = (issue: ArthronSchema.Issue): string =>
   (issue.path ?? [])
     .map((part) =>
       String(typeof part === "object" && part !== null ? part.key : part),
@@ -12,15 +8,15 @@ const pathOf = (issue: SchemaIssue): string =>
     .join(".");
 
 /**
- * `.json(schema)` got a body that does not match. Not an ArthronError: the
- * request succeeded — the data is what is wrong.
+ * `.json(schema)` got a body that does not match the schema. Not an
+ * ArthronError: the request succeeded — the data is what is wrong.
  */
-export class SchemaError extends Error {
-  override readonly name = "SchemaError";
+export class SchemaMismatchError extends Error {
+  override readonly name = "SchemaMismatchError";
   /** Every problem the validator reported, with the path to it. */
-  readonly issues: readonly SchemaIssue[];
+  readonly issues: readonly ArthronSchema.Issue[];
 
-  constructor(issues: readonly SchemaIssue[]) {
+  constructor(issues: readonly ArthronSchema.Issue[]) {
     const [first] = issues;
     const where = first ? pathOf(first) : "";
     const more = issues.length > 1 ? ` (+${issues.length - 1} more)` : "";
@@ -31,12 +27,12 @@ export class SchemaError extends Error {
   }
 }
 
-/** Validate `data`; resolve with the schema's output or reject with a SchemaError. */
-export async function validate<S extends StandardSchemaV1>(
+/** Validate `data`; resolve with the schema's output or reject with a SchemaMismatchError. */
+export async function validate<S extends ArthronSchema>(
   schema: S,
   data: unknown,
-): Promise<InferOutput<S>> {
+): Promise<ArthronSchema.Infer<S>> {
   const result = await schema["~standard"].validate(data);
-  if (result.issues) throw new SchemaError(result.issues);
-  return result.value as InferOutput<S>;
+  if (result.issues) throw new SchemaMismatchError(result.issues);
+  return result.value as ArthronSchema.Infer<S>;
 }

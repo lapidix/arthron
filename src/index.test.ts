@@ -15,7 +15,7 @@ describe("public surface", () => {
         "createResponseInterceptor",
         "arthron",
         "isArthronError",
-        "SchemaError",
+        "SchemaMismatchError",
       ].sort(),
     );
   });
@@ -49,6 +49,17 @@ describe("public surface", () => {
     expectTypeOf<import("./").ArthronPromise>().not.toBeNever();
     // @ts-expect-error RequestInitWithBody is RequestOptionsWithMethod since 2.0
     expectTypeOf<import("./").RequestInitWithBody>().not.toBeNever();
+  });
+  it("groups the schema types under ArthronSchema", () => {
+    expectTypeOf<
+      import("./").ArthronSchema.Infer<import("./").ArthronSchema<unknown, 1>>
+    >().toEqualTypeOf<1>();
+    // @ts-expect-error StandardSchemaV1 is ArthronSchema since 2.0
+    expectTypeOf<import("./").StandardSchemaV1>().not.toBeNever();
+    // @ts-expect-error InferOutput is ArthronSchema.Infer since 2.0
+    expectTypeOf<import("./").InferOutput<never>>().not.toBeNever();
+    // @ts-expect-error SchemaIssue is ArthronSchema.Issue since 2.0
+    expectTypeOf<import("./").SchemaIssue>().not.toBeNever();
   });
   it("exports what new ArthronError() takes, with requestContext", () => {
     expectTypeOf<
