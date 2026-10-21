@@ -30,8 +30,16 @@ assert(
       Object.keys(cjsPlugins).sort().join(),
   "arthron/plugins loads, with the same names in ESM and CJS",
 );
+const builtIns = [
+  "bearerAuth",
+  "logging",
+  "retry",
+  "timeout",
+  "uploadProgress",
+];
 assert(
-  !("retry" in esm) && !("timeout" in cjs),
+  builtIns.every((name) => !(name in esm) && !(name in cjs)) &&
+    builtIns.every((name) => typeof cjsPlugins[name] === "function"),
   "the built-in plugins come from arthron/plugins only",
 );
 
@@ -159,7 +167,8 @@ try {
   for await (const e of api.get("/events").sse()) events.push(e);
   assert(
     events.length === 2 &&
-      events[1].event === "end" &&
+      events[0].type === "message" &&
+      events[1].type === "end" &&
       events[1].data === "two",
     ".sse() streams server-sent events",
   );
@@ -217,7 +226,7 @@ try {
     isArthronError(leaky) &&
       !serialized.includes("SMOKE-TOKEN") &&
       !serialized.includes("SMOKE-QUERY") &&
-      leaky.request.init.headers.authorization === "Bearer SMOKE-TOKEN",
+      leaky.requestContext.init.headers.authorization === "Bearer SMOKE-TOKEN",
     "ArthronError serializes without request secrets",
   );
 
@@ -283,6 +292,88 @@ try {
       progress.length > 1 &&
       progress.at(-1).fraction === 1,
     "uploadProgress counts a Node upload in steps and keeps content-length",
+  );
+
+  const filled = await api
+    .get("/echo/{id}", { pathParams: { id: "a b/c" } })
+    .json();
+  assert(
+    filled.url === "/echo/a%20b%2Fc",
+    "pathParams fills {id}, encoded into its own segment",
+  );
+
+  const described = await arthron({
+    baseURL,
+    extractDescription: () => "from the extractor",
+  })
+    .get("/fail")
+    .catch((e) => e);
+  const undescribed = await arthron({
+    baseURL,
+    extractDescription: () => {
+      throw new TypeError("written for another shape");
+    },
+  })
+    .get("/fail")
+    .catch((e) => e);
+  assert(
+    described.description === "from the extractor" &&
+      isArthronError(undescribed) &&
+      undescribed.status === 500 &&
+      undescribed.description === undefined,
+    "extractDescription fills description, and one that throws leaves the ArthronError",
+  );
+
+  const idle = await arthron({ baseURL, plugins: [timeout({ idle: 100 })] })
+    .get("/slow")
+    .catch((e) => e);
+  assert(
+    idle?.name === "TimeoutError",
+    "timeout({ idle }) aborts a quiet call",
+  );
+
+  const sent = [];
+  const listed = arthron({
+    baseURL: "https://api.smoke.test",
+    allowedOrigins: ["https://cdn.smoke.test"],
+    headers: { authorization: "Bearer SMOKE-CONFIG" },
+    fetchFn: async (url, init) => {
+      sent.push([url, init.headers]);
+      return new Response("{}");
+    },
+  });
+  await listed.get("https://cdn.smoke.test/a", { headers: { "x-call": "1" } });
+  const unlisted = await listed
+    .get("https://evil.smoke.test/a")
+    .catch((e) => e);
+  assert(
+    sent.length === 1 &&
+      sent[0][1].authorization === undefined &&
+      sent[0][1]["x-call"] === "1" &&
+      unlisted instanceof TypeError,
+    "allowedOrigins lets a listed origin through without config headers, and refuses others",
+  );
+
+  const refused = (make) => {
+    try {
+      make();
+      return undefined;
+    } catch (error) {
+      return error;
+    }
+  };
+  const oldOption = refused(() => cjs.arthron({ use: [] }));
+  const noBase = refused(() =>
+    arthron({ allowedOrigins: ["https://a.test"], headers: { a: "1" } }),
+  );
+  const empty = refused(() => esm.createPlugin({ pluginName: "empty" }));
+  assert(
+    oldOption instanceof TypeError &&
+      oldOption.message.includes("plugins") &&
+      noBase instanceof TypeError &&
+      empty instanceof TypeError &&
+      empty.message.includes("nothing to run"),
+    "a 1.x option, config headers without a baseURL, and an empty plugin throw TypeErrors that say what to do",
   );
 } finally {
   server.closeAllConnections?.();
