@@ -14,7 +14,7 @@ A deprecated API keeps working, is marked `@deprecated` with what to use instead
 
 ## [Unreleased]
 
-Removes what 1.1.0 deprecated and renames two things 1.2.0 added, so each plugin has one import path, `timeout()` one way to take `idle`, and every built-in plugin reads the `meta` key named after it. Moving from 1.x means changing imports and names.
+Removes what 1.1.0 deprecated, renames two things 1.2.0 added, and turns `allowAbsoluteUrls` into a list of origins: each plugin has one import path, `timeout()` one way to take `idle`, every built-in plugin reads the `meta` key named after it, and a client names the origins it may call. Moving from 1.x means changing imports and names.
 
 ### Breaking
 
@@ -22,6 +22,7 @@ Removes what 1.1.0 deprecated and renames two things 1.2.0 added, so each plugin
 - `timeout(ms, { idle })` is gone — write `timeout({ total: ms, idle })`. A second argument is a `TypeError` that names the replacement.
 - `meta.onUploadProgress` is now `meta.uploadProgress`, like `meta.bearerAuth`, `meta.retry` and `meta.timeout`: plugin X's per-call setting is `meta.X`.
 - `RequestContext.fetch` is now `RequestContext.adapter` — the function an attempt is sent with, which a plugin may replace (`uploadProgress()` sends over XMLHttpRequest) or wrap. The client option is still `fetch`.
+- `allowAbsoluteUrls` is replaced by `allowedOrigins`, a list: with a `baseURL`, an absolute URL may go to `baseURL`'s origin or a listed one, and any other origin is a `TypeError`. Only the origin of each entry counts; an empty list or a non-http(s) entry is a `TypeError` when the client is created. Without a `baseURL`, the list alone limits absolute URLs. Config `headers` still go to `baseURL`'s origin only. To reach any origin, as `allowAbsoluteUrls: true` did, use a client without `baseURL`.
 
 ### Moving from 1.x
 
@@ -40,6 +41,9 @@ Removes what 1.1.0 deprecated and renames two things 1.2.0 added, so each plugin
 
 -request: (ctx) => ({ ...ctx, fetch: traced(ctx.fetch) })
 +request: (ctx) => ({ ...ctx, adapter: traced(ctx.adapter) })
+
+-arthron({ baseURL: API, allowAbsoluteUrls: true })
++arthron({ baseURL: API, allowedOrigins: ["https://cdn.example.com"] })
 ```
 
 ## [1.2.0] — 2026-10-20

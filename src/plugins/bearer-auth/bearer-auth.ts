@@ -1,17 +1,8 @@
 import { isArthronError } from "../../error/arthron-error";
 import { isReadableStream } from "../../request/body";
+import { httpOrigin } from "../../request/url";
 import type { Plugin } from "../../types/plugin.types";
 import type { BearerAuthOptions } from "./bearer-auth.types";
-
-/** The origin of an absolute http(s) URL; `undefined` for anything else. */
-function originOf(url: string): string | undefined {
-  try {
-    const { protocol, origin } = new URL(url);
-    return protocol === "http:" || protocol === "https:" ? origin : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 function allowedOrigins(origin: BearerAuthOptions["origin"]): Set<string> {
   const urls = typeof origin === "string" ? [origin] : origin;
@@ -22,7 +13,7 @@ function allowedOrigins(origin: BearerAuthOptions["origin"]): Set<string> {
   }
   return new Set(
     urls.map((url) => {
-      const found = originOf(url);
+      const found = httpOrigin(url);
       if (found) return found;
       throw new TypeError(
         `arthron: bearerAuth({ origin }) needs an http(s) URL, got ${JSON.stringify(url)} — e.g. origin: "https://api.example.com"`,
@@ -42,7 +33,7 @@ function allowedOrigins(origin: BearerAuthOptions["origin"]): Set<string> {
 export function bearerAuth(options: BearerAuthOptions): Plugin {
   const { token, refresh } = options;
   const allowed = allowedOrigins(options.origin);
-  const ours = (url: string) => allowed.has(originOf(url) ?? "");
+  const ours = (url: string) => allowed.has(httpOrigin(url) ?? "");
   const bearer = async () => {
     const value = await token();
     return value ? `Bearer ${value}` : undefined;

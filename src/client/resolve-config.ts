@@ -12,7 +12,7 @@ const OWN_KEYS: Record<
   true
 > = {
   baseURL: true,
-  allowAbsoluteUrls: true,
+  allowedOrigins: true,
   headers: true,
   fetch: true,
   use: true,

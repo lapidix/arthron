@@ -40,6 +40,7 @@ const userSchema: StandardSchemaV1<unknown, User> = {
 
 const api = arthron({
   baseURL: "https://api.example.com",
+  allowedOrigins: ["https://cdn.example.com"],
   credentials: "include",
   headers: { authorization: "Bearer token" },
   use: [

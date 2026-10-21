@@ -72,12 +72,14 @@ export interface ArthronConfig extends FetchDefaults {
   /** Prefix for relative paths. Without it only absolute URLs are accepted. */
   baseURL?: string;
   /**
-   * Let an absolute URL on another origin than `baseURL` through. Off by
-   * default, so a path from user input or an API response cannot send the
-   * client's headers elsewhere; config `headers` are never sent to another
-   * origin even when this is on.
+   * Origins an absolute URL may go to besides `baseURL`'s, as URLs of which
+   * only the origin counts: `["https://cdn.example.com"]`. Any other origin
+   * is a TypeError, so a path from user input or an API response cannot send
+   * requests elsewhere, and config `headers` go to `baseURL`'s origin only,
+   * never to these. Without a `baseURL` this list alone limits absolute
+   * URLs; with neither, any http(s) URL goes.
    */
-  allowAbsoluteUrls?: boolean;
+  allowedOrigins?: readonly string[];
   /** Default headers. Per-call headers win, compared case-insensitively; `extend` can drop one with `null`. */
   headers?: HeadersOption;
   /** Injection point for tests and polyfills. Defaults to `globalThis.fetch`. */

@@ -264,14 +264,30 @@ describe("arthron — config", () => {
     await api.get("https://a/elsewhere");
     expect(headersOf(fetch.calls[0]?.init).authorization).toBe("Bearer t");
   });
-  it("with allowAbsoluteUrls, another origin gets per-call headers but never config headers", async () => {
+  it("to an origin in allowedOrigins, sends per-call headers but never config headers", async () => {
     const { api, fetch } = make(undefined, {
       headers: { authorization: "Bearer t" },
-      allowAbsoluteUrls: true,
+      allowedOrigins: ["https://b"],
     });
     await api.get("https://b/x", { headers: { "x-call": "1" } });
     expect(fetch.calls[0]?.url).toBe("https://b/x");
     expect(fetch.calls[0]?.init.headers).toEqual({ "x-call": "1" });
+  });
+  it("counts only the origin of an allowedOrigins URL", async () => {
+    const { api, fetch } = make(undefined, {
+      allowedOrigins: ["https://b/any/path"],
+    });
+    await api.get("https://b/x");
+    expect(fetch.calls[0]?.url).toBe("https://b/x");
+    await expect(api.get("http://b/x")).rejects.toThrow(TypeError);
+  });
+  it("refuses allowedOrigins that are empty or not http(s) URLs when the client is created", () => {
+    expect(() => arthron({ allowedOrigins: [] })).toThrow(
+      /allowedOrigins needs at least one URL/,
+    );
+    expect(() => arthron({ allowedOrigins: ["cdn.test"] })).toThrow(
+      /allowedOrigins needs http\(s\) URLs, got "cdn.test"/,
+    );
   });
   it("drops a default header for one call with null or undefined", async () => {
     const { api, fetch } = make(undefined, {
@@ -379,7 +395,7 @@ describe("arthron — config", () => {
     const fetch = fakeFetch(jsonResponse({}));
     await arthron({
       baseURL: "https://a",
-      allowAbsoluteUrls: true,
+      allowedOrigins: ["https://b"],
       headers: { a: "1" },
       fetch,
       use: [],

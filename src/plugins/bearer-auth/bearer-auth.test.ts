@@ -89,7 +89,11 @@ describe("bearerAuth", () => {
     const fetch = fakeFetch(jsonResponse({}));
     const api = arthron({
       baseURL: API,
-      allowAbsoluteUrls: true,
+      allowedOrigins: [
+        "https://files.test",
+        "https://cdn.test",
+        "http://api.test",
+      ],
       fetch,
       use: [
         bearerAuth({
@@ -239,7 +243,7 @@ describe("bearerAuth", () => {
     const fetch = fakeFetch(jsonResponse({}, { status: 401 }));
     const api = arthron({
       baseURL: API,
-      allowAbsoluteUrls: true,
+      allowedOrigins: ["https://other.test"],
       fetch,
       use: [bearerAuth({ origin: API, token: () => session.current, refresh })],
     });
