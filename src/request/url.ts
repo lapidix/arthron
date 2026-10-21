@@ -21,6 +21,17 @@ export function redactUrl(url: string): string {
 }
 
 /**
+ * `url` as written, without its query, fragment and userinfo — for a value
+ * that may not parse, or whose origin would print as "null" (ftp://…).
+ */
+export function withoutSecrets(url: string): string {
+  return (url.split(/[?#]/)[0] ?? url).replace(
+    /^([a-z][a-z0-9+.-]*:\/\/)[^/\\]*@/i,
+    "$1",
+  );
+}
+
+/**
  * `text` with `url` redacted wherever it appears, as given or as the URL
  * parser normalizes it — for a runtime's own message that repeats the URL.
  */
@@ -72,7 +83,7 @@ export function httpOrigins(
     urls.map((url) => {
       const origin = httpOrigin(url);
       if (origin) return origin;
-      throw new TypeError(errors.invalid(JSON.stringify(url)));
+      throw new TypeError(errors.invalid(JSON.stringify(withoutSecrets(url))));
     }),
   );
 }
@@ -137,7 +148,7 @@ export function fillPath(
     const value = String(values[name]);
     if (value === "" || value === "." || value === "..") {
       throw new TypeError(
-        `arthron: path value ${name}=${JSON.stringify(value)} would change the path, not fill a segment — pass a real id`,
+        `arthron: pathParams.${name}=${JSON.stringify(value)} would change the path, not fill a segment — pass a real id`,
       );
     }
     return encodeURIComponent(value);
@@ -174,10 +185,19 @@ export function resolveUrl(
       );
     }
     const target = originOf(path);
+    // Left to fetch when nothing limits where requests go: it fails, and
+    // send turns that into an argument error.
+    if (target === undefined && (baseURL !== undefined || allowed)) {
+      throw new TypeError(
+        `arthron: "${withoutSecrets(path)}" is not a valid URL — check it, or pass a path relative to baseURL`,
+      );
+    }
     const listed = target !== undefined && allowed?.has(target) === true;
     if (!listed && leavesBase(baseURL, path)) {
+      const base =
+        (baseURL && originOf(baseURL)) ?? withoutSecrets(baseURL ?? "");
       throw new TypeError(
-        `arthron: ${target} is outside baseURL ${(baseURL && originOf(baseURL)) ?? baseURL} — pass a path relative to baseURL, or add ${target} to arthron({ allowedOrigins }) (config headers are not sent there)`,
+        `arthron: ${target} is outside baseURL ${base} — pass a path relative to baseURL, or add ${target} to arthron({ allowedOrigins }) (config headers are not sent there)`,
       );
     }
     if (!listed && baseURL === undefined && allowed) {

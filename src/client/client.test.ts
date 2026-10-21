@@ -138,7 +138,9 @@ describe("arthron — requests", () => {
   it("request() without method rejects with TypeError before calling fetch", async () => {
     const { api, fetch } = make();
     // @ts-expect-error — method is required
-    await expect(api.request("/u", {})).rejects.toBeInstanceOf(TypeError);
+    await expect(api.request("/u", {})).rejects.toThrow(
+      'arthron: request() needs a method — e.g. request(path, { method: "OPTIONS" }); use get/post/... for the common verbs',
+    );
     expect(fetch.calls).toHaveLength(0);
   });
 });
@@ -282,19 +284,79 @@ describe("arthron — config", () => {
     expect(fetch.calls[0]?.url).toBe("https://b/x");
     expect(fetch.calls[0]?.init.headers).toEqual({ "x-call": "1" });
   });
-  it("without a baseURL, sends config headers to every origin in allowedOrigins", async () => {
+  it("refuses config headers with allowedOrigins but no baseURL, which has nowhere to send them", () => {
+    const refusal =
+      "arthron: config headers go to baseURL's origin only, and this client has allowedOrigins but no baseURL — set baseURL, or pass these headers per call";
+    expect(() =>
+      arthron({
+        headers: { "x-api-key": "k" },
+        allowedOrigins: ["https://b", "https://c"],
+      }),
+    ).toThrow(refusal);
+    const listed = arthron({ allowedOrigins: ["https://b"] });
+    expect(() => listed.extend({ headers: { "x-api-key": "k" } })).toThrow(
+      refusal,
+    );
+    const based = arthron({
+      baseURL: "https://a",
+      headers: { "x-api-key": "k" },
+      allowedOrigins: ["https://b"],
+    });
+    // From JS: the types do not let extend unset a baseURL.
+    const unset = {
+      baseURL: undefined,
+    } as unknown as Partial<ArthronClientOptions>;
+    expect(() => based.extend(unset)).toThrow(refusal);
+  });
+  it("without a baseURL, sends per-call headers to an origin in allowedOrigins", async () => {
     const fetch = fakeFetch(jsonResponse({}));
     const api = arthron({
       fetchFn: fetch,
-      headers: { "x-api-key": "k" },
-      allowedOrigins: ["https://b", "https://c"],
+      // Nothing left to send: an empty record is no config headers.
+      headers: { "x-api-key": null },
+      allowedOrigins: ["https://b"],
     });
-    await api.get("https://b/x");
-    await api.get("https://c/x");
-    expect(fetch.calls.map((c) => c.init.headers)).toEqual([
-      { "x-api-key": "k" },
-      { "x-api-key": "k" },
-    ]);
+    await api.get("https://b/x", { headers: { "x-api-key": "k" } });
+    expect(fetch.calls[0]?.init.headers).toEqual({ "x-api-key": "k" });
+  });
+  it("copies allowedOrigins, so a later push to the array allows nothing new", async () => {
+    const origins = ["https://b"];
+    const { api } = make(undefined, { allowedOrigins: origins });
+    origins.push("https://evil.test");
+    const derived = api.use(retry());
+    await expect(derived.get("https://evil.test/x")).rejects.toThrow(
+      /outside baseURL/,
+    );
+  });
+  it("refuses allowedOrigins given as one string, naming the list it takes", () => {
+    const one = "https://cdn.test" as unknown as string[];
+    expect(() => arthron({ allowedOrigins: one })).toThrow(
+      'arthron: allowedOrigins takes a list of URLs, got a string — e.g. allowedOrigins: ["https://cdn.example.com"]',
+    );
+  });
+  it("leaves the query of a refused allowedOrigins entry out of the message", () => {
+    expect(() =>
+      arthron({ allowedOrigins: ["ftp://cdn.test/x?sig=s3cret"] }),
+    ).toThrow(/got "ftp:\/\/cdn\.test\/x"/);
+    expect(() =>
+      arthron({ allowedOrigins: ["ftp://cdn.test/x?sig=s3cret"] }),
+    ).not.toThrow(/s3cret/);
+  });
+  it("refuses a baseURL with a scheme but no host — an unset variable would let the path pick the host", () => {
+    const host = "";
+    expect(() => arthron({ baseURL: `https://${host}` })).toThrow(
+      'arthron: baseURL "https://" has no host — pass a full URL such as "https://api.example.com" (an unset environment variable?)',
+    );
+    expect(() => arthron({ baseURL: "https://?key=s3cret" })).not.toThrow(
+      /s3cret/,
+    );
+    expect(() => arthron({ baseURL: "/api" })).not.toThrow();
+  });
+  it("refuses a fetchFn that is not a function when the client is created", () => {
+    const promised = Promise.resolve(fetch) as unknown as typeof fetch;
+    expect(() => arthron({ fetchFn: promised })).toThrow(
+      "arthron: fetchFn must be a function with fetch's signature, got an object — e.g. arthron({ fetchFn: fetch })",
+    );
   });
   it("counts only the origin of an allowedOrigins URL", async () => {
     const { api, fetch } = make(undefined, {
@@ -574,16 +636,56 @@ describe("arthron — errors", () => {
   });
 });
 
+describe("arthron — a plugin's fetchFn", () => {
+  it("rejects with a TypeError when a plugin sets one that is not a function — a plugin bug, not a retried network error", async () => {
+    let retries = 0;
+    const fetch = fakeFetch(jsonResponse({}));
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: fetch,
+      plugins: [
+        retry({
+          delayFn: () => 0,
+          onRetry: () => {
+            retries += 1;
+          },
+        }),
+        {
+          pluginName: "broken",
+          requestInterceptor: (c) => ({
+            ...c,
+            fetchFn: "oops" as unknown as typeof globalThis.fetch,
+          }),
+        },
+      ],
+    });
+    const err = await api.get("/u").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TypeError);
+    expect((err as Error).message).toBe(
+      "arthron: ctx.fetchFn must be a function with fetch's signature, got a string — a plugin set it; return { ...ctx, fetchFn: fn }",
+    );
+    expect(retries).toBe(0);
+    expect(fetch.calls).toHaveLength(0);
+  });
+});
+
 describe("arthron — immutability", () => {
+  /** Appends `v` to the x-tag header, so every tag that ran shows, in order. */
   const tag = (v: string): Plugin => ({
-    pluginName: "p558",
-    requestInterceptor: (c) => ({
-      ...c,
-      init: {
-        ...c.init,
-        headers: { ...(c.init.headers as object), "x-tag": v },
-      },
-    }),
+    pluginName: `tag-${v}`,
+    requestInterceptor: (c) => {
+      const before = c.init.headers["x-tag"];
+      return {
+        ...c,
+        init: {
+          ...c.init,
+          headers: {
+            ...c.init.headers,
+            "x-tag": before ? `${before},${v}` : v,
+          },
+        },
+      };
+    },
   });
 
   it("use() returns a new client and leaves the parent untouched", async () => {
@@ -615,7 +717,7 @@ describe("arthron — immutability", () => {
     expect(fetch.calls[0]?.init.headers).toMatchObject({
       "x-a": "c",
       "x-b": "p",
-      "x-tag": "c",
+      "x-tag": "p,c",
     });
   });
   it("adding to the parent after extend does not affect the child", async () => {

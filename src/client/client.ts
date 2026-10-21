@@ -143,7 +143,7 @@ export function arthron(config: ArthronClientOptions = {}): ArthronClient {
         return toResponsePromise(
           Promise.reject(
             new TypeError(
-              'arthron: request() needs init.method — e.g. request(path, { method: "OPTIONS" }); use get/post/... for the common verbs',
+              'arthron: request() needs a method — e.g. request(path, { method: "OPTIONS" }); use get/post/... for the common verbs',
             ),
           ),
         );

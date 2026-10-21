@@ -68,6 +68,13 @@ export async function send(
   // Resolved per call, not per client: a global patched after the client was
   // created (msw's `server.listen()`, for one) must still be honoured.
   const fetchFn = ctx.fetchFn ?? resolved.fetchFn ?? globalThis.fetch;
+  // Checked before the try: calling it would throw a TypeError there, and a
+  // plugin's bug would pass for a network failure — retried, status 0.
+  if (typeof fetchFn !== "function") {
+    throw new TypeError(
+      `arthron: ctx.fetchFn must be a function with fetch's signature, got ${fetchFn === null ? "null" : `a ${typeof fetchFn}`} — a plugin set it; return { ...ctx, fetchFn: fn }`,
+    );
+  }
   // Here rather than before the pipeline, so they see the URL the request
   // interceptors produced. Whenever the client relies on the runtime's fetch
   // — also when a plugin wrapped or swapped it for this attempt (upload
