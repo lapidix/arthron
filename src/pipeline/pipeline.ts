@@ -101,9 +101,9 @@ export async function runPipeline(
   const error: ErrorInterceptor[] = [];
   for (const plugin of plugins) {
     if (plugin.middleware) middlewares.push(plugin.middleware);
-    if (plugin.request) request.push(plugin.request);
-    if (plugin.response) response.push(plugin.response);
-    if (plugin.error) error.push(plugin.error);
+    if (plugin.transformRequest) request.push(plugin.transformRequest);
+    if (plugin.transformResponse) response.push(plugin.transformResponse);
+    if (plugin.transformError) error.push(plugin.transformError);
   }
 
   const attempt = async (input: RequestContext): Promise<Response> => {

@@ -38,8 +38,12 @@ export interface Plugin {
    * append.
    */
   name?: string;
+  /** Wraps the whole call and controls its flow: may call `next` again, or not at all. */
   middleware?: Middleware;
-  request?: RequestInterceptor;
-  response?: ResponseInterceptor;
-  error?: ErrorInterceptor;
+  /** Transforms each attempt's context before it is sent; returns the context to send. */
+  transformRequest?: RequestInterceptor;
+  /** Transforms each successful attempt's Response; returns the Response to pass on. */
+  transformResponse?: ResponseInterceptor;
+  /** Transforms each failed attempt's ArthronError; returns the error to throw. */
+  transformError?: ErrorInterceptor;
 }

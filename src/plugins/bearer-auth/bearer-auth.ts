@@ -55,7 +55,7 @@ export function bearerAuth(options: BearerAuthOptions): Plugin {
 
   return {
     name: "bearerAuth",
-    request: async (ctx) => {
+    transformRequest: async (ctx) => {
       if (ctx.meta?.bearerAuth === false || !ours(ctx.url)) return ctx;
       const value = await bearer();
       if (!value) return ctx;

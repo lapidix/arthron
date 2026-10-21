@@ -40,21 +40,21 @@ describe("runPipeline", () => {
         },
       },
       {
-        request: (c) => {
+        transformRequest: (c) => {
           log.push("req1");
           return c;
         },
-        response: (r) => {
+        transformResponse: (r) => {
           log.push("res1");
           return r;
         },
       },
       {
-        request: (c) => {
+        transformRequest: (c) => {
           log.push("req2");
           return c;
         },
-        response: (r) => {
+        transformResponse: (r) => {
           log.push("res2");
           return r;
         },
@@ -86,7 +86,7 @@ describe("runPipeline", () => {
         return next(c);
       },
     };
-    await runPipeline([twice, { request }], ctx(), send);
+    await runPipeline([twice, { transformRequest: request }], ctx(), send);
     expect(send).toHaveBeenCalledTimes(2);
     expect(request).toHaveBeenCalledTimes(2);
   });
@@ -94,7 +94,7 @@ describe("runPipeline", () => {
   it("clones context per attempt so header mutations do not leak into the next attempt", async () => {
     const seen: string[] = [];
     const mutate: Plugin = {
-      request: (c) => {
+      transformRequest: (c) => {
         const h = c.init.headers as Record<string, string>;
         seen.push(h["x-try"] ?? "none");
         h["x-try"] = "set";
@@ -123,7 +123,7 @@ describe("runPipeline", () => {
       };
       const seen: number[] = [];
       const addToken: Plugin = {
-        request: (c) => {
+        transformRequest: (c) => {
           (c.init.body as unknown as Appendable).append("csrf", "t");
           return c;
         },
@@ -155,7 +155,7 @@ describe("runPipeline", () => {
   it("normalizes headers after every request interceptor, so the next one can spread them", async () => {
     const send = vi.fn(async (_c: RequestContext) => jsonResponse({}));
     const asHeaders: Plugin = {
-      request: (c) => {
+      transformRequest: (c) => {
         const h = new Headers(c.init.headers);
         h.set("X-Trace", "t1");
         // A plugin written in JS (or with a cast) may hand back a Headers object.
@@ -163,7 +163,7 @@ describe("runPipeline", () => {
       },
     };
     const spreads: Plugin = {
-      request: (c) => ({
+      transformRequest: (c) => ({
         ...c,
         init: { ...c.init, headers: { ...c.init.headers, authorization: "x" } },
       }),
@@ -180,7 +180,7 @@ describe("runPipeline", () => {
     await runPipeline(
       [
         {
-          request: (c) => {
+          transformRequest: (c) => {
             seen.push(c.init.headers.a);
             return c;
           },
@@ -195,7 +195,12 @@ describe("runPipeline", () => {
   it("keeps meta when an interceptor returns a context without it", async () => {
     const send = vi.fn(async (_c: RequestContext) => jsonResponse({}));
     await runPipeline(
-      [{ request: (c) => ({ url: c.url, init: c.init }) as RequestContext }],
+      [
+        {
+          transformRequest: (c) =>
+            ({ url: c.url, init: c.init }) as RequestContext,
+        },
+      ],
       { ...ctx(), meta: { timeout: 7 } },
       send,
     );
@@ -206,7 +211,7 @@ describe("runPipeline", () => {
     await runPipeline(
       [
         {
-          request: (c) => {
+          transformRequest: (c) => {
             seen.push(c.meta.skipAuth);
             return c;
           },
@@ -221,7 +226,7 @@ describe("runPipeline", () => {
   it("lets request interceptors replace the context", async () => {
     const send = vi.fn(async (_c: RequestContext) => jsonResponse({}));
     await runPipeline(
-      [{ request: (c) => ({ ...c, url: "https://b/y" }) }],
+      [{ transformRequest: (c) => ({ ...c, url: "https://b/y" }) }],
       ctx(),
       send,
     );
@@ -230,7 +235,7 @@ describe("runPipeline", () => {
 
   it("lets response interceptors replace the response", async () => {
     const res = await runPipeline(
-      [{ response: () => new Response("swapped") }],
+      [{ transformResponse: () => new Response("swapped") }],
       ctx(),
       ok,
     );
@@ -245,7 +250,7 @@ describe("runPipeline", () => {
       Object.assign(e, { tagged: true }),
     );
     await expect(
-      runPipeline([{ error: tagged }], ctx(), send),
+      runPipeline([{ transformError: tagged }], ctx(), send),
     ).rejects.toMatchObject({
       status: 0,
       tagged: true,
@@ -267,7 +272,7 @@ describe("runPipeline", () => {
         request: e.request,
       });
     await expect(
-      runPipeline([{ error: swapped }], ctx(), send),
+      runPipeline([{ transformError: swapped }], ctx(), send),
     ).rejects.toMatchObject({
       message: "swapped",
       status: 599,
@@ -279,7 +284,7 @@ describe("runPipeline", () => {
     for (const name of ["AbortError", "TimeoutError"]) {
       const ex = new DOMException("x", name);
       await expect(
-        runPipeline([{ error }], ctx(), async () => {
+        runPipeline([{ transformError: error }], ctx(), async () => {
           throw ex;
         }),
       ).rejects.toBe(ex);
@@ -294,11 +299,11 @@ describe("runPipeline", () => {
       runPipeline(
         [
           {
-            request: () => {
+            transformRequest: () => {
               throw bug;
             },
           },
-          { error },
+          { transformError: error },
         ],
         ctx(),
         ok,
@@ -308,11 +313,11 @@ describe("runPipeline", () => {
       runPipeline(
         [
           {
-            response: () => {
+            transformResponse: () => {
               throw bug;
             },
           },
-          { error },
+          { transformError: error },
         ],
         ctx(),
         ok,
@@ -326,7 +331,7 @@ describe("runPipeline", () => {
               throw bug;
             },
           },
-          { error },
+          { transformError: error },
         ],
         ctx(),
         ok,
@@ -348,10 +353,18 @@ describe("runPipeline", () => {
       throw inner;
     };
     await expect(
-      runPipeline([{ request: thrower }, { error }], ctx(), ok),
+      runPipeline(
+        [{ transformRequest: thrower }, { transformError: error }],
+        ctx(),
+        ok,
+      ),
     ).rejects.toBe(inner);
     await expect(
-      runPipeline([{ response: thrower }, { error }], ctx(), ok),
+      runPipeline(
+        [{ transformResponse: thrower }, { transformError: error }],
+        ctx(),
+        ok,
+      ),
     ).rejects.toBe(inner);
     expect(error).not.toHaveBeenCalled();
   });
@@ -359,15 +372,19 @@ describe("runPipeline", () => {
   it("names an interceptor or middleware that returns nothing", async () => {
     const nothing = (() => undefined) as never;
     await expect(
-      runPipeline([{ request: nothing }], ctx(), ok),
+      runPipeline([{ transformRequest: nothing }], ctx(), ok),
     ).rejects.toThrow(/a request interceptor returned undefined — return/);
     await expect(
-      runPipeline([{ response: nothing }], ctx(), ok),
+      runPipeline([{ transformResponse: nothing }], ctx(), ok),
     ).rejects.toThrow(/a response interceptor returned undefined — return/);
     const failed = networkError(new Error("down"), ctx());
-    const err = await runPipeline([{ error: nothing }], ctx(), async () => {
-      throw failed;
-    }).catch((e: unknown) => e);
+    const err = await runPipeline(
+      [{ transformError: nothing }],
+      ctx(),
+      async () => {
+        throw failed;
+      },
+    ).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TypeError);
     expect((err as Error).message).toMatch(
       /an error interceptor returned undefined — return/,
@@ -383,7 +400,9 @@ describe("runPipeline", () => {
     const seen: unknown[] = [];
     await runPipeline(
       [
-        { request: (c) => ({ url: c.url, init: c.init, meta: c.meta }) },
+        {
+          transformRequest: (c) => ({ url: c.url, init: c.init, meta: c.meta }),
+        },
         {
           middleware: (c, next) =>
             next({ url: c.url, init: c.init, meta: c.meta }),
@@ -410,7 +429,7 @@ describe("runPipeline", () => {
             await next(c);
             return next(c);
           },
-          request: (c) => (++attempt === 1 ? { ...c, fetchFn: g } : c),
+          transformRequest: (c) => (++attempt === 1 ? { ...c, fetchFn: g } : c),
         },
       ],
       { ...ctx(), fetchFn: f },

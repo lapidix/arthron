@@ -39,6 +39,13 @@ const REPLACED = {
   allowAbsoluteUrls: "allowedOrigins",
 } as const;
 
+/** 1.x interceptor slots: a plugin that still uses one would have it ignored. */
+const REPLACED_SLOTS = {
+  request: "transformRequest",
+  response: "transformResponse",
+  error: "transformError",
+} as const;
+
 /**
  * Add plugins to a list. A named plugin takes the place of the one already
  * there with that name — same position, so a replaced `logging()` stays
@@ -51,6 +58,15 @@ export function addPlugins(
 ): Plugin[] {
   const out = [...base];
   for (const plugin of added) {
+    for (const [old, now] of Object.entries(REPLACED_SLOTS)) {
+      if ((plugin as Record<string, unknown>)[old] !== undefined) {
+        const who =
+          plugin.name === undefined ? "a plugin" : `plugin "${plugin.name}"`;
+        throw new TypeError(
+          `arthron: ${who}: the ${old} interceptor is called ${now} since 2.0 — rename it in the plugin`,
+        );
+      }
+    }
     const at =
       plugin.name === undefined
         ? -1

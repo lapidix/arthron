@@ -188,7 +188,7 @@ describe("arthron — argument errors reject instead of throwing synchronously",
       plugins: [
         retryWith({}, async () => {}),
         {
-          request: (ctx) => {
+          transformRequest: (ctx) => {
             attempts += 1;
             return { ...ctx, url: "::not-a-url" };
           },
@@ -237,7 +237,7 @@ describe("arthron — per-call meta", () => {
     const { api } = make(undefined, {
       plugins: [
         {
-          request: (c) => {
+          transformRequest: (c) => {
             seen.push(c.meta);
             return c;
           },
@@ -473,7 +473,9 @@ describe("arthron — errors", () => {
     const ac = new AbortController();
     ac.abort(reason);
     const seen = vi.fn((e: ArthronError) => e);
-    const { api } = make(fakeFetch(reason), { plugins: [{ error: seen }] });
+    const { api } = make(fakeFetch(reason), {
+      plugins: [{ transformError: seen }],
+    });
     await expect(api.get("/u", { signal: ac.signal })).rejects.toBe(reason);
     expect(seen).not.toHaveBeenCalled();
   });
@@ -544,7 +546,7 @@ describe("arthron — errors", () => {
   it("error interceptors see the ArthronError", async () => {
     const seen = vi.fn((e: ArthronError) => e);
     const { api } = make(fakeFetch(jsonResponse({}, { status: 500 })), {
-      plugins: [{ error: seen }],
+      plugins: [{ transformError: seen }],
     });
     await expect(api.get("/u")).rejects.toBeInstanceOf(ArthronError);
     expect(seen).toHaveBeenCalledOnce();
@@ -553,7 +555,7 @@ describe("arthron — errors", () => {
 
 describe("arthron — immutability", () => {
   const tag = (v: string): Plugin => ({
-    request: (c) => ({
+    transformRequest: (c) => ({
       ...c,
       init: {
         ...c.init,
@@ -750,6 +752,16 @@ describe("arthron — 1.x option names", () => {
     expect(create).toThrow(`arthron({ ${now} })`);
   });
   it.each([
+    ["request", "transformRequest"],
+    ["response", "transformResponse"],
+    ["error", "transformError"],
+  ])("refuses a plugin with a 1.x %s interceptor, naming %s", (old, now) => {
+    const plugin = { name: "audit", [old]: (x: unknown) => x } as Plugin;
+    const expected = `plugin "audit": the ${old} interceptor is called ${now} since 2.0`;
+    expect(() => arthron({ plugins: [plugin] })).toThrow(expected);
+    expect(() => arthron().use(plugin)).toThrow(expected);
+  });
+  it.each([
     ["path", "pathParams"],
     ["params", "queryParams"],
   ])("refuses the per-call %s option, naming %s", async (old, now) => {
@@ -780,7 +792,7 @@ describe("arthron — fetchFn", () => {
       fetchFn: fetch,
       plugins: [
         {
-          request: (ctx) => {
+          transformRequest: (ctx) => {
             seen.push(ctx.fetchFn);
             return ctx;
           },
@@ -796,7 +808,7 @@ describe("arthron — fetchFn", () => {
     const api = arthron({
       baseURL: "https://a",
       fetchFn: client,
-      plugins: [{ request: (ctx) => ({ ...ctx, fetchFn: swapped }) }],
+      plugins: [{ transformRequest: (ctx) => ({ ...ctx, fetchFn: swapped }) }],
     });
     const err = await api.get("/u").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ArthronError);
