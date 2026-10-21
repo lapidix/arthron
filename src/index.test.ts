@@ -31,7 +31,8 @@ describe("public surface", () => {
   });
   it("names the client's types after what they are", () => {
     expectTypeOf(arthron()).toEqualTypeOf<import("./").ArthronClient>();
-    expectTypeOf(arthron().get("/x")).toEqualTypeOf<
+    // Types only: calling get() here would send a request no test awaits.
+    expectTypeOf(arthron().get).returns.toEqualTypeOf<
       import("./").ResponsePromise
     >();
     expectTypeOf(arthron)
