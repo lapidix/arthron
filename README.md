@@ -44,7 +44,7 @@ Every field is optional. Without `baseURL`, only absolute URLs are accepted. Wit
 ### Make requests
 
 ```ts
-await api.get("/users", { params: { page: 2 } }); // → Response
+await api.get("/users", { queryParams: { page: 2 } }); // → Response
 await api.post("/users", { name: "kim" }); // object body → JSON
 await api.post("/upload", formData); // FormData/Blob/string/stream → sent as-is
 await api.put("/users/1", { name: "lee" });
@@ -67,7 +67,7 @@ const stream = (await api.post("/chat", prompt)).body; // ReadableStream
 for await (const e of api.post("/chat", prompt).sse()) {} // see "Stream responses"
 ```
 
-`init` accepts everything `fetch` does (`signal`, `cache`, `headers`, …) plus `params`: an object whose `null`/`undefined` values are dropped and whose arrays become repeated keys (`{ ids: [1, 2] }` → `ids=1&ids=2`), or a `URLSearchParams`. Other object values (a `Date`, a nested object) are rejected rather than sent as `[object Object]`. Put ids into the path with `pathParams`, not string interpolation: `api.get("/users/{id}", { pathParams: { id } })` encodes each value into its own segment, so an id like `../admin` or `x?role=admin` cannot change which endpoint you call (`encodeURIComponent` alone lets `..` through). A `null` (or `undefined`) header value drops a client default for that call: `api.get("/public", { headers: { authorization: null } })`.
+`init` accepts everything `fetch` does (`signal`, `cache`, `headers`, …) plus `queryParams`: an object whose `null`/`undefined` values are dropped and whose arrays become repeated keys (`{ ids: [1, 2] }` → `ids=1&ids=2`), or a `URLSearchParams`. Other object values (a `Date`, a nested object) are rejected rather than sent as `[object Object]`. Put ids into the path with `pathParams`, not string interpolation: `api.get("/users/{id}", { pathParams: { id } })` encodes each value into its own segment, so an id like `../admin` or `x?role=admin` cannot change which endpoint you call (`encodeURIComponent` alone lets `..` through). A `null` (or `undefined`) header value drops a client default for that call: `api.get("/public", { headers: { authorization: null } })`.
 
 `query` sends the [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008) QUERY method: safe and idempotent like GET, so `retry()` repeats it by default, but the query travels in the body. Any `fetch` sends it; the server has to understand it (Node's own `http` server does from v20).
 
@@ -98,8 +98,8 @@ try {
 } catch (e) {
   if (isArthronError(e)) {
     e.status; // 404, or 0 when the network failed
-    e.data; // parsed body: JSON, else text, else undefined
-    e.serverMessage; // what the server said (the body's `message` → `error` → `error.message` → `detail`, or your serverMessageFn), or undefined — show this to users
+    e.payload; // the failed response's body, parsed: JSON, else text; undefined for a network failure
+    e.description; // the server's description of the failure (the payload's `message` → `error` → `error.message` → `detail`, or your extractDescription), or undefined — for people
     e.message; // arthron's own: "GET https://api.example.com/users/404 failed with 404 Not Found" — for logs
     e.response; // the failed Response, still readable (up to 64 KiB of its body)
     e.request; // what was sent (url, init) — read it directly; it is left out of logs
@@ -107,9 +107,9 @@ try {
 }
 ```
 
-`isArthronError(e)` and `e instanceof ArthronError` work across copies of the package — the ESM and CJS builds loaded side by side, a CJS dependency's client caught by your ESM code. `request`, `response` and `headers` are not enumerable, and `toJSON()` returns only name, message, serverMessage, status, method, a URL without query or userinfo, and `data`. So `JSON.stringify(e)`, `console.error(e)` and error trackers never print your tokens.
+`isArthronError(e)` and `e instanceof ArthronError` work across copies of the package — the ESM and CJS builds loaded side by side, a CJS dependency's client caught by your ESM code. `request`, `response` and `headers` are not enumerable, and `toJSON()` returns only name, message, description, status, method, a URL without query or userinfo, and `payload`. So `JSON.stringify(e)`, `console.error(e)` and error trackers never print your tokens.
 
-`message` and `serverMessage` are kept apart on purpose. `message` is written by arthron — method, URL without query, status — so a log line or an error tracker says which request failed, and never carries text the server chose. `serverMessage` is what the server said: the right thing for a toast (`e.serverMessage ?? "Something went wrong"`), but untrusted — render it as text, never as HTML, and filter it if your gateway leaks internal routes in it.
+`message` and `description` are kept apart on purpose. `message` is written by arthron — method, URL without query, status — so a log line or an error tracker says which request failed, and never carries text the server chose. `description` is the server's account of the failure: the right thing for a toast (`e.description ?? "Something went wrong"`), but untrusted — render it as text, never as HTML, and filter it if your gateway leaks internal routes in it.
 
 Not every non-ok response is a failure. An opaque response (`mode: "no-cors"`) and the 3xx of `redirect: "manual"` come back as a `Response`, since you asked for them. `throwOn` picks which other non-ok responses reject, for the client or one call: `api.get("/maybe", { throwOn: (res) => res.status !== 404 })` returns the 404 to inspect. An ok response never rejects.
 
@@ -137,9 +137,9 @@ A plugin is an object with any of four slots:
 type Plugin = {
   name?: string; // identity: use/extend replace the plugin of the same name, without(name) removes it
   middleware?: (ctx: RequestContext, next: (ctx: RequestContext) => Promise<Response>) => Promise<Response>;
-  request?: (ctx: RequestContext) => RequestContext | Promise<RequestContext>;
-  response?: (res: Response, ctx: RequestContext) => Response | Promise<Response>;
-  error?: (err: ArthronError, ctx: RequestContext) => ArthronError | Promise<ArthronError>;
+  transformRequest?: (ctx: RequestContext) => RequestContext | Promise<RequestContext>;
+  transformResponse?: (res: Response, ctx: RequestContext) => Response | Promise<Response>;
+  transformError?: (err: ArthronError, ctx: RequestContext) => ArthronError | Promise<ArthronError>;
 };
 
 type RequestContext = {
@@ -205,7 +205,7 @@ Re-runs the attempt on network failure or a retryable status. Because it re-runs
 | option | default | |
 |---|---|---|
 | `retries` | `2` | retries after the first attempt (3 requests total); a whole number ≥ 0 |
-| `retryOn` | `[408, 429, 500, 502, 503, 504]` | network failures (`status: 0`) are always retried |
+| `statuses` | `[408, 429, 500, 502, 503, 504]` | network failures (`status: 0`) are always retried |
 | `methods` | `GET HEAD OPTIONS QUERY PUT DELETE` | case-insensitive |
 | `delayFn` | `(retry) => Math.random() * 300 * 2 ** retry` | ms; `retry` counts from 0. Full jitter, so clients that failed together don't retry together |
 | `maxRetryAfter` | `60_000` | a `Retry-After` longer than this means "don't retry" |
@@ -325,7 +325,7 @@ declare module "arthron" {
   }
 }
 
-const traced = api.use({ request: (ctx) => (ctx.meta.skipTrace ? ctx : withTraceId(ctx)) });
+const traced = api.use({ transformRequest: (ctx) => (ctx.meta.skipTrace ? ctx : withTraceId(ctx)) });
 traced.get("/health", { meta: { skipTrace: true } });
 ```
 
@@ -360,7 +360,7 @@ The same shape maps errors to your own types: `catch (e) { throw toDomainError(e
 **Attach a trace id.** A one-line request interceptor.
 
 ```ts
-const traced = api.use({ request: (ctx) => ({ ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, "x-trace-id": crypto.randomUUID() } } }) });
+const traced = api.use({ transformRequest: (ctx) => ({ ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, "x-trace-id": crypto.randomUUID() } } }) });
 ```
 
 ## Reference
@@ -374,7 +374,7 @@ type ArthronClientOptions = {
   headers?: HeadersOption; // anything fetch's headers take, or a record whose null drops a header (in extend)
   fetchFn?: typeof fetch; // the function requests are sent with: a fake in tests, a polyfill, a framework's fetch; default the global fetch, read per request
   plugins?: Plugin[]; // outermost first; a named one replaces an earlier one of that name
-  serverMessageFn?: (body: unknown, response: Response) => string | undefined; // gives ArthronError.serverMessage from the error body
+  extractDescription?: (payload: unknown, response: Response) => string | undefined; // extracts ArthronError.description from a failed response's payload
   throwOn?: (res: Response) => boolean; // which non-ok responses reject (also per call)
   // …plus any fetch option as a default: credentials, cache, redirect, mode,
   // keepalive, referrerPolicy, priority, integrity. Not body, method or signal —
@@ -405,12 +405,12 @@ class ArthronError extends Error {
   status: number; // 0 for network failures
   statusText: string;
   headers: Headers; // not enumerable
-  data: unknown;
-  serverMessage?: string; // what the server said, picked out of data; untrusted text
+  payload: unknown; // the failed response's body, parsed (JSON, else text); undefined for a network failure
+  description?: string; // the server's description of the failure, extracted from payload; untrusted text
   response?: Response; // absent for network failures; not enumerable
   request: RequestContext; // not enumerable — holds credentials
   cause?: unknown; // the underlying error for network failures
-  toJSON(): { name; message; serverMessage; status; statusText; method; url; data }; // url without query/userinfo
+  toJSON(): { name; message; description; status; statusText; method; url; payload }; // url without query/userinfo
 }
 ```
 
@@ -419,7 +419,7 @@ class ArthronError extends Error {
 - **Fill path segments with `pathParams`.** `{name}` placeholders are encoded per segment; `""`, `.` and `..` are refused, as are missing or unused values. Without `pathParams`, braces are left alone.
 - **URLs are joined by string concatenation.** `baseURL: "https://a/v1"` + `"/users"` → `https://a/v1/users`. The `/v1` survives, unlike with `new URL()`.
 - **Absolute URLs stay on `baseURL`'s origin.** `api.get("https://other.example/x")` on a client with a `baseURL` rejects with a `TypeError`, because a path built from user input or an API response must not carry your credentials elsewhere. Same-origin absolute URLs work. List other origins in `allowedOrigins`; they get per-call headers only. To call any origin, use a client without `baseURL` or `allowedOrigins`. Only `http(s)` URLs are accepted.
-- **Error bodies are read up to 64 KiB.** That is enough for any error message and keeps a huge or endless error body from filling memory. Past the limit `data` is the raw text and the rest of the body is cancelled.
+- **Error bodies are read up to 64 KiB.** That is enough for any error message and keeps a huge or endless error body from filling memory. Past the limit `payload` is the raw text and the rest of the body is cancelled.
 - **Redirects follow fetch's rules.** On a redirect to another origin, fetch drops `Authorization` but keeps other headers such as `x-api-key`. Pass `redirect: "error"` (or `"manual"`) for calls that carry such keys if the server could redirect off-origin.
 - **Bodies.** `string`, `FormData`, `Blob`, `ArrayBuffer`/views, `URLSearchParams` and `ReadableStream` go through untouched — recognised by type tag, so polyfill and cross-realm instances count too. A `ReadableStream` is sent with `duplex: "half"`, which fetch requires. Anything else — including `null` — becomes JSON with `content-type: application/json`; a content type you set must be a JSON one. Bodies JSON would mangle — a `Map`, `Set`, generator, Node stream or function — are rejected with a `TypeError` that says what to pass instead. A `FormData` body is always sent without a `content-type` header, even with a JSON default, so the runtime can add the multipart boundary. `GET`/`HEAD` with a body is rejected with a `TypeError`.
 - **Fetch defaults are flat and only sent when set.** Config takes the same fetch options per-call calls do (`credentials`, `cache`, `redirect`, …) as defaults; a per-call value wins and `extend` overrides. Nothing is sent that you did not set — cross-origin cookies need `credentials: "include"`. `signal`, `body` and `method` are per call: a client-wide signal would fail every call once aborted.
