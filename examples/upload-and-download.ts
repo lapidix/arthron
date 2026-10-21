@@ -14,17 +14,17 @@ export async function upload(file: File, folder: string) {
 
 export async function download(id: string) {
   // `pathParams` encodes `id` into one segment — a hostile id cannot reach other paths.
-  const res = await api.get("/files/{id}", { pathParams: { id } }); // Response — nothing has been read yet
-  const disposition = res.headers.get("content-disposition") ?? "";
+  const response = await api.get("/files/{id}", { pathParams: { id } }); // Response — nothing has been read yet
+  const disposition = response.headers.get("content-disposition") ?? "";
   const name = /filename="?([^"]+)"?/.exec(disposition)?.[1] ?? id;
-  return { name, blob: await res.blob() };
+  return { name, blob: await response.blob() };
 }
 
 export async function exists(id: string) {
   // A 404 is the answer here, not a failure: throwOn hands it back as a Response.
-  const res = await api.head("/files/{id}", {
+  const response = await api.head("/files/{id}", {
     pathParams: { id },
-    throwOn: (r) => r.status !== 404,
+    throwOn: (response) => response.status !== 404,
   });
-  return res.ok;
+  return response.ok;
 }

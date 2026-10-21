@@ -10,11 +10,14 @@ import { retry } from "../src/plugins";
 export const errorRedirect = (navigate: (to: string) => void) =>
   createPlugin({
     pluginName: "errorRedirect",
-    middleware: async (ctx, next) => {
+    middleware: async (requestContext, next) => {
       try {
-        return await next(ctx);
+        return await next(requestContext);
       } catch (error) {
-        if (isArthronError(error) && (ctx.init.method ?? "GET") === "GET") {
+        if (
+          isArthronError(error) &&
+          (requestContext.init.method ?? "GET") === "GET"
+        ) {
           if (error.status === 404) navigate("/not-found");
           else if (error.status >= 500) navigate("/error");
         }

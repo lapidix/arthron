@@ -207,7 +207,9 @@ describe("uploadProgress in the browser", () => {
   it("times out with TimeoutError", async () => {
     const err = await uploads
       .use(timeout(100))
-      .post("/slow", "x", { meta: { uploadProgress: { onProgress: () => {} } } })
+      .post("/slow", "x", {
+        meta: { uploadProgress: { onProgress: () => {} } },
+      })
       .catch((e: unknown) => e);
     expect((err as Error).name).toBe("TimeoutError");
   });
@@ -245,8 +247,8 @@ describe("uploadProgress in the browser", () => {
         meta: {
           uploadProgress: {
             onProgress: (e) => {
-            events.push(e);
-            if (controller.signal.aborted) afterAbort += 1;
+              events.push(e);
+              if (controller.signal.aborted) afterAbort += 1;
             },
           },
         },
@@ -264,7 +266,7 @@ describe("uploadProgress in the browser", () => {
         meta: {
           uploadProgress: {
             onProgress: () => {
-            throw boom;
+              throw boom;
             },
           },
         },
