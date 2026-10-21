@@ -12,10 +12,11 @@ import type { Resolved } from "./client.types";
 
 /**
  * The global fetch rejects a malformed URL or method with a TypeError that
- * looks just like a network failure (status 0, retried). A bodiless `Request`
- * runs the same checks first, so those become argument errors instead. Only
- * for the global fetch: an injected one owns its URL rules (SvelteKit's
- * server-side `fetch` accepts relative URLs, for one).
+ * looks just like a network failure (status 0, retried). Once fetch has
+ * failed, a bodiless `Request` runs the same checks, so those become argument
+ * errors instead — at no cost to a call that goes through. Only for the
+ * global fetch: an injected one owns its URL rules (SvelteKit's server-side
+ * `fetch` accepts relative URLs, for one).
  */
 function assertSendable(url: string, method: string): void {
   if (typeof Request !== "function") return;
@@ -67,23 +68,22 @@ export async function send(
   // Resolved per call, not per client: a global patched after the client was
   // created (msw's `server.listen()`, for one) must still be honoured.
   const fetchFn = ctx.fetchFn ?? resolved.fetchFn ?? globalThis.fetch;
-  // Here rather than before the pipeline, so it sees the URL the request
+  // Here rather than before the pipeline, so they see the URL the request
   // interceptors produced. Whenever the client relies on the runtime's fetch
   // — also when a plugin wrapped or swapped it for this attempt (upload
   // progress) — but not for an injected fetch, which owns its URL rules. A
   // TypeError is not an ArthronError: retry and error interceptors leave it
   // alone.
-  if (resolved.fetchFn === undefined) {
-    const method = ctx.init.method ?? "GET";
-    assertSendable(ctx.url, method);
-    assertStreamable(ctx.url, method, ctx.init.body);
-  }
+  const runtimeFetch = resolved.fetchFn === undefined;
+  const method = ctx.init.method ?? "GET";
+  if (runtimeFetch) assertStreamable(ctx.url, method, ctx.init.body);
   const { signal } = ctx.init;
   let res: Response;
   try {
     res = await fetchFn(ctx.url, ctx.init);
   } catch (thrown) {
     if (isCancellation(thrown, signal)) throw cancellationError(thrown, signal);
+    if (runtimeFetch) assertSendable(ctx.url, method);
     throw networkError(thrown, ctx);
   }
   // Only a non-ok response can become an ArthronError; throwOn narrows which.
