@@ -17,7 +17,7 @@ const api = arthron({
   plugins: [
     retry({
       methods: ["POST"],
-      retryOn: [429, 503],
+      statuses: [429, 503],
       // A dropped connection may already have reached the model: resending
       // would answer — and bill — twice. Retry the statuses above only.
       shouldRetry: (e) =>

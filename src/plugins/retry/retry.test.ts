@@ -26,6 +26,21 @@ describe("retry", () => {
     expect(() => retry({ delay: () => 0 })).toThrow("retry({ delayFn })");
     // @ts-expect-error sleep left the public options in 2.0
     expect(() => retry({ sleep: async () => {} })).toThrow(/fake timers/);
+    // @ts-expect-error retryOn is statuses since 2.0
+    expect(() => retry({ retryOn: [503] })).toThrow("retry({ statuses })");
+  });
+  it("retries the statuses in `statuses`, and no others", async () => {
+    const teapot = fakeFetch(err(418), jsonResponse({ ok: 1 }));
+    expect(
+      await make(teapot, { statuses: [418] })
+        .get("/u")
+        .json(),
+    ).toEqual({ ok: 1 });
+    const unavailable = fakeFetch(err(503), jsonResponse({ ok: 1 }));
+    await expect(
+      make(unavailable, { statuses: [418] }).get("/u"),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(unavailable.calls).toHaveLength(1);
   });
   it("retries up to `retries` times on retryable status, then throws the last error", async () => {
     const fetch = fakeFetch(err(503), err(503), err(503), err(503));

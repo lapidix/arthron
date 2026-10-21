@@ -70,8 +70,8 @@ export type UploadProgressEvent = {
 export type RetryOptions = {
   /** Number of retries after the first attempt. Default 2 (3 requests total). */
   retries?: number;
-  /** Statuses worth retrying. Network errors (status 0) always are. */
-  retryOn?: readonly number[];
+  /** Statuses worth retrying. Default 408, 429, 500, 502, 503, 504; network errors (status 0) always are. */
+  statuses?: readonly number[];
   /** Methods safe to repeat (QUERY is, per RFC 10008). Compared case-insensitively. */
   methods?: readonly string[];
   /**
@@ -82,7 +82,7 @@ export type RetryOptions = {
   delayFn?: (retry: number, error: unknown) => number;
   /**
    * Your own verdict on one failure: `true` retries, `false` stops,
-   * `undefined` leaves it to `retryOn`/`methods`. It sees every error — a
+   * `undefined` leaves it to `statuses`/`methods`. It sees every error — a
    * TimeoutError from a `timeout()` placed after `retry()` included — but
    * cannot exceed `retries`, resend a `ReadableStream` body, or retry a call
    * the caller aborted.

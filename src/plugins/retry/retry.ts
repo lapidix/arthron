@@ -3,7 +3,7 @@ import { isReadableStream } from "../../request/body";
 import type { Plugin } from "../../types/plugin.types";
 import type { RetryOptions } from "../../types/request.types";
 
-const DEFAULT_RETRY_ON = [408, 429, 500, 502, 503, 504] as const;
+const DEFAULT_STATUSES = [408, 429, 500, 502, 503, 504] as const;
 const DEFAULT_METHODS = [
   "GET",
   "HEAD",
@@ -44,20 +44,20 @@ function retryAfterMs(error: ArthronError): number | undefined {
   return Math.max(0, at - Date.now());
 }
 
-/** The rule without `shouldRetry`: a network error or a `retryOn` status, on a method in `methods`. */
+/** The rule without `shouldRetry`: a network error or a status in `statuses`, on a method in `methods`. */
 function byDefault(
   thrown: unknown,
   method: string,
   settings: Settings,
 ): boolean {
   if (!settings.allowed.has(method) || !isArthronError(thrown)) return false;
-  return thrown.status === 0 || settings.retryOn.includes(thrown.status);
+  return thrown.status === 0 || settings.statuses.includes(thrown.status);
 }
 
 /** `RetryOptions` with defaults filled in, ready for one call. */
 type Settings = {
   retries: number;
-  retryOn: readonly number[];
+  statuses: readonly number[];
   allowed: Set<string>;
   delayFn: (retry: number, error: unknown) => number;
   maxRetryAfter: number;
@@ -68,6 +68,7 @@ type Settings = {
 /** 1.x options: unknown keys would be ignored — and a test that injected `sleep` would wait for real. */
 const REPLACED = {
   delay: "was replaced by delayFn in 2.0 — pass retry({ delayFn })",
+  retryOn: "was replaced by statuses in 2.0 — pass retry({ statuses })",
   sleep:
     "left the public options in 2.0 — use fake timers in tests (vi.useFakeTimers())",
 } as const;
@@ -81,7 +82,7 @@ function settle(options: RetryOptions, where: string): Settings {
   }
   const {
     retries = 2,
-    retryOn = DEFAULT_RETRY_ON,
+    statuses = DEFAULT_STATUSES,
     methods = DEFAULT_METHODS,
     delayFn = (retry) => Math.random() * 300 * 2 ** retry,
     maxRetryAfter = DEFAULT_MAX_RETRY_AFTER,
@@ -96,7 +97,7 @@ function settle(options: RetryOptions, where: string): Settings {
   const allowed = new Set(methods.map((m) => m.toUpperCase()));
   return {
     retries,
-    retryOn,
+    statuses,
     allowed,
     delayFn,
     maxRetryAfter,
