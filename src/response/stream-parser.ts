@@ -70,26 +70,30 @@ export async function* parseSse(
   response: Response,
   {
     maxLineLength = DEFAULT_LIMIT,
-    maxEventSize = DEFAULT_LIMIT,
+    maxDataLength = DEFAULT_LIMIT,
   }: SseOptions = {},
 ): AsyncGenerator<SseEvent> {
   let data: string[] = [];
   let size = 0;
-  let event: string | undefined;
+  let type: string | undefined;
   let id: string | undefined;
   // Stream state, not block state: neither resets when an event dispatches.
   let lastEventId = "";
-  let retry: number | undefined;
+  let reconnectionTime: number | undefined;
 
   const flush = (): SseEvent | undefined => {
     const out: SseEvent | undefined =
-      data.length === 0 ? undefined : { data: data.join("\n"), lastEventId };
-    if (out && event !== undefined) out.event = event;
+      data.length === 0
+        ? undefined
+        : // An empty `event:` line counts as none, as in EventSource.
+          { type: type || "message", data: data.join("\n"), lastEventId };
     if (out && id !== undefined) out.id = id;
-    if (out && retry !== undefined) out.retry = retry;
+    if (out && reconnectionTime !== undefined) {
+      out.reconnectionTime = reconnectionTime;
+    }
     data = [];
     size = 0;
-    event = id = undefined;
+    type = id = undefined;
     return out;
   };
 
@@ -107,21 +111,21 @@ export async function* parseSse(
     switch (field) {
       case "data":
         size += value.length + 1;
-        if (size > maxEventSize + 1) {
+        if (size > maxDataLength + 1) {
           throw new RangeError(
-            `arthron: an SSE event's data is longer than ${maxEventSize} characters — pass a larger maxEventSize to .sse() if that is expected`,
+            `arthron: an SSE event's data is longer than ${maxDataLength} characters — pass a larger maxDataLength to .sse() if that is expected`,
           );
         }
         data.push(value);
         break;
       case "event":
-        event = value;
+        type = value;
         break;
       case "id":
         if (!value.includes("\u0000")) id = lastEventId = value;
         break;
       case "retry":
-        if (/^\d+$/.test(value)) retry = Number(value);
+        if (/^\d+$/.test(value)) reconnectionTime = Number(value);
         break;
       default:
         break; // unknown fields are ignored, per spec

@@ -16,10 +16,17 @@ export interface ResponsePromise extends Promise<Response> {
   ndjson<T = unknown>(options?: NdjsonOptions): AsyncIterable<T>;
 }
 
-/** One server-sent event, as described by the WHATWG EventSource spec. */
+/**
+ * One server-sent event, as described by the WHATWG EventSource spec, with
+ * the names a browser `MessageEvent` uses (`type`, `data`, `lastEventId`).
+ */
 export type SseEvent = {
-  /** The `event:` field, when the server sent one. */
-  event?: string;
+  /**
+   * The `event:` field; `"message"` when the server sent none, as in a
+   * browser. Any other value is the server's own name (`"update"`,
+   * `"content_block_delta"`, …).
+   */
+  type: "message" | (string & {});
   /** All `data:` lines of the block, joined with `\n`. */
   data: string;
   /** The `id:` field of this event's own block, when it had one. */
@@ -30,8 +37,12 @@ export type SseEvent = {
    * the server sends one. Send it as `Last-Event-ID` to resume a stream.
    */
   lastEventId: string;
-  /** The reconnection time in ms the server last set with `retry:`; carried on every event after it. */
-  retry?: number;
+  /**
+   * How long in ms the server asked a client to wait before reconnecting,
+   * from its last `retry:` field (the spec's "reconnection time"); carried
+   * on every event after it.
+   */
+  reconnectionTime?: number;
 };
 
 export type NdjsonOptions = {
@@ -42,13 +53,18 @@ export type NdjsonOptions = {
   maxLineLength?: number;
 };
 
-export type SseOptions = NdjsonOptions & {
+export type SseOptions = {
   /**
-   * Most `data` one event may collect before its blank line, in characters.
-   * More rejects the iteration with a RangeError and cancels the body.
-   * Default 8 Mi.
+   * Longest line accepted, in characters. A longer one rejects the iteration
+   * with a RangeError and cancels the body. Default 8 Mi.
    */
-  maxEventSize?: number;
+  maxLineLength?: number;
+  /**
+   * Longest `data` one event may collect before its blank line, in
+   * characters. More rejects the iteration with a RangeError and cancels the
+   * body. Default 8 Mi.
+   */
+  maxDataLength?: number;
 };
 
 /**

@@ -54,8 +54,8 @@ describe("toResponsePromise", () => {
     ).sse())
       sse.push(e);
     expect(sse).toEqual([
-      { data: "a", lastEventId: "" },
-      { data: "b", lastEventId: "" },
+      { type: "message", data: "a", lastEventId: "" },
+      { type: "message", data: "b", lastEventId: "" },
     ]);
     const rows: unknown[] = [];
     for await (const r of toResponsePromise(body('{"a":1}\n{"a":2}\n')).ndjson<{
