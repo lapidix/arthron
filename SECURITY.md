@@ -5,7 +5,7 @@
 | Version | Security fixes |
 | ------- | -------------- |
 | 2.x     | Yes — in a patch release of the latest 2.x minor |
-| 1.x     | Yes, until six months after 2.0.0 — in a patch release of 1.2.x |
+| 1.x     | Yes, until 2027-04-21 (six months after 2.0.0) — in a patch release of 1.2.x |
 | 0.x     | No — upgrade to 2.x |
 
 When a new major ships, the previous major keeps getting security fixes for six months. Those patches are released from a maintenance branch (`v1.x`) under the npm dist-tag `latest-1`, so `npm install arthron` stays on the newest major.

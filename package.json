@@ -1,6 +1,6 @@
 {
   "name": "arthron",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "A lightweight fetch client you assemble from plugins. Zero dependencies, returns native Response.",
   "license": "MIT",
   "author": "lapidix",

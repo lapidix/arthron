@@ -12,7 +12,7 @@ From 1.0.0 arthron follows [Semantic Versioning](https://semver.org/):
 
 A minor deprecates rather than removes: the old API keeps working, marked `@deprecated` with what to use instead, until the next major. A major may also rename or remove without a deprecation first; its entry then says how to move over, and an old option name that would otherwise be ignored throws a `TypeError` naming its replacement.
 
-## [Unreleased]
+## [2.0.0] — 2026-10-21
 
 Removes what 1.1.0 deprecated and renames what read as something else, so each name says what it holds: each plugin has one import path, `timeout()` one way to take `idle`, every built-in plugin with a per-call setting reads the `meta` key named after it, the function requests are sent with has one name, a failed response's account is a `description` apart from arthron's `message`, and a client names the origins it may call. Moving from 1.x means changing imports and names; most 1.x names that would otherwise be ignored throw a `TypeError` naming their replacement, and the rest are type errors (see the last Breaking bullet).
 
@@ -233,6 +233,7 @@ First stable release. Compared with 0.1.0:
 
 - The auth-refresh recipe refreshes once for concurrent 401s and only sends the token to the API's origin; the error-page recipe runs once per call. Both are tested.
 
+[2.0.0]: https://github.com/lapidix/arthron/releases/tag/v2.0.0
 [1.2.0]: https://github.com/lapidix/arthron/releases/tag/v1.2.0
 [1.1.0]: https://github.com/lapidix/arthron/releases/tag/v1.1.0
 [1.0.1]: https://github.com/lapidix/arthron/releases/tag/v1.0.1
