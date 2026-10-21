@@ -131,12 +131,12 @@ describe("arthron in the browser", () => {
   it("reads server-sent events", async () => {
     const events = [];
     for await (const e of api.get("/sse").sse()) {
-      events.push({ event: e.event, data: e.data, id: e.id });
+      events.push({ type: e.type, data: e.data, id: e.id });
     }
     expect(events).toEqual([
-      { event: undefined, data: "one", id: "1" },
-      { event: "note", data: "two\nlines", id: undefined },
-      { event: undefined, data: "three", id: "3" },
+      { type: "message", data: "one", id: "1" },
+      { type: "note", data: "two\nlines", id: undefined },
+      { type: "message", data: "three", id: "3" },
     ]);
   });
 
