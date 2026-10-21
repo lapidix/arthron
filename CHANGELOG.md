@@ -12,6 +12,36 @@ From 1.0.0 arthron follows [Semantic Versioning](https://semver.org/):
 
 A deprecated API keeps working, is marked `@deprecated` with what to use instead, is listed here, and is removed only in the next major.
 
+## [Unreleased]
+
+Removes what 1.1.0 deprecated and renames two things 1.2.0 added, so each plugin has one import path, `timeout()` one way to take `idle`, and every built-in plugin reads the `meta` key named after it. Moving from 1.x means changing imports and names.
+
+### Breaking
+
+- `logging`, `retry` and `timeout`, and the `LogEvent`, `LoggingOptions` and `TimeoutOptions` types, are no longer exported from `arthron` — import them from `arthron/plugins`, where they have been since 1.1.0. So is `RetryOptions`, which 1.1.0 had left on the main entry without a deprecation.
+- `timeout(ms, { idle })` is gone — write `timeout({ total: ms, idle })`. A second argument is a `TypeError` that names the replacement.
+- `meta.onUploadProgress` is now `meta.uploadProgress`, like `meta.bearerAuth`, `meta.retry` and `meta.timeout`: plugin X's per-call setting is `meta.X`.
+- `RequestContext.fetch` is now `RequestContext.adapter` — the function an attempt is sent with, which a plugin may replace (`uploadProgress()` sends over XMLHttpRequest) or wrap. The client option is still `fetch`.
+
+### Moving from 1.x
+
+```diff
+-import { arthron, retry, timeout, type RetryOptions } from "arthron";
++import { arthron } from "arthron";
++import { retry, timeout, type RetryOptions } from "arthron/plugins";
+
+-timeout(60_000, { idle: 30_000 })
++timeout({ total: 60_000, idle: 30_000 })
+-timeout(Infinity, { idle: 30_000 })
++timeout({ idle: 30_000 })
+
+-api.post("/upload", file, { meta: { onUploadProgress: setBar } })
++api.post("/upload", file, { meta: { uploadProgress: setBar } })
+
+-request: (ctx) => ({ ...ctx, fetch: traced(ctx.fetch) })
++request: (ctx) => ({ ...ctx, adapter: traced(ctx.adapter) })
+```
+
 ## [1.2.0] — 2026-10-20
 
 ### Added
