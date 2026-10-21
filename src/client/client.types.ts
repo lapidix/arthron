@@ -1,9 +1,5 @@
 import type { Plugin } from "../types/plugin.types";
-import type {
-  ArthronMeta,
-  HeadersOption,
-  QueryParams,
-} from "../types/request.types";
+import type { ArthronMeta, QueryParams } from "../types/request.types";
 import type {
   DescriptionExtractor,
   ResponsePromise,
@@ -31,8 +27,13 @@ export type HttpMethod =
  */
 export interface RequestOptions
   extends Omit<RequestInit, "body" | "method" | "headers"> {
-  /** Per-call headers; a `null`/`undefined` value drops a client default. */
-  headers?: HeadersOption;
+  /**
+   * Per-call headers: anything fetch's `headers` takes, or a record whose
+   * `null`/`undefined` values drop a client default. Not typed with
+   * `HeadersInit`: that name exists only in the DOM lib, and a Node project
+   * typed with `@types/node` alone does not have it.
+   */
+  headers?: RequestInit["headers"] | Record<string, string | null | undefined>;
   /**
    * The query string: `null`/`undefined` values are skipped, an array becomes
    * repeated keys (`ids=1&ids=2`), and a `URLSearchParams` is used as is.
@@ -57,22 +58,17 @@ export interface RequestOptionsWithMethod extends RequestOptions {
 }
 
 /**
- * The fetch options a client can set as defaults: the same `RequestInit`
- * fields per-call options take, minus what only makes sense per call —
+ * Client options. Besides arthron's own keys it takes any fetch option as a
+ * default (`credentials`, `cache`, `redirect`, `mode`, …), flat like per-call
+ * options; a per-call value wins. Left out: what only makes sense per call —
  * `body`, `method`, `signal` (one client-wide signal, once aborted, would
  * fail every later call) and `window`. `headers` has its own merge rules.
  */
-export type FetchDefaults = Omit<
-  RequestInit,
-  "body" | "method" | "headers" | "signal" | "window"
->;
-
-/**
- * Client config. Besides arthron's own keys it takes any fetch option as a
- * default (`credentials`, `cache`, `redirect`, `mode`, …), flat like per-call
- * options; a per-call value wins.
- */
-export interface ArthronClientOptions extends FetchDefaults {
+export interface ArthronClientOptions
+  extends Omit<
+    RequestInit,
+    "body" | "method" | "headers" | "signal" | "window"
+  > {
   /** Prefix for relative paths. Without it only absolute URLs are accepted. */
   baseURL?: string;
   /**
@@ -85,8 +81,12 @@ export interface ArthronClientOptions extends FetchDefaults {
    * you would hand them to; with neither, any http(s) URL goes.
    */
   allowedOrigins?: readonly string[];
-  /** Default headers. Per-call headers win, compared case-insensitively; `extend` can drop one with `null`. */
-  headers?: HeadersOption;
+  /**
+   * Default headers, sent to baseURL's origin only: anything fetch's
+   * `headers` takes, or a record. Per-call headers win, compared
+   * case-insensitively; `extend` can drop one with `null`.
+   */
+  headers?: RequestInit["headers"] | Record<string, string | null | undefined>;
   /**
    * The function requests are sent with: anything with fetch's signature,
    * `(input, init) => Promise<Response>`. Default: the global `fetch`, read

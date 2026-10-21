@@ -28,7 +28,6 @@ export type {
 } from "./types/plugin.types";
 export type {
   ArthronMeta,
-  HeadersOption,
   QueryParams,
   RequestContext,
 } from "./types/request.types";

@@ -2,19 +2,16 @@ import { checkPlugin } from "../pipeline/create-plugin";
 import { toHeaderRecord } from "../request/headers";
 import { httpOrigin, withoutSecrets } from "../request/url";
 import type { Plugin } from "../types/plugin.types";
-import type {
-  ArthronClientOptions,
-  FetchDefaults,
-  Resolved,
-} from "./client.types";
+import type { ArthronClientOptions, Resolved } from "./client.types";
 
 /**
- * Config keys that configure arthron itself; every other key is a fetch
- * default. Typed so that a new config key fails to compile until it is
- * listed here — otherwise it would be sent to fetch.
+ * Option keys that configure arthron itself; every other key is a fetch
+ * default. Typed so that a new option key fails to compile until it is
+ * listed here — otherwise it would be sent to fetch. `headers` is a fetch
+ * field too, but one with arthron's own merge rules.
  */
 const OWN_KEYS: Record<
-  Exclude<keyof ArthronClientOptions, keyof FetchDefaults>,
+  Exclude<keyof ArthronClientOptions, keyof RequestInit> | "headers",
   true
 > = {
   baseURL: true,
@@ -60,6 +57,9 @@ export function addPlugins(
   }
   return out;
 }
+
+/** The fetch options a client can set as defaults. */
+type FetchDefaults = Omit<ArthronClientOptions, keyof typeof OWN_KEYS>;
 
 /** The fetch defaults in a config: every set key that is not arthron's own. */
 export function fetchDefaults(config: Resolved): FetchDefaults {

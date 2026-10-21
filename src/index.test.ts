@@ -50,6 +50,16 @@ describe("public surface", () => {
     // @ts-expect-error RequestInitWithBody is RequestOptionsWithMethod since 2.0
     expectTypeOf<import("./").RequestInitWithBody>().not.toBeNever();
   });
+  it("writes the headers type into the fields that take it, with no name of its own", () => {
+    expectTypeOf<{ authorization: null }>().toExtend<
+      NonNullable<import("./").ArthronClientOptions["headers"]>
+    >();
+    expectTypeOf<import("./").RequestOptions["headers"]>().toEqualTypeOf<
+      import("./").ArthronClientOptions["headers"]
+    >();
+    // @ts-expect-error HeadersOption is written into `headers` since 2.0
+    expectTypeOf<import("./").HeadersOption>().not.toBeNever();
+  });
   it("groups the schema types under ArthronSchema", () => {
     expectTypeOf<
       import("./").ArthronSchema.Infer<import("./").ArthronSchema<unknown, 1>>

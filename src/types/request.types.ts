@@ -132,23 +132,18 @@ export type RetryOptions = {
   maxRetryAfter?: number;
 };
 
-type QueryValue = string | number | boolean | null | undefined;
-
 /**
  * Query parameters. `null`/`undefined` values are skipped, an array becomes
  * repeated keys (`ids=1&ids=2`), and a `URLSearchParams` is used as is.
  */
 export type QueryParams =
-  | Record<string, QueryValue | readonly QueryValue[]>
+  | Record<
+      string,
+      | string
+      | number
+      | boolean
+      | null
+      | undefined
+      | readonly (string | number | boolean | null | undefined)[]
+    >
   | URLSearchParams;
-
-/**
- * Headers as config and per-call options accept them: anything fetch's
- * `headers` takes, or a plain object whose `null`/`undefined` values delete
- * that header from the layer underneath (a client default, an inherited
- * header). Not spelled `HeadersInit`: that name exists only in the DOM lib,
- * and a Node project typed with `@types/node` alone does not have it.
- */
-export type HeadersOption =
-  | NonNullable<RequestInit["headers"]>
-  | Record<string, string | null | undefined>;
