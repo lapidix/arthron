@@ -4,6 +4,11 @@ import { httpOrigin } from "../../request/url";
 import type { Plugin } from "../../types/plugin.types";
 import type { BearerAuthOptions } from "./bearer-auth.types";
 
+const REPLACED = [
+  ["token", "accessTokenFn"],
+  ["refresh", "refreshFn"],
+] as const;
+
 function allowedOrigins(origin: BearerAuthOptions["origin"]): Set<string> {
   const urls = typeof origin === "string" ? [origin] : origin;
   if (urls.length === 0) {
@@ -24,25 +29,33 @@ function allowedOrigins(origin: BearerAuthOptions["origin"]): Set<string> {
 
 /**
  * Bearer-token auth. A request interceptor sets `authorization: Bearer
- * <token>` on every attempt to `origin`; with `refresh`, a middleware turns a
+ * <token>` on every attempt to `origin`; with `refreshFn`, a middleware turns a
  * 401 into one refresh and one more try. Concurrent 401s share the refresh
  * (with refresh-token rotation, parallel refreshes revoke each other), and a
  * call whose token was replaced meanwhile just retries. A call opts out with
  * `meta: { bearerAuth: false }`.
  */
 export function bearerAuth(options: BearerAuthOptions): Plugin {
-  const { token, refresh } = options;
+  // The 1.x names: unknown keys would be ignored, and no token ever sent.
+  for (const [old, now] of REPLACED) {
+    if ((options as Record<string, unknown>)[old] !== undefined) {
+      throw new TypeError(
+        `arthron: bearerAuth's ${old} option was replaced by ${now} in 2.0 — pass bearerAuth({ ${now} })`,
+      );
+    }
+  }
+  const { accessTokenFn, refreshFn } = options;
   const allowed = allowedOrigins(options.origin);
   const ours = (url: string) => allowed.has(httpOrigin(url) ?? "");
   const bearer = async () => {
-    const value = await token();
+    const value = await accessTokenFn();
     return value ? `Bearer ${value}` : undefined;
   };
   let refreshing: Promise<void> | undefined;
 
   return {
-    name: "bearerAuth",
-    request: async (ctx) => {
+    pluginName: "bearerAuth",
+    requestInterceptor: async (ctx) => {
       if (ctx.meta?.bearerAuth === false || !ours(ctx.url)) return ctx;
       const value = await bearer();
       if (!value) return ctx;
@@ -55,7 +68,7 @@ export function bearerAuth(options: BearerAuthOptions): Plugin {
       };
     },
     middleware: async (ctx, next) => {
-      if (!refresh || ctx.meta?.bearerAuth === false) return next(ctx);
+      if (!refreshFn || ctx.meta?.bearerAuth === false) return next(ctx);
       // A stream is read by the first try; there is nothing left to resend.
       if (isReadableStream(ctx.init.body)) return next(ctx);
       try {
@@ -66,7 +79,7 @@ export function bearerAuth(options: BearerAuthOptions): Plugin {
         // Refresh only if the token that failed is still the current one —
         // otherwise another call has refreshed it already.
         if (error.request.init.headers.authorization === (await bearer())) {
-          refreshing ??= refresh().finally(() => {
+          refreshing ??= refreshFn().finally(() => {
             refreshing = undefined;
           });
           await refreshing;

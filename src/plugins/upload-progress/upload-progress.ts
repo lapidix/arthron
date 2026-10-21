@@ -110,8 +110,8 @@ function withOwnSignal(
  */
 export function uploadProgress(): Plugin {
   return {
-    name: "uploadProgress",
-    request: (ctx) => {
+    pluginName: "uploadProgress",
+    requestInterceptor: (ctx) => {
       const onProgress = ctx.meta?.uploadProgress;
       const { body } = ctx.init;
       if (!onProgress || body === undefined || body === null) return ctx;

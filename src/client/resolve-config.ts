@@ -1,6 +1,11 @@
+import { checkPlugin } from "../pipeline/create-plugin";
 import { toHeaderRecord } from "../request/headers";
 import type { Plugin } from "../types/plugin.types";
-import type { ArthronConfig, FetchDefaults, Resolved } from "./client.types";
+import type {
+  ArthronClientOptions,
+  FetchDefaults,
+  Resolved,
+} from "./client.types";
 
 /**
  * Config keys that configure arthron itself; every other key is a fetch
@@ -8,15 +13,15 @@ import type { ArthronConfig, FetchDefaults, Resolved } from "./client.types";
  * listed here — otherwise it would be sent to fetch.
  */
 const OWN_KEYS: Record<
-  Exclude<keyof ArthronConfig, keyof FetchDefaults>,
+  Exclude<keyof ArthronClientOptions, keyof FetchDefaults>,
   true
 > = {
   baseURL: true,
   allowedOrigins: true,
   headers: true,
   fetchFn: true,
-  use: true,
-  errorDetail: true,
+  plugins: true,
+  extractDescription: true,
   throwOn: true,
 };
 
@@ -24,10 +29,22 @@ const OWN_KEYS: Record<
 const PER_CALL_ONLY = ["signal", "body", "method"] as const;
 
 /**
- * Add plugins to a list. A named plugin takes the place of the one already
- * there with that name — same position, so a replaced `logging()` stays
- * outermost and a second `retry()` does not multiply attempts. Unnamed
- * plugins append.
+ * 1.x config keys and what replaced them. Left alone, each would become an
+ * unknown key, then a fetch default, and be ignored: plugins not applied, a
+ * test's fake fetch passed over for the real network.
+ */
+const REPLACED = {
+  fetch: "fetchFn",
+  use: "plugins",
+  errorDetail: "extractDescription",
+  allowAbsoluteUrls: "allowedOrigins",
+} as const;
+
+/**
+ * Add plugins to a list, each checked as `createPlugin` checks it. A plugin
+ * takes the place of the one already there with its pluginName — same position,
+ * so a replaced `logging()` stays outermost and a second `retry()` does not
+ * multiply attempts. Other names append.
  */
 export function addPlugins(
   base: readonly Plugin[],
@@ -35,10 +52,8 @@ export function addPlugins(
 ): Plugin[] {
   const out = [...base];
   for (const plugin of added) {
-    const at =
-      plugin.name === undefined
-        ? -1
-        : out.findIndex((p) => p.name === plugin.name);
+    checkPlugin(plugin);
+    const at = out.findIndex((p) => p.pluginName === plugin.pluginName);
     if (at === -1) out.push(plugin);
     else out[at] = plugin;
   }
@@ -55,7 +70,7 @@ export function fetchDefaults(config: Resolved): FetchDefaults {
 }
 
 /** Normalize once so `extend` can merge headers and add plugins cheaply. */
-export function resolveConfig(config: ArthronConfig): Resolved {
+export function resolveConfig(config: ArthronClientOptions): Resolved {
   for (const key of PER_CALL_ONLY) {
     if ((config as Record<string, unknown>)[key] !== undefined) {
       throw new TypeError(
@@ -63,17 +78,17 @@ export function resolveConfig(config: ArthronConfig): Resolved {
       );
     }
   }
-  // The 1.x name: as an unknown key it would become a fetch default and be
-  // ignored, sending a test's requests to the real network.
-  if ((config as Record<string, unknown>).fetch !== undefined) {
-    throw new TypeError(
-      "arthron: the fetch option is called fetchFn since 2.0 — pass arthron({ fetchFn })",
-    );
+  for (const [old, now] of Object.entries(REPLACED)) {
+    if ((config as Record<string, unknown>)[old] !== undefined) {
+      throw new TypeError(
+        `arthron: the ${old} option was replaced by ${now} in 2.0 — pass arthron({ ${now} })`,
+      );
+    }
   }
-  const { headers, use, ...rest } = config;
+  const { headers, plugins, ...rest } = config;
   return {
     ...rest,
     headers: toHeaderRecord(headers),
-    use: addPlugins([], use ?? []),
+    plugins: addPlugins([], plugins ?? []),
   };
 }

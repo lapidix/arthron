@@ -15,11 +15,11 @@ let accessToken: string | null = null;
 export const api = arthron({
   baseURL: API,
   credentials: "include", // the refresh token is an httpOnly cookie
-  use: [
+  plugins: [
     bearerAuth({
       origin: API,
-      token: () => accessToken,
-      refresh: async () => {
+      accessTokenFn: () => accessToken,
+      refreshFn: async () => {
         // Rejects with an ArthronError when the session is gone — every
         // waiting call sees it. Send the user to the login page from here.
         const res = await api

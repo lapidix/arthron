@@ -2,7 +2,7 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import { isArthronError } from "../error/arthron-error";
 import { jsonResponse } from "../testkit/fetch.testkit";
 import type { StandardSchemaV1 } from "../types/response.types";
-import { toArthronPromise } from "./arthron-promise";
+import { toResponsePromise } from "./response-promise";
 import { SchemaError } from "./schema-validation";
 
 /** A hand-written Standard Schema — what Zod, Valibot or ArkType hand you. */
@@ -21,7 +21,7 @@ const user: StandardSchemaV1<unknown, { id: number; name: string }> = {
   },
 };
 const body = (data: unknown) =>
-  toArthronPromise(Promise.resolve(jsonResponse(data)));
+  toResponsePromise(Promise.resolve(jsonResponse(data)));
 
 describe(".json(schema)", () => {
   it("resolves with the validated (and transformed) value, typed by the schema", async () => {

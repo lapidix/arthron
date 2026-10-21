@@ -1,17 +1,19 @@
 export { arthron } from "./client/client";
 export type {
-  Arthron,
-  ArthronConfig,
+  ArthronClient,
+  ArthronClientOptions,
   HttpMethod,
-  RequestInitWithBody,
   RequestOptions,
+  RequestOptionsWithMethod,
 } from "./client/client.types";
 export { ArthronError, isArthronError } from "./error/arthron-error";
 export {
-  defineInterceptor,
-  defineMiddleware,
-  definePlugin,
-} from "./pipeline/define-plugin";
+  createErrorInterceptor,
+  createMiddleware,
+  createPlugin,
+  createRequestInterceptor,
+  createResponseInterceptor,
+} from "./pipeline/create-plugin";
 export { SchemaError } from "./response/schema-validation";
 export type {
   ErrorInterceptor,
@@ -27,10 +29,10 @@ export type {
   RequestContext,
 } from "./types/request.types";
 export type {
-  ArthronPromise,
-  ErrorDetailResolver,
+  DescriptionExtractor,
   InferOutput,
   NdjsonOptions,
+  ResponsePromise,
   SchemaIssue,
   SseEvent,
   SseOptions,

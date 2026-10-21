@@ -16,6 +16,4 @@ export type LoggingOptions = {
   logger?: Pick<Console, "log" | "error">;
   /** Receive structured events instead of the default console lines. */
   onEvent?: (event: LogEvent) => void;
-  /** Clock in ms. Injectable for tests. */
-  now?: () => number;
 };

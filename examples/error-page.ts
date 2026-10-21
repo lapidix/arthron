@@ -4,12 +4,12 @@
 // is middleware placed before retry(): it sees only the final result. An
 // error interceptor would run on every failed attempt — navigating away even
 // when the next retry succeeds.
-import { arthron, definePlugin, isArthronError } from "../src";
+import { arthron, createPlugin, isArthronError } from "../src";
 import { retry } from "../src/plugins";
 
 export const errorRedirect = (navigate: (to: string) => void) =>
-  definePlugin({
-    name: "errorRedirect",
+  createPlugin({
+    pluginName: "errorRedirect",
     middleware: async (ctx, next) => {
       try {
         return await next(ctx);
@@ -23,9 +23,9 @@ export const errorRedirect = (navigate: (to: string) => void) =>
     },
   });
 
-// Usage — first in `use`, so it wraps retry().
+// Usage — first in `plugins`, so it wraps retry().
 const navigate = (to: string) => console.log(`navigate → ${to}`);
 export const api = arthron({
   baseURL: "https://api.example.com",
-  use: [errorRedirect(navigate), retry()],
+  plugins: [errorRedirect(navigate), retry()],
 });

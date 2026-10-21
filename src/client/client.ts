@@ -2,14 +2,14 @@ import { runPipeline } from "../pipeline/pipeline";
 import { isReadableStream, serializeBody } from "../request/body";
 import { mergeHeaders } from "../request/headers";
 import { fillPath, leavesBase, originSet, resolveUrl } from "../request/url";
-import { toArthronPromise } from "../response/arthron-promise";
+import { toResponsePromise } from "../response/response-promise";
 import type { RequestContext } from "../types/request.types";
-import type { ArthronPromise } from "../types/response.types";
+import type { ResponsePromise } from "../types/response.types";
 import type {
-  Arthron,
-  ArthronConfig,
-  RequestInitWithBody,
+  ArthronClient,
+  ArthronClientOptions,
   RequestOptions,
+  RequestOptionsWithMethod,
 } from "./client.types";
 import { addPlugins, fetchDefaults, resolveConfig } from "./resolve-config";
 import { send } from "./send";
@@ -28,10 +28,19 @@ const STANDARD_METHODS = new Set([
 ]);
 
 /**
+ * 1.x per-call option names and what replaced them. Left in init they would
+ * reach fetch and be ignored: {id} sent unfilled, the query left off.
+ */
+const REPLACED_PER_CALL = {
+  path: "pathParams",
+  params: "queryParams",
+} as const;
+
+/**
  * Build a client from config. The result is immutable — `use` and `extend`
  * return new clients and never touch the one they were called on.
  */
-export function arthron(config: ArthronConfig = {}): Arthron {
+export function arthron(config: ArthronClientOptions = {}): ArthronClient {
   const resolved = resolveConfig(config);
   const initDefaults = fetchDefaults(resolved);
   // Checked here, so a bad entry fails when the client is created.
@@ -42,25 +51,32 @@ export function arthron(config: ArthronConfig = {}): Arthron {
     method: string,
     rawBody: unknown,
     {
-      params,
+      queryParams,
       headers: callHeaders,
       meta,
       throwOn = resolved.throwOn,
-      path: pathValues,
+      pathParams,
       ...init
     }: RequestOptions,
-  ): ArthronPromise => {
+  ): ResponsePromise => {
     try {
+      for (const [old, now] of Object.entries(REPLACED_PER_CALL)) {
+        if ((init as Record<string, unknown>)[old] !== undefined) {
+          throw new TypeError(
+            `arthron: the ${old} option was replaced by ${now} in 2.0 — pass { ${now}: { … } }`,
+          );
+        }
+      }
       const upper = method.toUpperCase();
       const verb = STANDARD_METHODS.has(upper) ? upper : method;
       if (rawBody !== undefined && BODYLESS_METHODS.has(upper)) {
         // fetch rejects these with a TypeError that would otherwise be mistaken for a network failure and retried.
         throw new TypeError(
-          `arthron: ${upper} requests cannot carry a body — send it as params (query) or switch to POST`,
+          `arthron: ${upper} requests cannot carry a body — send it as queryParams or switch to POST`,
         );
       }
-      if (pathValues) path = fillPath(path, pathValues);
-      const url = resolveUrl(resolved.baseURL, path, params, allowed);
+      if (pathParams) path = fillPath(path, pathParams);
+      const url = resolveUrl(resolved.baseURL, path, queryParams, allowed);
       // Config headers (credentials, typically) belong to baseURL's origin.
       // Another origin, reachable only through allowedOrigins, gets per-call
       // headers alone.
@@ -82,9 +98,9 @@ export function arthron(config: ArthronConfig = {}): Arthron {
       // Without half-duplex, fetch rejects a streaming upload (Node, Chromium).
       if (isReadableStream(body))
         Object.assign(requestInit, { duplex: "half" });
-      return toArthronPromise(
+      return toResponsePromise(
         runPipeline(
-          resolved.use,
+          resolved.plugins,
           {
             url,
             init: requestInit,
@@ -99,16 +115,16 @@ export function arthron(config: ArthronConfig = {}): Arthron {
       );
     } catch (thrown) {
       // Argument errors (no baseURL, unserializable body) reject like everything else.
-      return toArthronPromise(Promise.reject(thrown));
+      return toResponsePromise(Promise.reject(thrown));
     }
   };
 
-  const derive = (next: Partial<ArthronConfig>): Arthron => {
-    const merged: ArthronConfig = {
+  const derive = (next: Partial<ArthronClientOptions>): ArthronClient => {
+    const merged: ArthronClientOptions = {
       ...resolved,
       ...next,
       headers: mergeHeaders(resolved.headers, next.headers),
-      use: addPlugins(resolved.use, next.use ?? []),
+      plugins: addPlugins(resolved.plugins, next.plugins ?? []),
     };
     return arthron(merged);
   };
@@ -121,10 +137,10 @@ export function arthron(config: ArthronConfig = {}): Arthron {
     put: (path, body, init = {}) => dispatch(path, "PUT", body, init),
     patch: (path, body, init = {}) => dispatch(path, "PATCH", body, init),
     query: (path, body, init = {}) => dispatch(path, "QUERY", body, init),
-    request: (path, init: RequestInitWithBody) => {
+    request: (path, init: RequestOptionsWithMethod) => {
       const { method, body, ...rest } = init;
       if (!method) {
-        return toArthronPromise(
+        return toResponsePromise(
           Promise.reject(
             new TypeError(
               'arthron: request() needs init.method — e.g. request(path, { method: "OPTIONS" }); use get/post/... for the common verbs',
@@ -134,13 +150,13 @@ export function arthron(config: ArthronConfig = {}): Arthron {
       }
       return dispatch(path, method, body, rest);
     },
-    use: (...plugins) => derive({ use: plugins }),
+    use: (...plugins) => derive({ plugins }),
     extend: (next) => derive(next),
-    without: (...names) =>
+    without: (...pluginNames) =>
       arthron({
         ...resolved,
-        use: resolved.use.filter(
-          (p) => p.name === undefined || !names.includes(p.name),
+        plugins: resolved.plugins.filter(
+          (p) => !pluginNames.includes(p.pluginName),
         ),
       }),
   };

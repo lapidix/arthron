@@ -14,10 +14,10 @@ const api = arthron({
   // retry would duplicate output, so keep it outside. The timeout bounds the
   // silence, not the length: a long answer that keeps streaming is fine, a
   // model that stops sending for 30 s is not.
-  use: [
+  plugins: [
     retry({
       methods: ["POST"],
-      retryOn: [429, 503],
+      statuses: [429, 503],
       // A dropped connection may already have reached the model: resending
       // would answer — and bill — twice. Retry the statuses above only.
       shouldRetry: (e) =>

@@ -133,10 +133,10 @@ try {
   const { bearerAuth, retry, timeout } = esmPlugins;
   const api = arthron({
     baseURL,
-    use: [retry({ delay: () => 0 }), timeout(500)],
+    plugins: [retry({ delayFn: () => 0 }), timeout(500)],
   });
 
-  const body = await api.get("/echo", { params: { q: 1 } }).json();
+  const body = await api.get("/echo", { queryParams: { q: 1 } }).json();
   assert(
     body.method === "GET" && body.url === "/echo?q=1",
     "GET with params reaches the server",
@@ -210,7 +210,7 @@ try {
     baseURL,
     headers: { authorization: "Bearer SMOKE-TOKEN" },
   })
-    .get("/fail", { params: { key: "SMOKE-QUERY" } })
+    .get("/fail", { queryParams: { key: "SMOKE-QUERY" } })
     .catch((e) => e);
   const serialized = JSON.stringify(leaky);
   assert(
@@ -226,7 +226,7 @@ try {
     .catch((e) => e);
   assert(
     isArthronError(huge) &&
-      huge.data.length === 64 * 1024 &&
+      huge.payload.length === 64 * 1024 &&
       (await huge.response.text()).length === 64 * 1024,
     "a 1 MB error body is read only up to 64 KiB",
   );
@@ -246,11 +246,11 @@ try {
   let refreshes = 0;
   const authed = arthron({
     baseURL,
-    use: [
+    plugins: [
       bearerAuth({
         origin: baseURL,
-        token: () => token,
-        refresh: async () => {
+        accessTokenFn: () => token,
+        refreshFn: async () => {
           refreshes += 1;
           const r = await authed
             .post("/token", undefined, { meta: { bearerAuth: false } })
@@ -271,7 +271,7 @@ try {
   const progress = [];
   const counted = await arthron({
     baseURL,
-    use: [esmPlugins.uploadProgress()],
+    plugins: [esmPlugins.uploadProgress()],
   })
     .put("/progress-upload", new Blob([new Uint8Array(1024 * 1024)]), {
       meta: { uploadProgress: (e) => progress.push(e) },

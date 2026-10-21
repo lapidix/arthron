@@ -20,14 +20,14 @@ Node 22+ for everything — the dev toolchain and the runtime (`engines`). CI ru
 
 ## Rules
 
-- **Tests first.** Every behaviour change starts with a failing test in the matching `*.test.ts`. Tests inject `fetch` through `ArthronConfig.fetchFn` (see `src/testkit/fetch.testkit.ts`: `fakeFetch`, `jsonResponse`); never stub `globalThis.fetch`.
+- **Tests first.** Every behaviour change starts with a failing test in the matching `*.test.ts`. Tests inject `fetch` through `ArthronClientOptions.fetchFn` (see `src/testkit/fetch.testkit.ts`: `fakeFetch`, `jsonResponse`); never stub `globalThis.fetch`.
 - **No runtime dependencies.** `dependencies` stays empty. New dev tooling must work on Node 22+.
 - **TypeScript 5.0+ for users.** The published types must pass `pnpm check:types-consumer` on every version pinned in `test/types-consumer/package.json`, the lowest being the supported minimum. Raising it is a major change. A new TypeScript release gets a new pinned version there.
 - **Node 22 APIs only in `src/`** (and what browsers ship). `AbortSignal.any` is fine; anything newer than Node 22 needs a fallback and a smoke check.
 - **Only two things become `ArthronError`:** `!response.ok` and fetch rejecting. Cancellation and plugin exceptions propagate untouched and skip error interceptors. Do not widen this. `throwOn` may only *narrow* which non-ok responses reject (an ok response never does); by default opaque responses and the 3xx of `redirect: "manual"` are returned, not thrown.
-- **Interceptors transform, middleware controls flow.** Do not add a way for an interceptor to retry, skip, or swallow. Flow-control features are middleware (see `src/plugins/retry/`, `timeout/`).
+- **Interceptors transform, middleware controls flow.** A plugin's interceptors are `requestInterceptor`, `responseInterceptor` and `errorInterceptor`. Do not add a way for an interceptor to retry, skip, or swallow. Flow-control features are middleware (see `src/plugins/retry/`, `timeout/`).
 - **Clients are immutable.** `use`/`extend` return new instances; never mutate `resolved` after construction.
-- **Return native `Response`.** Do not introduce a response wrapper type. Body helpers live on `ArthronPromise` (`src/response/arthron-promise.ts`).
+- **Return native `Response`.** Do not introduce a response wrapper type. Body helpers live on `ResponsePromise` (`src/response/response-promise.ts`).
 - **Public surface is pinned** by `src/index.test.ts` and `src/plugins/index.test.ts` ("exports exactly the documented values"). Adding an export means updating that list, `README.md`, and `llms.txt` in the same change. Built-in plugins and their option types are exported from `arthron/plugins` only.
 - **Error messages say what to do** (`… — pass baseURL in arthron({ baseURL }) or use an absolute URL`). Keep that style.
 - `examples/*.ts` are type-checked (`tsconfig.json` includes them) and import from `../src`. Keep them compiling. `examples/recipes.test.ts` runs the error-page recipe.
@@ -41,14 +41,14 @@ src/
   client/       arthron() — client.ts (request assembly, use/extend/without),
                 send.ts (the one place a failure becomes an ArthronError),
                 resolve-config.ts (config resolution, plugins by name)
-  pipeline/     runPipeline — middleware onion + per-attempt interceptors; define-plugin.ts identity helpers
+  pipeline/     runPipeline — middleware onion + per-attempt interceptors; create-plugin.ts createPlugin, its checks and the create… helpers
   request/      url.ts  body.ts  headers.ts — pure helpers, each with its own tests
-  response/     arthron-promise.ts (.json/.sse/… helpers), stream-parser.ts (SSE / NDJSON),
+  response/     response-promise.ts (.json/.sse/… helpers), stream-parser.ts (SSE / NDJSON),
                 schema-validation.ts, rebuild-response.ts
   error/        arthron-error.ts (ArthronError, isArthronError), create-error.ts (responseError, networkError …)
   plugins/      one folder per plugin: bearer-auth/, retry/, timeout/, logging/ ({name}.ts, {name}.types.ts, tests)
   types/        types used by two or more folders: request.types (RequestContext, ArthronMeta, …),
-                plugin.types (Plugin, Middleware, interceptors), response.types (ArthronPromise, SSE, schema, …)
+                plugin.types (Plugin, Middleware, interceptors), response.types (ResponsePromise, SSE, schema, …)
   testkit/      fakeFetch, jsonResponse — for tests only
 ```
 

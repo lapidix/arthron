@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { ArthronError } from "../error/arthron-error";
 import { logging } from "../plugins/logging/logging";
-import { retry } from "../plugins/retry/retry";
+import { retry, retryWith } from "../plugins/retry/retry";
 import { timeout } from "../plugins/timeout/timeout";
 import { fakeFetch, jsonResponse } from "../testkit/fetch.testkit";
 import type { Plugin } from "../types/plugin.types";
 import { arthron } from "./client";
-import type { ArthronConfig } from "./client.types";
+import type { ArthronClientOptions, RequestOptions } from "./client.types";
 
 // Public types are interfaces, so a plugin package can extend them.
 declare module "./client.types" {
@@ -17,7 +17,7 @@ declare module "./client.types" {
 
 const make = (
   fetch = fakeFetch(jsonResponse({ ok: 1 })),
-  extra: Partial<ArthronConfig> = {},
+  extra: Partial<ArthronClientOptions> = {},
 ) => ({
   fetch,
   api: arthron({ baseURL: "https://a/v1", fetchFn: fetch, ...extra }),
@@ -29,7 +29,7 @@ const headersOf = (init: RequestInit | undefined) =>
 describe("arthron — requests", () => {
   it("get sends GET to baseURL + path with params and returns the Response", async () => {
     const { api, fetch } = make();
-    const res = await api.get("/u", { params: { q: 1 } });
+    const res = await api.get("/u", { queryParams: { q: 1 } });
     expect(res).toBeInstanceOf(Response);
     expect(fetch.calls[0]).toMatchObject({
       url: "https://a/v1/u?q=1",
@@ -38,8 +38,8 @@ describe("arthron — requests", () => {
   });
   it("sends array params as repeated keys and takes URLSearchParams", async () => {
     const { api, fetch } = make();
-    await api.get("/u", { params: { ids: [1, 2] } });
-    await api.get("/u", { params: new URLSearchParams("a=1&a=2") });
+    await api.get("/u", { queryParams: { ids: [1, 2] } });
+    await api.get("/u", { queryParams: new URLSearchParams("a=1&a=2") });
     expect(fetch.calls.map((c) => c.url)).toEqual([
       "https://a/v1/u?ids=1&ids=2",
       "https://a/v1/u?a=1&a=2",
@@ -47,7 +47,7 @@ describe("arthron — requests", () => {
   });
   it("fills {placeholders} from path, encoded", async () => {
     const { api, fetch } = make();
-    await api.get("/users/{id}/posts", { path: { id: "a b/c" } });
+    await api.get("/users/{id}/posts", { pathParams: { id: "a b/c" } });
     expect(fetch.calls[0]?.url).toBe("https://a/v1/users/a%20b%2Fc/posts");
   });
   it("leaves braces alone when no path values are given", async () => {
@@ -58,7 +58,7 @@ describe("arthron — requests", () => {
   it("rejects a dot segment in path values before fetch", async () => {
     const { api, fetch } = make();
     await expect(
-      api.get("/users/{id}", { path: { id: ".." } }),
+      api.get("/users/{id}", { pathParams: { id: ".." } }),
     ).rejects.toBeInstanceOf(TypeError);
     expect(fetch.calls).toHaveLength(0);
   });
@@ -169,7 +169,7 @@ describe("arthron — argument errors reject instead of throwing synchronously",
   });
   it("keeps the query out of the URL-check message", async () => {
     const err = await arthron({ baseURL: "api.example.com" })
-      .get("/x", { params: { token: "s3cret" } })
+      .get("/x", { queryParams: { token: "s3cret" } })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TypeError);
     expect((err as Error).message).not.toContain("s3cret");
@@ -185,10 +185,11 @@ describe("arthron — argument errors reject instead of throwing synchronously",
     let attempts = 0;
     const api = arthron({
       baseURL: "https://a",
-      use: [
-        retry({ sleep: async () => {} }),
+      plugins: [
+        retryWith({}, async () => {}),
         {
-          request: (ctx) => {
+          pluginName: "p190",
+          requestInterceptor: (ctx) => {
             attempts += 1;
             return { ...ctx, url: "::not-a-url" };
           },
@@ -219,8 +220,9 @@ describe("arthron — per-call meta", () => {
   it("hands meta to plugins and never sends it to fetch", async () => {
     const seen: unknown[] = [];
     const { api, fetch } = make(undefined, {
-      use: [
+      plugins: [
         {
+          pluginName: "p223",
           middleware: (c, next) => {
             seen.push(c.meta);
             return next(c);
@@ -235,9 +237,10 @@ describe("arthron — per-call meta", () => {
   it("gives every call a meta object, empty when none was passed", async () => {
     const seen: unknown[] = [];
     const { api } = make(undefined, {
-      use: [
+      plugins: [
         {
-          request: (c) => {
+          pluginName: "p239",
+          requestInterceptor: (c) => {
             seen.push(c.meta);
             return c;
           },
@@ -380,7 +383,7 @@ describe("arthron — config", () => {
     "refuses %s as a client default, at construction",
     (key) => {
       expect(() =>
-        arthron({ baseURL: "https://a", [key]: "x" } as ArthronConfig),
+        arthron({ baseURL: "https://a", [key]: "x" } as ArthronClientOptions),
       ).toThrow(new RegExp(`${key}.*per call`));
     },
   );
@@ -401,8 +404,8 @@ describe("arthron — config", () => {
       allowedOrigins: ["https://b"],
       headers: { a: "1" },
       fetchFn: fetch,
-      use: [],
-      errorDetail: () => undefined,
+      plugins: [],
+      extractDescription: () => undefined,
       throwOn: () => true,
     }).get("/u");
     expect(Object.keys(fetch.calls[0]?.init ?? {}).sort()).toEqual([
@@ -441,19 +444,20 @@ describe("arthron — config", () => {
 });
 
 describe("arthron — errors", () => {
-  it("throws ArthronError on !ok with parsed body and custom errorDetail", async () => {
+  it("throws ArthronError on !ok with parsed body and custom extractDescription", async () => {
     const { api } = make(
       fakeFetch(jsonResponse({ msg: "bad" }, { status: 422 })),
       {
-        errorDetail: (d: unknown) => (d as { msg: string }).msg,
+        extractDescription: (payload: unknown) =>
+          (payload as { msg: string }).msg,
       },
     );
     await expect(api.get("/u")).rejects.toMatchObject({
       name: "ArthronError",
       status: 422,
       message: "GET https://a/v1/u failed with 422",
-      detail: "bad",
-      data: { msg: "bad" },
+      description: "bad",
+      payload: { msg: "bad" },
     });
   });
   it("throws ArthronError status 0 when fetch rejects", async () => {
@@ -473,7 +477,9 @@ describe("arthron — errors", () => {
     const ac = new AbortController();
     ac.abort(reason);
     const seen = vi.fn((e: ArthronError) => e);
-    const { api } = make(fakeFetch(reason), { use: [{ error: seen }] });
+    const { api } = make(fakeFetch(reason), {
+      plugins: [{ pluginName: "p478", errorInterceptor: seen }],
+    });
     await expect(api.get("/u", { signal: ac.signal })).rejects.toBe(reason);
     expect(seen).not.toHaveBeenCalled();
   });
@@ -502,8 +508,10 @@ describe("arthron — errors", () => {
           headers: { "content-type": "application/json" },
         });
       }) as typeof fetch;
-    const client = (fetch: typeof globalThis.fetch, extra = {}) =>
-      arthron({ baseURL: "https://a/v1", fetchFn: fetch, ...extra });
+    const client = (
+      fetch: typeof globalThis.fetch,
+      extra: Partial<ArthronClientOptions> = {},
+    ) => arthron({ baseURL: "https://a/v1", fetchFn: fetch, ...extra });
 
     it("rejects the request with the caller's reason", async () => {
       const reason = new Error("navigated away");
@@ -513,7 +521,7 @@ describe("arthron — errors", () => {
       await expect(pending).rejects.toBe(reason);
     });
     it("rejects a timeout with its TimeoutError", async () => {
-      const api = client(webkitFetch(), { use: [timeout(10)] });
+      const api = client(webkitFetch(), { plugins: [timeout(10)] });
       await expect(api.get("/u")).rejects.toMatchObject({
         name: "TimeoutError",
       });
@@ -542,7 +550,7 @@ describe("arthron — errors", () => {
   it("error interceptors see the ArthronError", async () => {
     const seen = vi.fn((e: ArthronError) => e);
     const { api } = make(fakeFetch(jsonResponse({}, { status: 500 })), {
-      use: [{ error: seen }],
+      plugins: [{ pluginName: "p550", errorInterceptor: seen }],
     });
     await expect(api.get("/u")).rejects.toBeInstanceOf(ArthronError);
     expect(seen).toHaveBeenCalledOnce();
@@ -551,7 +559,8 @@ describe("arthron — errors", () => {
 
 describe("arthron — immutability", () => {
   const tag = (v: string): Plugin => ({
-    request: (c) => ({
+    pluginName: "p558",
+    requestInterceptor: (c) => ({
       ...c,
       init: {
         ...c.init,
@@ -578,9 +587,12 @@ describe("arthron — immutability", () => {
       baseURL: "https://a/v1",
       fetchFn: fetch,
       headers: { "X-A": "p", "X-B": "p" },
-      use: [tag("p")],
+      plugins: [tag("p")],
     });
-    const child = parent.extend({ headers: { "x-a": "c" }, use: [tag("c")] });
+    const child = parent.extend({
+      headers: { "x-a": "c" },
+      plugins: [tag("c")],
+    });
     await child.get("/u");
     expect(fetch.calls[0]?.url).toBe("https://a/v1/u");
     expect(fetch.calls[0]?.init.headers).toMatchObject({
@@ -601,8 +613,8 @@ describe("arthron — immutability", () => {
 
 describe("arthron — plugins by name", () => {
   /** A middleware that records `label` each time it runs. */
-  const mark = (log: string[], label: string, name?: string): Plugin => ({
-    ...(name !== undefined && { name }),
+  const mark = (log: string[], label: string, pluginName = label): Plugin => ({
+    pluginName,
     middleware: (c, next) => {
       log.push(label);
       return next(c);
@@ -613,17 +625,26 @@ describe("arthron — plugins by name", () => {
     const base = arthron({
       baseURL: "https://a",
       fetchFn: fakeFetch(jsonResponse({})),
-      use: [mark(log, "auth-v1", "auth"), mark(log, "other")],
+      plugins: [mark(log, "auth-v1", "auth"), mark(log, "other")],
     });
     await base.use(mark(log, "auth-v2", "auth")).get("/u");
     expect(log).toEqual(["auth-v2", "other"]);
   });
-  it("unnamed plugins still append", async () => {
+  it("refuses a plugin without a pluginName, or a bare function, when it is added", () => {
+    const api = arthron();
+    const unnamed = { middleware: (c, n) => n(c) } as Plugin;
+    expect(() => api.use(unnamed)).toThrow(/a plugin needs a pluginName/);
+    const bare = (() => undefined) as unknown as Plugin;
+    expect(() => arthron({ plugins: [bare] })).toThrow(
+      /a plugin is an object, got a function/,
+    );
+  });
+  it("plugins with other names append", async () => {
     const log: string[] = [];
     const base = arthron({
       baseURL: "https://a",
       fetchFn: fakeFetch(jsonResponse({})),
-      use: [mark(log, "a")],
+      plugins: [mark(log, "a")],
     });
     await base.use(mark(log, "b")).get("/u");
     expect(log).toEqual(["a", "b"]);
@@ -633,7 +654,7 @@ describe("arthron — plugins by name", () => {
     const api = arthron({
       baseURL: "https://a",
       fetchFn: fetch,
-      use: [retry({ sleep: async () => {} })],
+      plugins: [retryWith({}, async () => {})],
     }).use(retry({ retries: 0 }));
     await expect(api.get("/u")).rejects.toMatchObject({ status: 503 });
     expect(fetch.calls).toHaveLength(1);
@@ -643,7 +664,7 @@ describe("arthron — plugins by name", () => {
     const api = arthron({
       baseURL: "https://a",
       fetchFn: fakeFetch(jsonResponse({}, { status: 503 }), jsonResponse({})),
-      use: [logging({ enabled: false }), retry({ sleep: async () => {} })],
+      plugins: [logging({ enabled: false }), retryWith({}, async () => {})],
     }).use(logging({ onEvent: (e) => phases.push(e.phase) }));
     await api.get("/u");
     expect(phases).toEqual(["start", "success"]);
@@ -661,7 +682,7 @@ describe("arthron — plugins by name", () => {
     const base = arthron({
       baseURL: "https://a",
       fetchFn: slow,
-      use: [timeout(5)],
+      plugins: [timeout(5)],
     });
     await expect(base.get("/u")).rejects.toMatchObject({
       name: "TimeoutError",
@@ -673,7 +694,7 @@ describe("arthron — plugins by name", () => {
     await arthron({
       baseURL: "https://a",
       fetchFn: fakeFetch(jsonResponse({})),
-      use: [mark(log, "x1", "x"), mark(log, "y"), mark(log, "x2", "x")],
+      plugins: [mark(log, "x1", "x"), mark(log, "y"), mark(log, "x2", "x")],
     }).get("/u");
     expect(log).toEqual(["x2", "y"]);
   });
@@ -700,7 +721,7 @@ describe("arthron — which responses reject", () => {
     const api = arthron({
       baseURL: "https://a/v1",
       fetchFn: fetch,
-      use: [retry({ sleep: async () => {} })],
+      plugins: [retryWith({}, async () => {})],
     });
     expect((await api.get("/u", { mode: "no-cors" })).type).toBe("opaque");
     expect(fetch.calls).toHaveLength(1);
@@ -733,6 +754,39 @@ describe("arthron — which responses reject", () => {
   });
 });
 
+describe("arthron — 1.x option names", () => {
+  it.each([
+    ["use", [], "plugins"],
+    ["errorDetail", () => undefined, "extractDescription"],
+    ["allowAbsoluteUrls", true, "allowedOrigins"],
+  ] as const)("refuses %s, naming its replacement", (old, value, now) => {
+    const create = () =>
+      arthron({ [old]: value } as unknown as ArthronClientOptions);
+    expect(create).toThrow(TypeError);
+    expect(create).toThrow(`arthron({ ${now} })`);
+  });
+  it.each([
+    ["request", "requestInterceptor"],
+    ["response", "responseInterceptor"],
+    ["error", "errorInterceptor"],
+  ])("refuses a plugin with a 1.x %s interceptor, naming %s", (old, now) => {
+    const plugin = { pluginName: "audit", [old]: (x: unknown) => x } as Plugin;
+    const expected = `plugin "audit": the ${old} interceptor is called ${now} since 2.0`;
+    expect(() => arthron({ plugins: [plugin] })).toThrow(expected);
+    expect(() => arthron().use(plugin)).toThrow(expected);
+  });
+  it.each([
+    ["path", "pathParams"],
+    ["params", "queryParams"],
+  ])("refuses the per-call %s option, naming %s", async (old, now) => {
+    const { api } = make();
+    const init = { [old]: { id: 1 } } as RequestOptions;
+    await expect(api.get("/users/{id}", init)).rejects.toThrow(
+      `{ ${now}: { … } }`,
+    );
+  });
+});
+
 describe("arthron — fetchFn", () => {
   it("refuses the 1.x fetch option, naming fetchFn", () => {
     // @ts-expect-error the option is fetchFn since 2.0
@@ -750,9 +804,10 @@ describe("arthron — fetchFn", () => {
     const api = arthron({
       baseURL: "https://a",
       fetchFn: fetch,
-      use: [
+      plugins: [
         {
-          request: (ctx) => {
+          pluginName: "p802",
+          requestInterceptor: (ctx) => {
             seen.push(ctx.fetchFn);
             return ctx;
           },
@@ -768,7 +823,12 @@ describe("arthron — fetchFn", () => {
     const api = arthron({
       baseURL: "https://a",
       fetchFn: client,
-      use: [{ request: (ctx) => ({ ...ctx, fetchFn: swapped }) }],
+      plugins: [
+        {
+          pluginName: "p820",
+          requestInterceptor: (ctx) => ({ ...ctx, fetchFn: swapped }),
+        },
+      ],
     });
     const err = await api.get("/u").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ArthronError);

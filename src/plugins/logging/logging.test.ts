@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { networkError, responseError } from "../../error/create-error";
 import { runPipeline } from "../../pipeline/pipeline";
 import { jsonResponse } from "../../testkit/fetch.testkit";
-import { logging } from "./logging";
+import { logging, loggingWith } from "./logging";
 import type { LogEvent } from "./logging.types";
 
 const ctx = {
@@ -12,14 +12,18 @@ const ctx = {
 };
 const clock = () => {
   let t = 0;
-  return { now: () => (t += 12) };
+  return () => (t += 12);
 };
 const spyLogger = () => ({ log: vi.fn(), error: vi.fn() });
 
 describe("logging", () => {
+  it("refuses the 1.x now option, naming what to do", () => {
+    // @ts-expect-error now left the public options in 2.0
+    expect(() => logging({ now: () => 0 })).toThrow(/performance\.now/);
+  });
   it("logs start and success without the query string", async () => {
     const logger = spyLogger();
-    await runPipeline([logging({ logger, ...clock() })], ctx, async () =>
+    await runPipeline([loggingWith({ logger }, clock())], ctx, async () =>
       jsonResponse({}, { status: 201 }),
     );
     expect(logger.log.mock.calls).toEqual([
@@ -31,7 +35,7 @@ describe("logging", () => {
   it("logs failures with status and rethrows", async () => {
     const logger = spyLogger();
     await expect(
-      runPipeline([logging({ logger, ...clock() })], ctx, async (c) => {
+      runPipeline([loggingWith({ logger }, clock())], ctx, async (c) => {
         throw networkError(new Error("x"), c);
       }),
     ).rejects.toMatchObject({ status: 0 });
@@ -42,7 +46,7 @@ describe("logging", () => {
   it("logs non-ArthronError failures with '-' for status", async () => {
     const logger = spyLogger();
     await expect(
-      runPipeline([logging({ logger, ...clock() })], ctx, async () => {
+      runPipeline([loggingWith({ logger }, clock())], ctx, async () => {
         throw new RangeError("bug");
       }),
     ).rejects.toBeInstanceOf(RangeError);
@@ -134,7 +138,7 @@ describe("logging", () => {
     const logger = spyLogger();
     const events: unknown[] = [];
     await runPipeline(
-      [logging({ logger, ...clock(), onEvent: (e) => events.push(e) })],
+      [loggingWith({ logger, onEvent: (e) => events.push(e) }, clock())],
       ctx,
       async () => jsonResponse({}, { status: 201 }),
     );
@@ -153,7 +157,7 @@ describe("logging", () => {
   it("onEvent error events carry the status for ArthronError and undefined otherwise", async () => {
     const events: LogEvent[] = [];
     const plugin = () =>
-      logging({ ...clock(), onEvent: (e) => events.push(e) });
+      loggingWith({ onEvent: (e) => events.push(e) }, clock());
     await runPipeline([plugin()], ctx, async (c) => {
       throw networkError(new Error("x"), c);
     }).catch(() => {});

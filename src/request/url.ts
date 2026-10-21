@@ -96,7 +96,7 @@ function toQueryString(params: QueryParams | undefined): string {
       // neither is what a server expects.
       if (typeof item === "object" || typeof item === "function") {
         throw new TypeError(
-          `arthron: params.${key} is not a string, number or boolean — pass one of those or an array of them (dates: date.toISOString())`,
+          `arthron: queryParams.${key} is not a string, number or boolean — pass one of those or an array of them (dates: date.toISOString())`,
         );
       }
       search.append(key, String(item));
@@ -119,7 +119,7 @@ export function fillPath(
   const filled = template.replace(/\{([^{}/]+)\}/g, (_, name: string) => {
     if (!Object.hasOwn(values, name)) {
       throw new TypeError(
-        `arthron: path "${template}" has {${name}} but no value for it — pass path: { ${name}: … }`,
+        `arthron: path "${template}" has {${name}} but no value for it — pass pathParams: { ${name}: … }`,
       );
     }
     used.add(name);

@@ -32,14 +32,19 @@ export type Middleware = (
 
 export interface Plugin {
   /**
-   * Identity within a client: `use`/`extend` replace the plugin of the same
-   * name in place, `without(name)` removes it. The built-ins are named
-   * "bearerAuth", "logging", "retry", "timeout" and "uploadProgress". Leave it out to always
-   * append.
+   * Identity within a client, required: `use`/`extend` replace the plugin of
+   * the same pluginName in place, `without(pluginName)` removes it. The
+   * built-ins are "bearerAuth", "logging", "retry", "timeout" and
+   * "uploadProgress". Not `name`: a function has one, so a bare middleware
+   * would pass for a plugin.
    */
-  name?: string;
+  pluginName: string;
+  /** Wraps the whole call and controls its flow: may call `next` again, or not at all. */
   middleware?: Middleware;
-  request?: RequestInterceptor;
-  response?: ResponseInterceptor;
-  error?: ErrorInterceptor;
+  /** Transforms each attempt's context before it is sent; returns the context to send. */
+  requestInterceptor?: RequestInterceptor;
+  /** Transforms each successful attempt's Response; returns the Response to pass on. */
+  responseInterceptor?: ResponseInterceptor;
+  /** Transforms each failed attempt's ArthronError; returns the error to throw. */
+  errorInterceptor?: ErrorInterceptor;
 }

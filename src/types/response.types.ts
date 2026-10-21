@@ -1,4 +1,4 @@
-export interface ArthronPromise extends Promise<Response> {
+export interface ResponsePromise extends Promise<Response> {
   /** The body as JSON. `T` is a cast — nothing checks it. */
   json<T = unknown>(): Promise<T>;
   /**
@@ -85,7 +85,11 @@ export type InferOutput<S extends StandardSchemaV1> = NonNullable<
   S["~standard"]["types"]
 >["output"];
 
-export type ErrorDetailResolver = (
-  data: unknown,
+/**
+ * Extracts `ArthronError.description` from a failed response's payload
+ * (parsed: JSON if it parses, else the text).
+ */
+export type DescriptionExtractor = (
+  payload: unknown,
   response: Response,
 ) => string | undefined;

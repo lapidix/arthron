@@ -14,15 +14,26 @@ A deprecated API keeps working, is marked `@deprecated` with what to use instead
 
 ## [Unreleased]
 
-Removes what 1.1.0 deprecated, renames what read as something else, and turns `allowAbsoluteUrls` into a list of origins: each plugin has one import path, `timeout()` one way to take `idle`, every built-in plugin reads the `meta` key named after it, the function requests are sent with has one name, and a client names the origins it may call. Moving from 1.x means changing imports and names.
+Removes what 1.1.0 deprecated and renames what read as something else, so each name says what it holds: each plugin has one import path, `timeout()` one way to take `idle`, every built-in plugin reads the `meta` key named after it, the function requests are sent with has one name, a failed response's account is a `description` apart from arthron's `message`, and a client names the origins it may call. Moving from 1.x means changing imports and names; a 1.x name that would otherwise be ignored throws a `TypeError` naming its replacement.
 
 ### Breaking
 
 - `logging`, `retry` and `timeout`, and the `LogEvent`, `LoggingOptions` and `TimeoutOptions` types, are no longer exported from `arthron` — import them from `arthron/plugins`, where they have been since 1.1.0. So is `RetryOptions`, which 1.1.0 had left on the main entry without a deprecation.
 - `timeout(ms, { idle })` is gone — write `timeout({ total: ms, idle })`. A second argument is a `TypeError` that names the replacement.
 - `meta.onUploadProgress` is now `meta.uploadProgress`, like `meta.bearerAuth`, `meta.retry` and `meta.timeout`: plugin X's per-call setting is `meta.X`.
-- The `fetch` option is now `fetchFn`, and `RequestContext.fetch` is `RequestContext.fetchFn` — one name for the function requests are sent with: the client's, and each attempt's, which a plugin may replace (`uploadProgress()` sends over XMLHttpRequest) or wrap. As `fetch`, it read like the global function. `arthron({ fetch })` and `extend({ fetch })` throw a `TypeError` naming `fetchFn` rather than send a test's requests to the real network.
+- The `fetch` option is now `fetchFn`, and `RequestContext.fetch` is `RequestContext.fetchFn` — one name for the function requests are sent with: the client's, and each attempt's, which a plugin may replace (`uploadProgress()` sends over XMLHttpRequest) or wrap. As `fetch`, it read like the global function.
+- `ArthronError.detail` is now `description` and `ArthronError.data` is `payload`, in `toJSON()` too. Both exist only for a failed response: `description` is the server's account of the failure, for people, apart from `message`, which arthron writes for logs; `payload` is that response's parsed body, apart from `response.body`, the stream. The `errorDetail` option is `extractDescription: (payload, response) => string | undefined`, and its type `DescriptionExtractor` (was `ErrorDetailResolver`).
+- The `use` option is now `plugins`: it holds a list of plugins. `api.use()` keeps its name: it is an action.
+- Per call, `params` is now `queryParams` and `path` is `pathParams`: the first argument is already the path, and the two say which part of the URL they fill.
+- A plugin's `request`, `response` and `error` interceptors are `requestInterceptor`, `responseInterceptor` and `errorInterceptor`: each slot is named after the type it holds, and none shares a word with `api.request()`.
+- `definePlugin`, `defineMiddleware` and `defineInterceptor` are gone. `createPlugin`, `createMiddleware`, `createRequestInterceptor`, `createResponseInterceptor` and `createErrorInterceptor` take their place — `create` plus the type's name — and type what they are given without annotations.
+- A plugin's `name` is now `pluginName`, and required: every plugin can be replaced by its `pluginName` and removed with `without()`. Not `name`, because a function has one: with `name`, a bare middleware passed to `use` type-checked as a plugin; with `pluginName` it is a type error. `createPlugin` checks a plugin where it is written, and `use` and `plugins` check whatever they are given the same way: no `pluginName`, an unknown key (a typo), a slot that is not a function, nothing to run, or a bare function is a `TypeError` that says what to write.
+- A function an option holds to produce something is named for what it produces, with `Fn`: `bearerAuth({ token, refresh })` is `bearerAuth({ accessTokenFn, refreshFn })`, and `retry({ delay })` is `retry({ delayFn })`. Event callbacks (`onRetry`, `onEvent`) and yes/no decisions (`shouldRetry`, `throwOn`) keep their names.
+- `retry({ retryOn })` is `retry({ statuses })`, beside `methods`: shaped like `throwOn`, a function, it held a list.
+- `retry`'s `sleep` and `logging`'s `now` leave the public options: both were hooks for tests. Use fake timers or a spy on `performance.now` in yours.
+- The types are named after what they are: `Arthron` is `ArthronClient`, `ArthronConfig` is `ArthronClientOptions`, `ArthronPromise` is `ResponsePromise`, and `RequestInitWithBody` is `RequestOptionsWithMethod`.
 - `allowAbsoluteUrls` is replaced by `allowedOrigins`, a list: with a `baseURL`, an absolute URL may go to `baseURL`'s origin or a listed one, and any other origin is a `TypeError`. Only the origin of each entry counts; an empty list or a non-http(s) entry is a `TypeError` when the client is created. Without a `baseURL`, the list alone limits absolute URLs. Config `headers` still go to `baseURL`'s origin only. To reach any origin, as `allowAbsoluteUrls: true` did, use a client without `baseURL`.
+- A 1.x name is a `TypeError` that names its replacement: the options `fetch`, `use`, `errorDetail` and `allowAbsoluteUrls`; `params` and `path` per call; a plugin's `name`, `request`, `response` and `error`; `bearerAuth`'s `token` and `refresh`; `retry`'s `delay`, `retryOn` and `sleep`; `logging`'s `now`. Left alone, each would be an unknown key and ignored: plugins or interceptors not applied, a test's fake fetch passed over for the network, `{id}` sent unfilled, the query left off, no token sent.
 
 ### Moving from 1.x
 
@@ -42,7 +53,28 @@ Removes what 1.1.0 deprecated, renames what read as something else, and turns `a
 -arthron({ baseURL: API, fetch: fakeFetch })
 +arthron({ baseURL: API, fetchFn: fakeFetch })
 -request: (ctx) => ({ ...ctx, fetch: traced(ctx.fetch) })
-+request: (ctx) => ({ ...ctx, fetchFn: traced(ctx.fetchFn) })
++requestInterceptor: (ctx) => ({ ...ctx, fetchFn: traced(ctx.fetchFn) })
+
+-arthron({ baseURL: API, use: [retry()], errorDetail: (data) => data.msg })
++arthron({ baseURL: API, plugins: [retry()], extractDescription: (payload) => payload.msg })
+-toast(e.detail ?? "Something went wrong"); log(e.data)
++toast(e.description ?? "Something went wrong"); log(e.payload)
+
+-api.get("/users/{id}", { path: { id }, params: { page: 2 } })
++api.get("/users/{id}", { pathParams: { id }, queryParams: { page: 2 } })
+
+-{ name: "trace", request: addTraceId, response: logIt, error: wrapIt }
++{ pluginName: "trace", requestInterceptor: addTraceId, responseInterceptor: logIt, errorInterceptor: wrapIt }
+-definePlugin({ request: addTraceId })
++createPlugin({ pluginName: "trace", requestInterceptor: addTraceId })
+
+-bearerAuth({ origin: API, token: () => tok, refresh })
++bearerAuth({ origin: API, accessTokenFn: () => tok, refreshFn: refresh })
+-retry({ retryOn: [503], delay: (n) => 1000 * n })
++retry({ statuses: [503], delayFn: (n) => 1000 * n })
+
+-function makeRepo(api: Arthron, options: ArthronConfig) {}
++function makeRepo(api: ArthronClient, options: ArthronClientOptions) {}
 
 -arthron({ baseURL: API, allowAbsoluteUrls: true })
 +arthron({ baseURL: API, allowedOrigins: ["https://cdn.example.com"] })

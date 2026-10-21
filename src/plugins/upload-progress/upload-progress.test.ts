@@ -28,7 +28,7 @@ const sent = async (ctx: Partial<RequestContext>) => {
 
 describe("uploadProgress", () => {
   it("is named uploadProgress", () => {
-    expect(uploadProgress().name).toBe("uploadProgress");
+    expect(uploadProgress().pluginName).toBe("uploadProgress");
   });
 
   it("leaves a call without the callback untouched", async () => {
@@ -124,10 +124,10 @@ describe("uploadProgress keeps argument errors", () => {
   it("rejects a malformed URL with a TypeError, not a retried network error", async () => {
     let attempts = 0;
     const api = arthron({
-      use: [
+      plugins: [
         retry({
           methods: ["PUT"],
-          delay: () => 0,
+          delayFn: () => 0,
           onRetry: () => {
             attempts += 1;
           },
@@ -184,10 +184,11 @@ describe("uploadProgress against a real server", () => {
     const api = arthron({
       baseURL: base,
       headers: { authorization: "Bearer new" },
-      use: [
-        retry({ methods: ["PUT"], delay: () => 0 }),
+      plugins: [
+        retry({ methods: ["PUT"], delayFn: () => 0 }),
         {
-          error: (e) => {
+          pluginName: "p189",
+          errorInterceptor: (e) => {
             seen.push(e);
             return e;
           },
@@ -214,15 +215,15 @@ describe("uploadProgress against a real server", () => {
     let token = "old";
     const api = arthron({
       baseURL: base,
-      use: [
+      plugins: [
         bearerAuth({
           origin: base,
-          token: () => token,
-          refresh: async () => {
+          accessTokenFn: () => token,
+          refreshFn: async () => {
             token = "new";
           },
         }),
-        retry({ methods: ["PUT"], delay: () => 0 }),
+        retry({ methods: ["PUT"], delayFn: () => 0 }),
         uploadProgress(),
       ],
     });

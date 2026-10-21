@@ -24,6 +24,7 @@ describe("runPipeline", () => {
     const log: string[] = [];
     const plugins: Plugin[] = [
       {
+        pluginName: "p26",
         middleware: async (c, next) => {
           log.push("m1>");
           const r = await next(c);
@@ -32,6 +33,7 @@ describe("runPipeline", () => {
         },
       },
       {
+        pluginName: "p34",
         middleware: async (c, next) => {
           log.push("m2>");
           const r = await next(c);
@@ -40,21 +42,23 @@ describe("runPipeline", () => {
         },
       },
       {
-        request: (c) => {
+        pluginName: "p42",
+        requestInterceptor: (c) => {
           log.push("req1");
           return c;
         },
-        response: (r) => {
+        responseInterceptor: (r) => {
           log.push("res1");
           return r;
         },
       },
       {
-        request: (c) => {
+        pluginName: "p52",
+        requestInterceptor: (c) => {
           log.push("req2");
           return c;
         },
-        response: (r) => {
+        responseInterceptor: (r) => {
           log.push("res2");
           return r;
         },
@@ -81,12 +85,17 @@ describe("runPipeline", () => {
     const send = vi.fn(ok);
     const request = vi.fn((c: RequestContext) => c);
     const twice: Plugin = {
+      pluginName: "p83",
       middleware: async (c, next) => {
         await next(c);
         return next(c);
       },
     };
-    await runPipeline([twice, { request }], ctx(), send);
+    await runPipeline(
+      [twice, { pluginName: "p89", requestInterceptor: request }],
+      ctx(),
+      send,
+    );
     expect(send).toHaveBeenCalledTimes(2);
     expect(request).toHaveBeenCalledTimes(2);
   });
@@ -94,7 +103,8 @@ describe("runPipeline", () => {
   it("clones context per attempt so header mutations do not leak into the next attempt", async () => {
     const seen: string[] = [];
     const mutate: Plugin = {
-      request: (c) => {
+      pluginName: "p96",
+      requestInterceptor: (c) => {
         const h = c.init.headers as Record<string, string>;
         seen.push(h["x-try"] ?? "none");
         h["x-try"] = "set";
@@ -102,6 +112,7 @@ describe("runPipeline", () => {
       },
     };
     const twice: Plugin = {
+      pluginName: "p104",
       middleware: async (c, next) => {
         await next(c);
         return next(c);
@@ -123,12 +134,14 @@ describe("runPipeline", () => {
       };
       const seen: number[] = [];
       const addToken: Plugin = {
-        request: (c) => {
+        pluginName: "p125",
+        requestInterceptor: (c) => {
           (c.init.body as unknown as Appendable).append("csrf", "t");
           return c;
         },
       };
       const twice: Plugin = {
+        pluginName: "p131",
         middleware: async (c, next) => {
           await next(c);
           return next(c);
@@ -155,7 +168,8 @@ describe("runPipeline", () => {
   it("normalizes headers after every request interceptor, so the next one can spread them", async () => {
     const send = vi.fn(async (_c: RequestContext) => jsonResponse({}));
     const asHeaders: Plugin = {
-      request: (c) => {
+      pluginName: "p157",
+      requestInterceptor: (c) => {
         const h = new Headers(c.init.headers);
         h.set("X-Trace", "t1");
         // A plugin written in JS (or with a cast) may hand back a Headers object.
@@ -163,7 +177,8 @@ describe("runPipeline", () => {
       },
     };
     const spreads: Plugin = {
-      request: (c) => ({
+      pluginName: "p165",
+      requestInterceptor: (c) => ({
         ...c,
         init: { ...c.init, headers: { ...c.init.headers, authorization: "x" } },
       }),
@@ -180,7 +195,8 @@ describe("runPipeline", () => {
     await runPipeline(
       [
         {
-          request: (c) => {
+          pluginName: "p182",
+          requestInterceptor: (c) => {
             seen.push(c.init.headers.a);
             return c;
           },
@@ -195,7 +211,13 @@ describe("runPipeline", () => {
   it("keeps meta when an interceptor returns a context without it", async () => {
     const send = vi.fn(async (_c: RequestContext) => jsonResponse({}));
     await runPipeline(
-      [{ request: (c) => ({ url: c.url, init: c.init }) as RequestContext }],
+      [
+        {
+          pluginName: "p199",
+          requestInterceptor: (c) =>
+            ({ url: c.url, init: c.init }) as RequestContext,
+        },
+      ],
       { ...ctx(), meta: { timeout: 7 } },
       send,
     );
@@ -206,7 +228,8 @@ describe("runPipeline", () => {
     await runPipeline(
       [
         {
-          request: (c) => {
+          pluginName: "p213",
+          requestInterceptor: (c) => {
             seen.push(c.meta.skipAuth);
             return c;
           },
@@ -221,7 +244,12 @@ describe("runPipeline", () => {
   it("lets request interceptors replace the context", async () => {
     const send = vi.fn(async (_c: RequestContext) => jsonResponse({}));
     await runPipeline(
-      [{ request: (c) => ({ ...c, url: "https://b/y" }) }],
+      [
+        {
+          pluginName: "p229",
+          requestInterceptor: (c) => ({ ...c, url: "https://b/y" }),
+        },
+      ],
       ctx(),
       send,
     );
@@ -230,7 +258,12 @@ describe("runPipeline", () => {
 
   it("lets response interceptors replace the response", async () => {
     const res = await runPipeline(
-      [{ response: () => new Response("swapped") }],
+      [
+        {
+          pluginName: "p238",
+          responseInterceptor: () => new Response("swapped"),
+        },
+      ],
       ctx(),
       ok,
     );
@@ -245,7 +278,11 @@ describe("runPipeline", () => {
       Object.assign(e, { tagged: true }),
     );
     await expect(
-      runPipeline([{ error: tagged }], ctx(), send),
+      runPipeline(
+        [{ pluginName: "p253", errorInterceptor: tagged }],
+        ctx(),
+        send,
+      ),
     ).rejects.toMatchObject({
       status: 0,
       tagged: true,
@@ -263,11 +300,15 @@ describe("runPipeline", () => {
         status: 599,
         statusText: "",
         headers: e.headers,
-        data: e.data,
+        payload: e.payload,
         request: e.request,
       });
     await expect(
-      runPipeline([{ error: swapped }], ctx(), send),
+      runPipeline(
+        [{ pluginName: "p275", errorInterceptor: swapped }],
+        ctx(),
+        send,
+      ),
     ).rejects.toMatchObject({
       message: "swapped",
       status: 599,
@@ -279,9 +320,13 @@ describe("runPipeline", () => {
     for (const name of ["AbortError", "TimeoutError"]) {
       const ex = new DOMException("x", name);
       await expect(
-        runPipeline([{ error }], ctx(), async () => {
-          throw ex;
-        }),
+        runPipeline(
+          [{ pluginName: "p287", errorInterceptor: error }],
+          ctx(),
+          async () => {
+            throw ex;
+          },
+        ),
       ).rejects.toBe(ex);
     }
     expect(error).not.toHaveBeenCalled();
@@ -294,11 +339,12 @@ describe("runPipeline", () => {
       runPipeline(
         [
           {
-            request: () => {
+            pluginName: "p301",
+            requestInterceptor: () => {
               throw bug;
             },
           },
-          { error },
+          { pluginName: "p306", errorInterceptor: error },
         ],
         ctx(),
         ok,
@@ -308,11 +354,12 @@ describe("runPipeline", () => {
       runPipeline(
         [
           {
-            response: () => {
+            pluginName: "p315",
+            responseInterceptor: () => {
               throw bug;
             },
           },
-          { error },
+          { pluginName: "p320", errorInterceptor: error },
         ],
         ctx(),
         ok,
@@ -322,11 +369,12 @@ describe("runPipeline", () => {
       runPipeline(
         [
           {
+            pluginName: "p329",
             middleware: () => {
               throw bug;
             },
           },
-          { error },
+          { pluginName: "p334", errorInterceptor: error },
         ],
         ctx(),
         ok,
@@ -348,10 +396,24 @@ describe("runPipeline", () => {
       throw inner;
     };
     await expect(
-      runPipeline([{ request: thrower }, { error }], ctx(), ok),
+      runPipeline(
+        [
+          { pluginName: "p357", requestInterceptor: thrower },
+          { pluginName: "p357", errorInterceptor: error },
+        ],
+        ctx(),
+        ok,
+      ),
     ).rejects.toBe(inner);
     await expect(
-      runPipeline([{ response: thrower }, { error }], ctx(), ok),
+      runPipeline(
+        [
+          { pluginName: "p364", responseInterceptor: thrower },
+          { pluginName: "p364", errorInterceptor: error },
+        ],
+        ctx(),
+        ok,
+      ),
     ).rejects.toBe(inner);
     expect(error).not.toHaveBeenCalled();
   });
@@ -359,22 +421,38 @@ describe("runPipeline", () => {
   it("names an interceptor or middleware that returns nothing", async () => {
     const nothing = (() => undefined) as never;
     await expect(
-      runPipeline([{ request: nothing }], ctx(), ok),
+      runPipeline(
+        [{ pluginName: "p375", requestInterceptor: nothing }],
+        ctx(),
+        ok,
+      ),
     ).rejects.toThrow(/a request interceptor returned undefined — return/);
     await expect(
-      runPipeline([{ response: nothing }], ctx(), ok),
+      runPipeline(
+        [{ pluginName: "p378", responseInterceptor: nothing }],
+        ctx(),
+        ok,
+      ),
     ).rejects.toThrow(/a response interceptor returned undefined — return/);
     const failed = networkError(new Error("down"), ctx());
-    const err = await runPipeline([{ error: nothing }], ctx(), async () => {
-      throw failed;
-    }).catch((e: unknown) => e);
+    const err = await runPipeline(
+      [{ pluginName: "p382", errorInterceptor: nothing }],
+      ctx(),
+      async () => {
+        throw failed;
+      },
+    ).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TypeError);
     expect((err as Error).message).toMatch(
       /an error interceptor returned undefined — return/,
     );
     expect((err as Error).cause).toBe(failed);
     await expect(
-      runPipeline([{ middleware: async () => undefined as never }], ctx(), ok),
+      runPipeline(
+        [{ pluginName: "p394", middleware: async () => undefined as never }],
+        ctx(),
+        ok,
+      ),
     ).rejects.toThrow(/a middleware resolved with undefined — return/);
   });
 
@@ -383,8 +461,16 @@ describe("runPipeline", () => {
     const seen: unknown[] = [];
     await runPipeline(
       [
-        { request: (c) => ({ url: c.url, init: c.init, meta: c.meta }) },
         {
+          pluginName: "p403",
+          requestInterceptor: (c) => ({
+            url: c.url,
+            init: c.init,
+            meta: c.meta,
+          }),
+        },
+        {
+          pluginName: "p410",
           middleware: (c, next) =>
             next({ url: c.url, init: c.init, meta: c.meta }),
         },
@@ -406,11 +492,13 @@ describe("runPipeline", () => {
     await runPipeline(
       [
         {
+          pluginName: "p431",
           middleware: async (c, next) => {
             await next(c);
             return next(c);
           },
-          request: (c) => (++attempt === 1 ? { ...c, fetchFn: g } : c),
+          requestInterceptor: (c) =>
+            ++attempt === 1 ? { ...c, fetchFn: g } : c,
         },
       ],
       { ...ctx(), fetchFn: f },

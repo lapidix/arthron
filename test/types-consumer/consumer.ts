@@ -1,9 +1,12 @@
 // What a user writes against the published types. check.mjs type-checks it
 // against the packed package; it is never run.
 import {
-  type ArthronPromise,
   arthron,
+  createErrorInterceptor,
+  createMiddleware,
+  createPlugin,
   isArthronError,
+  type ResponsePromise,
   SchemaError,
   type SseEvent,
   type StandardSchemaV1,
@@ -43,7 +46,7 @@ const api = arthron({
   allowedOrigins: ["https://cdn.example.com"],
   credentials: "include",
   headers: { authorization: "Bearer token" },
-  use: [
+  plugins: [
     logging({ enabled: false }),
     retry({ retries: 2 } satisfies RetryOptions),
     timeout(5_000),
@@ -54,8 +57,8 @@ const api = arthron({
 
 const authOptions: BearerAuthOptions = {
   origin: ["https://api.example.com"],
-  token: async () => null,
-  refresh: async () => {
+  accessTokenFn: async () => null,
+  refreshFn: async () => {
     await authed.post("/token/refresh", undefined, {
       meta: { bearerAuth: false },
     });
@@ -68,7 +71,8 @@ authed.get("/x", { meta: { bearerAuth: true } });
 
 // A plugin may read, wrap or replace the fetch an attempt is sent with.
 const observed = api.use({
-  request: (ctx) => {
+  pluginName: "observe",
+  requestInterceptor: (ctx) => {
     const sendWith: typeof fetch | undefined = ctx.fetchFn;
     return sendWith
       ? { ...ctx, fetchFn: (input, init) => sendWith(input, init) }
@@ -76,6 +80,21 @@ const observed = api.use({
   },
 });
 void observed;
+
+const idempotent = createMiddleware(async (ctx, next) => next(ctx));
+const markExpired = createErrorInterceptor((err) => err);
+const payments = api.use(
+  createPlugin({
+    pluginName: "idempotency",
+    middleware: idempotent,
+    errorInterceptor: markExpired,
+  }),
+);
+void payments;
+// @ts-expect-error a plugin needs a pluginName
+api.use({ middleware: idempotent });
+// @ts-expect-error a function is not a plugin, though it has a `name`
+api.use(idempotent);
 
 const uploads = api.use(uploadProgress());
 uploads.post("/f", new Blob([]), {
@@ -87,8 +106,8 @@ uploads.post("/f", new Blob([]), {
 uploads.post("/f", new Blob([]), { meta: { uploadProgress: 1 } });
 
 export async function run(): Promise<void> {
-  const pending: ArthronPromise = api.get("/users/{id}", {
-    path: { id: 1 },
+  const pending: ResponsePromise = api.get("/users/{id}", {
+    pathParams: { id: 1 },
     headers: [["x-trace", "1"]],
     meta: { skipAuth: true, retry: false, timeout: 1_000 },
     tenant: "acme",
@@ -119,9 +138,9 @@ export async function run(): Promise<void> {
   } catch (err) {
     if (isArthronError(err)) {
       const status: number = err.status;
-      const detail: string | undefined = err.detail;
+      const description: string | undefined = err.description;
       void status;
-      void detail;
+      void description;
     }
     if (err instanceof SchemaError) {
       const count: number = err.issues.length;

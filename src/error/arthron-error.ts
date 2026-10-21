@@ -6,8 +6,8 @@ type ArthronErrorInit = {
   status: number;
   statusText: string;
   headers: Headers;
-  data: unknown;
-  detail?: string | undefined;
+  payload: unknown;
+  description?: string | undefined;
   request: RequestContext;
   response?: Response;
   cause?: unknown;
@@ -32,16 +32,21 @@ export class ArthronError extends Error {
   readonly statusText: string;
   /** Response headers; empty for network failures. Not enumerable — kept out of logs. */
   declare readonly headers: Headers;
-  /** Parsed body: JSON if it parses, else the text, else `undefined`. */
-  readonly data: unknown;
   /**
-   * The server's own explanation, picked out of `data` (by default
-   * `message` → `error` → `error.message` → `detail`; see the `errorDetail`
-   * config). `undefined` when the body had none. Untrusted server text: show
-   * it to users as text, never as HTML. `message`, by contrast, is written by
-   * arthron — method, URL without query, status — and is meant for logs.
+   * The failed response's payload, parsed: JSON if it parses, else the text;
+   * `undefined` for a network failure, which has no response. At most 64 KiB
+   * is read (text if cut). `response.body`, by contrast, is the stream.
    */
-  readonly detail: string | undefined;
+  readonly payload: unknown;
+  /**
+   * For people: the server's description of the failure, extracted from
+   * `payload` (by default its `message` → `error` → `error.message` →
+   * `detail`; see the `extractDescription` option). `undefined` when there was
+   * none, and for a network failure. Untrusted server text: show it as text,
+   * never as HTML. `message`, by contrast, is arthron's — method, URL
+   * without query, status — for logs, not for people.
+   */
+  readonly description: string | undefined;
   /**
    * The context that was sent — url and init after request interceptors.
    * Not enumerable: it holds credentials, so `JSON.stringify`, `console.error`
@@ -57,8 +62,8 @@ export class ArthronError extends Error {
     super(init.message);
     this.status = init.status;
     this.statusText = init.statusText;
-    this.data = init.data;
-    this.detail = init.detail;
+    this.payload = init.payload;
+    this.description = init.description;
     this.cause = init.cause;
     Object.defineProperties(this, {
       headers: { value: init.headers },
@@ -75,17 +80,17 @@ export class ArthronError extends Error {
       : Function.prototype[Symbol.hasInstance].call(this, value);
   }
 
-  /** What serializers see: no headers, no body, no query or userinfo. */
+  /** What serializers see: no headers, no request body, no query or userinfo. */
   toJSON() {
     return {
       name: this.name,
       message: this.message,
-      detail: this.detail,
+      description: this.description,
       status: this.status,
       statusText: this.statusText,
       method: this.request.init.method ?? "GET",
       url: redactUrl(this.request.url),
-      data: this.data,
+      payload: this.payload,
     };
   }
 }

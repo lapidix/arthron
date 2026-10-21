@@ -32,7 +32,7 @@ describe("arthron in the browser", () => {
       .post(
         "/echo",
         { a: 1 },
-        { params: { q: "x" }, headers: { "x-trace": "t1" } },
+        { queryParams: { q: "x" }, headers: { "x-trace": "t1" } },
       )
       .json<Echo>();
     expect(echo).toMatchObject({
@@ -78,12 +78,12 @@ describe("arthron in the browser", () => {
     }
   });
 
-  it("rejects a 404 with an ArthronError carrying the server's detail", async () => {
+  it("rejects a 404 with an ArthronError carrying the server's message", async () => {
     const err = await api.get("/missing").catch((e: unknown) => e);
     expect(isArthronError(err)).toBe(true);
     if (!isArthronError(err)) return;
     expect(err.status).toBe(404);
-    expect(err.detail).toBe("no such user");
+    expect(err.description).toBe("no such user");
   });
 
   it("follows a redirect by default", async () => {
@@ -99,7 +99,7 @@ describe("arthron in the browser", () => {
   it("retries a 503 that sends retry-after", async () => {
     const res = await api
       .use(retry({ retries: 1 }))
-      .get("/flaky", { params: { id: crypto.randomUUID() } })
+      .get("/flaky", { queryParams: { id: crypto.randomUUID() } })
       .json<{ attempts: number }>();
     expect(res.attempts).toBe(2);
   });
@@ -162,7 +162,7 @@ describe("arthron in the browser", () => {
 describe("uploadProgress in the browser", () => {
   const uploads = arthron({
     baseURL: inject("server"),
-    use: [uploadProgress()],
+    plugins: [uploadProgress()],
   });
 
   it("reports upload progress and keeps the Blob's type", async () => {
@@ -190,9 +190,9 @@ describe("uploadProgress in the browser", () => {
   it("retries a 503 and reports a 404 as ArthronError", async () => {
     const onProgress = () => {};
     const retried = await uploads
-      .use(retry({ methods: ["POST"], delay: () => 0 }))
+      .use(retry({ methods: ["POST"], delayFn: () => 0 }))
       .post("/flaky", "x", {
-        params: { id: `upload-${Math.random()}` },
+        queryParams: { id: `upload-${Math.random()}` },
         meta: { uploadProgress: onProgress },
       })
       .json();
@@ -201,7 +201,7 @@ describe("uploadProgress in the browser", () => {
       .post("/missing", "x", { meta: { uploadProgress: onProgress } })
       .catch((e: unknown) => e);
     expect(isArthronError(err) && err.status).toBe(404);
-    expect(isArthronError(err) && err.detail).toBe("no such user");
+    expect(isArthronError(err) && err.description).toBe("no such user");
   });
 
   it("times out with TimeoutError", async () => {
