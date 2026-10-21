@@ -432,7 +432,7 @@ class ArthronError extends Error {
   description?: string; // the server's description of the failure, extracted from payload; untrusted text
   response?: Response; // absent for network failures; not enumerable
   request: RequestContext; // not enumerable — holds credentials
-  cause?: unknown; // the underlying error for network failures
+  cause?: unknown; // the underlying error for network failures (query and userinfo redacted)
   toJSON(): { name; message; description; status; statusText; method; url; payload }; // url without query/userinfo
 }
 ```

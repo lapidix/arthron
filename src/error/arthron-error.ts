@@ -55,7 +55,7 @@ export class ArthronError extends Error {
   declare readonly request: RequestContext;
   /** The failed Response, still readable — its body holds what arthron read (at most 64 KiB). Absent for network failures. Not enumerable. */
   declare readonly response: Response | undefined;
-  /** The underlying error for network failures. */
+  /** The underlying error for network failures, with the URL's query and userinfo taken out of its message, stack and causes. */
   override readonly cause: unknown;
 
   constructor(init: ArthronErrorInit) {

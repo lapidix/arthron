@@ -137,15 +137,41 @@ export async function responseError(
 const STREAM_BODY_HINT =
   " — in a browser, a ReadableStream body streams only over HTTP/2; send a Blob or ArrayBuffer to an HTTP/1.1 server";
 
+/**
+ * Take `url`'s query and userinfo out of an error the runtime threw, in
+ * place: its message and stack, string fields (Node's `input`), and its
+ * causes. `console.error` and error trackers print that chain, not
+ * `toJSON()`. It stays the same object, so `cause.code` and `instanceof`
+ * still work; a field that cannot be redefined (a frozen error) is left.
+ */
+export function redactErrorUrl(
+  error: unknown,
+  url: string,
+  seen = new Set<object>(),
+): void {
+  if (typeof error !== "object" || error === null || seen.has(error)) return;
+  seen.add(error);
+  const fields = error as Record<string, unknown>;
+  for (const key of new Set(["message", "stack", ...Object.keys(error)])) {
+    const value = fields[key];
+    if (typeof value !== "string") continue;
+    const redacted = redactUrlIn(value, url);
+    if (redacted === value) continue;
+    try {
+      Object.defineProperty(error, key, { value: redacted });
+    } catch {}
+  }
+  redactErrorUrl(fields.cause, url, seen);
+}
+
 export function networkError(
   cause: unknown,
   request: RequestContext,
 ): ArthronError {
   // Some runtimes' messages repeat the URL, query and userinfo included.
+  redactErrorUrl(cause, request.url);
   const reason =
-    cause instanceof Error && cause.message
-      ? redactUrlIn(cause.message, request.url)
-      : "network error";
+    cause instanceof Error && cause.message ? cause.message : "network error";
   const hint = isReadableStream(request.init.body) ? STREAM_BODY_HINT : "";
   return new ArthronError({
     message: `${describeRequest(request)} failed: ${reason}${hint}`,

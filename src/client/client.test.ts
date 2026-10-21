@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import { ArthronError } from "../error/arthron-error";
 import { logging } from "../plugins/logging/logging";
@@ -173,6 +174,8 @@ describe("arthron — argument errors reject instead of throwing synchronously",
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TypeError);
     expect((err as Error).message).not.toContain("s3cret");
+    // Nor in the runtime's error it carries as the cause.
+    expect(inspect(err, { depth: 10 })).not.toContain("s3cret");
   });
   it("leaves URL rules to an injected fetch — relative URLs reach one that accepts them", async () => {
     // e.g. SvelteKit's server-side `event.fetch`

@@ -2,6 +2,7 @@ import {
   cancellationError,
   isCancellation,
   networkError,
+  redactErrorUrl,
   responseError,
 } from "../error/create-error";
 import { isReadableStream, runtimeStreamsRequestBody } from "../request/body";
@@ -22,6 +23,7 @@ function assertSendable(url: string, method: string): void {
     new Request(url, { method });
   } catch (cause) {
     // fetch's own message repeats the full URL, query included.
+    redactErrorUrl(cause, url);
     const reason = redactUrlIn(
       cause instanceof Error ? cause.message : String(cause),
       url,

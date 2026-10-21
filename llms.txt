@@ -48,7 +48,7 @@ class ArthronError extends Error {
   payload: unknown;      // the failed response's body: JSON if parseable, else text, else undefined; at most 64 KiB read (text if cut)
   response?: Response;   // still readable, holding what was read (≤ 64 KiB); absent for network failure; not enumerable
   request: { url: string; init: RequestInit }; // not enumerable (holds credentials)
-  cause?: unknown;       // underlying error for network failure
+  cause?: unknown;       // underlying error for network failure (URL query/userinfo redacted in it too)
   toJSON(): { name, message, description, status, statusText, method, url /* no query/userinfo */, payload };
 }
 isArthronError(e): e is ArthronError   // branded with Symbol.for: works (and instanceof works) across the ESM and CJS copies

@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import { describe, expect, it } from "vitest";
 import { jsonResponse } from "../testkit/fetch.testkit";
 import { ArthronError } from "./arthron-error";
@@ -122,6 +123,26 @@ describe("networkError", () => {
       "GET https://a/x failed: error sending request for url (https://a/x)",
     );
     expect(JSON.stringify(err)).not.toContain("s3cret");
+  });
+  // console.error and error trackers print the cause chain, not toJSON().
+  it("redacts the URL in the cause chain too, keeping the cause itself", () => {
+    const url = "https://u:pw@a/x?token=s3cret";
+    const inner = Object.assign(new TypeError("Invalid URL"), {
+      code: "ERR_INVALID_URL",
+      input: url,
+    });
+    const cause = new TypeError(`error sending request for url (${url})`, {
+      cause: inner,
+    });
+    const err = networkError(cause, {
+      url,
+      init: { method: "GET", headers: {} },
+      meta: {},
+    });
+    expect(err.cause).toBe(cause);
+    expect((err.cause as Error).cause).toBe(inner);
+    expect(inner.code).toBe("ERR_INVALID_URL");
+    expect(inspect(err, { depth: 10 })).not.toMatch(/s3cret|pw@/);
   });
   it("says why a ReadableStream body fails in a browser and what to send instead", () => {
     const streaming = {
