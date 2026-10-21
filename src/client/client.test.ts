@@ -402,7 +402,7 @@ describe("arthron — config", () => {
       headers: { a: "1" },
       fetchFn: fetch,
       plugins: [],
-      pickErrorDetail: () => undefined,
+      serverMessageFn: () => undefined,
       throwOn: () => true,
     }).get("/u");
     expect(Object.keys(fetch.calls[0]?.init ?? {}).sort()).toEqual([
@@ -441,18 +441,18 @@ describe("arthron — config", () => {
 });
 
 describe("arthron — errors", () => {
-  it("throws ArthronError on !ok with parsed body and custom pickErrorDetail", async () => {
+  it("throws ArthronError on !ok with parsed body and custom serverMessageFn", async () => {
     const { api } = make(
       fakeFetch(jsonResponse({ msg: "bad" }, { status: 422 })),
       {
-        pickErrorDetail: (d: unknown) => (d as { msg: string }).msg,
+        serverMessageFn: (body: unknown) => (body as { msg: string }).msg,
       },
     );
     await expect(api.get("/u")).rejects.toMatchObject({
       name: "ArthronError",
       status: 422,
       message: "GET https://a/v1/u failed with 422",
-      detail: "bad",
+      serverMessage: "bad",
       data: { msg: "bad" },
     });
   });
@@ -741,7 +741,7 @@ describe("arthron — which responses reject", () => {
 describe("arthron — 1.x option names", () => {
   it.each([
     ["use", [], "plugins"],
-    ["errorDetail", () => undefined, "pickErrorDetail"],
+    ["errorDetail", () => undefined, "serverMessageFn"],
     ["allowAbsoluteUrls", true, "allowedOrigins"],
   ] as const)("refuses %s, naming its replacement", (old, value, now) => {
     const create = () => arthron({ [old]: value } as unknown as ArthronConfig);

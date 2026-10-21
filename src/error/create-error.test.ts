@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { jsonResponse } from "../testkit/fetch.testkit";
 import { ArthronError } from "./arthron-error";
 import {
-  defaultErrorDetail,
+  defaultServerMessage,
   isCancellation,
   networkError,
   responseError,
@@ -14,7 +14,7 @@ const req = {
   meta: {},
 };
 
-describe("defaultErrorDetail", () => {
+describe("defaultServerMessage", () => {
   it.each([
     [{ message: "m" }, "m"],
     [{ error: "e" }, "e"],
@@ -26,19 +26,19 @@ describe("defaultErrorDetail", () => {
     ["plain text", undefined],
     [undefined, undefined],
   ])("%j → %j", (data, expected) => {
-    expect(defaultErrorDetail(data)).toBe(expected);
+    expect(defaultServerMessage(data)).toBe(expected);
   });
 });
 
 describe("responseError", () => {
-  it("writes its own message and keeps the server's text in detail", async () => {
+  it("writes its own message and keeps the server's text in serverMessage", async () => {
     const err = await responseError(
       jsonResponse({ message: "nope" }, { status: 400, statusText: "Bad" }),
       req,
     );
     expect(err).toBeInstanceOf(ArthronError);
     expect(err.message).toBe("GET https://a/x failed with 400 Bad");
-    expect(err.detail).toBe("nope");
+    expect(err.serverMessage).toBe("nope");
     expect(err.status).toBe(400);
     expect(err.statusText).toBe("Bad");
     expect(err.data).toEqual({ message: "nope" });
@@ -53,30 +53,30 @@ describe("responseError", () => {
     expect(err.response?.bodyUsed).toBe(false);
     expect(await err.response?.json()).toEqual({ message: "nope" });
   });
-  it("uses the status alone when there is no status text (HTTP/2), and no detail for a plain body", async () => {
+  it("uses the status alone when there is no status text (HTTP/2), and no serverMessage for a plain body", async () => {
     const err = await responseError(new Response("boom", { status: 502 }), req);
     expect(err.data).toBe("boom");
     expect(err.message).toBe("GET https://a/x failed with 502");
-    expect(err.detail).toBeUndefined();
+    expect(err.serverMessage).toBeUndefined();
   });
   it("leaves data undefined for an empty body", async () => {
     const err = await responseError(new Response(null, { status: 404 }), req);
     expect(err.data).toBeUndefined();
   });
-  it("fills detail from a custom resolver, or leaves it undefined", async () => {
+  it("fills serverMessage from a custom serverMessageFn, or leaves it undefined", async () => {
     const custom = await responseError(
       jsonResponse({ msg: "c" }, { status: 400 }),
       req,
       (d) => (d as { msg: string }).msg,
     );
-    expect(custom.detail).toBe("c");
+    expect(custom.serverMessage).toBe("c");
     expect(custom.message).toBe("GET https://a/x failed with 400");
     const none = await responseError(
       jsonResponse({ msg: "c" }, { status: 400 }),
       req,
       () => undefined,
     );
-    expect(none.detail).toBeUndefined();
+    expect(none.serverMessage).toBeUndefined();
   });
   it("keeps the query, userinfo and the server's text out of the message", async () => {
     const err = await responseError(
@@ -91,7 +91,7 @@ describe("responseError", () => {
       },
     );
     expect(err.message).toBe("POST https://a/x failed with 404");
-    expect(err.detail).toBe("Cannot POST /internal/admin\r\nX-Fake: 1");
+    expect(err.serverMessage).toBe("Cannot POST /internal/admin\r\nX-Fake: 1");
   });
 });
 
@@ -101,7 +101,7 @@ describe("networkError", () => {
     const err = networkError(cause, req);
     expect(err.status).toBe(0);
     expect(err.message).toBe("GET https://a/x failed: fetch failed");
-    expect(err.detail).toBeUndefined();
+    expect(err.serverMessage).toBeUndefined();
     expect(err.cause).toBe(cause);
     expect(err.response).toBeUndefined();
     expect([...err.headers]).toEqual([]);

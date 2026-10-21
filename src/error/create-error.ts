@@ -2,7 +2,7 @@ import { isReadableStream } from "../request/body";
 import { redactUrl, redactUrlIn } from "../request/url";
 import { rebuildResponse } from "../response/rebuild-response";
 import type { RequestContext } from "../types/request.types";
-import type { ErrorDetailResolver } from "../types/response.types";
+import type { ServerMessageFn } from "../types/response.types";
 import { ArthronError } from "./arthron-error";
 
 /**
@@ -35,7 +35,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 /** `message` → `error` (string) → `error.message` → `detail`. */
-export function defaultErrorDetail(data: unknown): string | undefined {
+export function defaultServerMessage(data: unknown): string | undefined {
   if (!isRecord(data)) return undefined;
   if (typeof data.message === "string") return data.message;
   if (typeof data.error === "string") return data.error;
@@ -107,7 +107,7 @@ function describeRequest(request: RequestContext): string {
 export async function responseError(
   response: Response,
   request: RequestContext,
-  resolve: ErrorDetailResolver = defaultErrorDetail,
+  serverMessageFn: ServerMessageFn = defaultServerMessage,
 ): Promise<ArthronError> {
   const read = await readCapped(response, MAX_ERROR_BODY_BYTES);
   const data = read && parseBody(read);
@@ -117,9 +117,9 @@ export async function responseError(
     ? `${response.status} ${response.statusText}`
     : String(response.status);
   return new ArthronError({
-    // arthron's own words for logs; the server's go in `detail`.
+    // arthron's own words for logs; the server's go in `serverMessage`.
     message: `${describeRequest(request)} failed with ${status}`,
-    detail: resolve(data, response) || undefined,
+    serverMessage: serverMessageFn(data, response) || undefined,
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,

@@ -28,10 +28,10 @@ export type {
 } from "./types/request.types";
 export type {
   ArthronPromise,
-  ErrorDetailResolver,
   InferOutput,
   NdjsonOptions,
   SchemaIssue,
+  ServerMessageFn,
   SseEvent,
   SseOptions,
   StandardSchemaV1,

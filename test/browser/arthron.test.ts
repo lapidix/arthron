@@ -78,12 +78,12 @@ describe("arthron in the browser", () => {
     }
   });
 
-  it("rejects a 404 with an ArthronError carrying the server's detail", async () => {
+  it("rejects a 404 with an ArthronError carrying the server's message", async () => {
     const err = await api.get("/missing").catch((e: unknown) => e);
     expect(isArthronError(err)).toBe(true);
     if (!isArthronError(err)) return;
     expect(err.status).toBe(404);
-    expect(err.detail).toBe("no such user");
+    expect(err.serverMessage).toBe("no such user");
   });
 
   it("follows a redirect by default", async () => {
@@ -201,7 +201,7 @@ describe("uploadProgress in the browser", () => {
       .post("/missing", "x", { meta: { uploadProgress: onProgress } })
       .catch((e: unknown) => e);
     expect(isArthronError(err) && err.status).toBe(404);
-    expect(isArthronError(err) && err.detail).toBe("no such user");
+    expect(isArthronError(err) && err.serverMessage).toBe("no such user");
   });
 
   it("times out with TimeoutError", async () => {

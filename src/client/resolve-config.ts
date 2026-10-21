@@ -16,7 +16,7 @@ const OWN_KEYS: Record<
   headers: true,
   fetchFn: true,
   plugins: true,
-  pickErrorDetail: true,
+  serverMessageFn: true,
   throwOn: true,
 };
 
@@ -31,7 +31,7 @@ const PER_CALL_ONLY = ["signal", "body", "method"] as const;
 const REPLACED = {
   fetch: "fetchFn",
   use: "plugins",
-  errorDetail: "pickErrorDetail",
+  errorDetail: "serverMessageFn",
   allowAbsoluteUrls: "allowedOrigins",
 } as const;
 

@@ -85,7 +85,11 @@ export type InferOutput<S extends StandardSchemaV1> = NonNullable<
   S["~standard"]["types"]
 >["output"];
 
-export type ErrorDetailResolver = (
-  data: unknown,
+/**
+ * Picks the server's message out of an error response's body (parsed: JSON if
+ * it parses, else the text) for `ArthronError.serverMessage`.
+ */
+export type ServerMessageFn = (
+  body: unknown,
   response: Response,
 ) => string | undefined;
