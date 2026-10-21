@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { arthron } from "../../client/client";
 import { isArthronError } from "../../error/arthron-error";
 import { runPipeline } from "../../pipeline/pipeline";
@@ -402,6 +402,70 @@ describe("bearerAuth", () => {
       ],
     });
     expect(await api.get("/me").json()).toEqual({ ok: 1 });
+  });
+  it("sends what refreshFn starts before its first await without the token or a refresh", async () => {
+    let current = "old";
+    const fetch = fakeFetch(
+      () => jsonResponse({}, { status: 401 }),
+      () => jsonResponse({ token: "new" }),
+      () => jsonResponse({ ok: 1 }),
+    );
+    const api = arthron({
+      baseURL: API,
+      fetchFn: fetch,
+      plugins: [
+        bearerAuth({
+          origin: API,
+          accessTokenFn: () => current,
+          // No meta: { bearerAuth: false } on the refresh call.
+          refreshFn: async () => {
+            const res = await api.post("/token", {}).json<{ token: string }>();
+            current = res.token;
+          },
+        }),
+      ],
+    });
+    expect(await api.get("/me").json()).toEqual({ ok: 1 });
+    expect(sentAuth(fetch)).toEqual(["Bearer old", undefined, "Bearer new"]);
+  });
+  it("rejects, instead of waiting on itself, when that refresh call gets a 401", async () => {
+    const fetch = fakeFetch(jsonResponse({}, { status: 401 }));
+    const api = arthron({
+      baseURL: API,
+      fetchFn: fetch,
+      plugins: [
+        bearerAuth({
+          origin: API,
+          accessTokenFn: () => "expired",
+          refreshFn: async () => {
+            await api.post("/token", {});
+          },
+        }),
+      ],
+    });
+    const err = await api.get("/me").catch((e: unknown) => e);
+    expect(isArthronError(err) && err.status).toBe(401);
+    expect(fetch.calls.map((c) => c.url)).toEqual([
+      `${API}/me`,
+      `${API}/token`,
+    ]);
+  }, 1000);
+  it("sends the token to a relative baseURL on its origin's page", async () => {
+    vi.stubGlobal("location", { href: "https://app.test/dashboard" });
+    try {
+      const fetch = fakeFetch(jsonResponse({}));
+      const client = (origin: string) =>
+        arthron({
+          baseURL: "/api",
+          fetchFn: fetch,
+          plugins: [bearerAuth({ origin, accessTokenFn: () => "abc" })],
+        });
+      await client("https://app.test").get("/me");
+      await client(API).get("/me");
+      expect(sentAuth(fetch)).toEqual(["Bearer abc", undefined]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("rejects an origin that is not an http(s) URL", () => {

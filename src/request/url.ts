@@ -39,7 +39,7 @@ export function redactUrlIn(text: string, url: string): string {
  * `undefined` when `url` has no origin of its own. A relative baseURL takes
  * the page's origin in a browser and has none elsewhere.
  */
-function originOf(url: string): string | undefined {
+export function originOf(url: string): string | undefined {
   const page = (globalThis as { location?: { href?: string } }).location?.href;
   try {
     return new URL(url, page).origin;
