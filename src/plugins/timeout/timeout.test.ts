@@ -1,3 +1,4 @@
+import { getEventListeners } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import { arthron } from "../../client/client";
 import { isArthronError } from "../../error/arthron-error";
@@ -122,6 +123,28 @@ describe("timeout — the response it hands back", () => {
       await res.text();
     } finally {
       spy.mockRestore();
+    }
+  });
+  // A listener left on a signal joined to the caller's keeps that signal —
+  // and the body reader it closes over — alive as long as the caller's lives.
+  it("leaves no abort listener behind once the body is read or cancelled", async () => {
+    const fetch = fakeFetch(
+      () => jsonResponse({ a: 1 }),
+      () => jsonResponse({ b: 2 }),
+    );
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: fetch,
+      plugins: [timeout(30_000)],
+    });
+    const app = new AbortController();
+    await api.get("/read", { signal: app.signal }).text();
+    const res = await api.get("/cancel", { signal: app.signal });
+    await res.body?.cancel();
+    for (const call of fetch.calls) {
+      expect(
+        getEventListeners(call.init.signal as AbortSignal, "abort"),
+      ).toEqual([]);
     }
   });
 });
