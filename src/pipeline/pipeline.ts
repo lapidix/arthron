@@ -1,4 +1,5 @@
 import { isArthronError } from "../error/arthron-error";
+import { tagOf } from "../request/body";
 import { toHeaderRecord } from "../request/headers";
 import type {
   ErrorInterceptor,
@@ -9,15 +10,27 @@ import type {
 } from "../types/plugin.types";
 import type { RequestContext } from "../types/request.types";
 
-/** The mutable body kinds an interceptor can `append` to; anything else is shared as is. */
+/**
+ * The mutable body kinds an interceptor can `append` to; anything else is
+ * shared as is. Known by type tag, as serializeBody knows them, and copied
+ * into their own class — a polyfill's (formdata-node) or another realm's
+ * holds values the global one may not take.
+ */
 function cloneBody(body: BodyInit): BodyInit {
-  if (typeof FormData !== "undefined" && body instanceof FormData) {
-    const copy = new FormData();
-    for (const [name, value] of body) copy.append(name, value);
+  const tag = tagOf(body);
+  if (tag !== "FormData" && tag !== "URLSearchParams") return body;
+  const Own = (body as object).constructor as new (
+    init?: string,
+  ) => FormData & URLSearchParams;
+  try {
+    if (tag === "URLSearchParams") return new Own(String(body));
+    const copy = new Own();
+    for (const [name, value] of body as FormData) copy.append(name, value);
     return copy;
+  } catch {
+    // A class that cannot be built again: shared, as before.
+    return body;
   }
-  if (body instanceof URLSearchParams) return new URLSearchParams(body);
-  return body;
 }
 
 /**
