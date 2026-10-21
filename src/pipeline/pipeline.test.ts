@@ -435,8 +435,8 @@ describe("runPipeline", () => {
     await expect(
       runPipeline(
         [
-          { pluginName: "p357", requestInterceptor: thrower },
-          { pluginName: "p357", errorInterceptor: error },
+          { pluginName: "throws", requestInterceptor: thrower },
+          { pluginName: "enriches", errorInterceptor: error },
         ],
         ctx(),
         ok,
@@ -445,8 +445,8 @@ describe("runPipeline", () => {
     await expect(
       runPipeline(
         [
-          { pluginName: "p364", responseInterceptor: thrower },
-          { pluginName: "p364", errorInterceptor: error },
+          { pluginName: "throws", responseInterceptor: thrower },
+          { pluginName: "enriches", errorInterceptor: error },
         ],
         ctx(),
         ok,
@@ -545,6 +545,39 @@ describe("runPipeline", () => {
       },
     );
     expect(seen).toEqual([g, f]);
+  });
+
+  it("refuses the 1.x ctx.fetch from a request interceptor or a middleware, naming fetchFn", async () => {
+    // A 1.x mock plugin: left alone, the call would go to the real network.
+    const legacy = { fetch: (async () => jsonResponse({})) as typeof fetch };
+    await expect(
+      runPipeline(
+        [
+          {
+            pluginName: "mock",
+            requestInterceptor: (c) => ({ ...c, ...legacy }),
+          },
+        ],
+        ctx(),
+        ok,
+      ),
+    ).rejects.toThrow(
+      "arthron: a request interceptor set ctx.fetch, which is ctx.fetchFn since 2.0 — return { ...ctx, fetchFn }",
+    );
+    await expect(
+      runPipeline(
+        [
+          {
+            pluginName: "mock",
+            middleware: (c, next) => next({ ...c, ...legacy }),
+          },
+        ],
+        ctx(),
+        ok,
+      ),
+    ).rejects.toThrow(
+      "arthron: a middleware passed ctx.fetch to next, which is ctx.fetchFn since 2.0 — pass { ...ctx, fetchFn }",
+    );
   });
 
   it("works with zero plugins", async () => {

@@ -76,6 +76,18 @@ function normalize(
 }
 
 /**
+ * The 1.x name of `fetchFn`. TypeScript does not flag it on a spread
+ * (`{ ...ctx, fetch }`), and ignored, a test's mock would be passed over for
+ * the real network.
+ */
+function refuseFetchField(ctx: RequestContext, problem: string, fix: string) {
+  if ((ctx as { fetch?: unknown }).fetch === undefined) return;
+  throw new TypeError(
+    `arthron: ${problem}, which is ctx.fetchFn since 2.0 — ${fix} { ...ctx, fetchFn }`,
+  );
+}
+
+/**
  * A plugin written in JS (or with a cast) that forgets to return would hand
  * `undefined` on — and an error interceptor's would be what the caller
  * catches. Name the plugin slot instead.
@@ -132,6 +144,7 @@ export function createPipeline(
         "a request interceptor",
         "the context (ctx or a changed copy)",
       );
+      refuseFetchField(next, "a request interceptor set ctx.fetch", "return");
       current = normalize(next, current);
     }
     let res: Response;
@@ -172,6 +185,7 @@ export function createPipeline(
     // A middleware that builds a fresh `{ url, init }` keeps the call's meta
     // and fetchFn.
     const res = await middleware(input, (next) => {
+      refuseFetchField(next, "a middleware passed ctx.fetch to next", "pass");
       const ctx: RequestContext = { ...next, meta: next.meta ?? input.meta };
       const fetchFn = next.fetchFn ?? input.fetchFn;
       if (fetchFn) ctx.fetchFn = fetchFn;
