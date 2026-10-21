@@ -127,7 +127,7 @@ const authed = base.use(bearerAuth({ origin: API, token })); // base + auth
 const admin = authed.extend({ headers: { "x-role": "admin" } }); // authed + header
 ```
 
-`extend` shallow-merges the config, merges headers case-insensitively (child wins), and adds plugins the way `use` does: a plugin whose `name` is already there replaces it in place — so `streaming = base.use(timeout(120_000))` loosens the inherited `timeout`, and a second `retry()` does not multiply attempts — while other names append. Every plugin has a name. `without("retry")` returns a client without that plugin. The built-ins are named `bearerAuth`, `logging`, `retry`, `timeout` and `uploadProgress`.
+`extend` shallow-merges the config, merges headers case-insensitively (child wins), and adds plugins the way `use` does: a plugin whose `pluginName` is already there replaces it in place — so `streaming = base.use(timeout(120_000))` loosens the inherited `timeout`, and a second `retry()` does not multiply attempts — while other names append. Every plugin has a `pluginName`. `without("retry")` returns a client without that plugin. The built-ins are named `bearerAuth`, `logging`, `retry`, `timeout` and `uploadProgress`.
 
 ## Plugins
 
@@ -135,7 +135,7 @@ A plugin is an object with any of four slots:
 
 ```ts
 type Plugin = {
-  name: string; // required — identity: use/extend replace the plugin of the same name, without(name) removes it
+  pluginName: string; // required — identity: use/extend replace the plugin of the same pluginName, without(pluginName) removes it. Not `name`: a function has one
   middleware?: (ctx: RequestContext, next: (ctx: RequestContext) => Promise<Response>) => Promise<Response>;
   requestInterceptor?: (ctx: RequestContext) => RequestContext | Promise<RequestContext>;
   responseInterceptor?: (res: Response, ctx: RequestContext) => Response | Promise<Response>;
@@ -192,10 +192,10 @@ plugins: [logging(), bearerAuth(…), timeout(10_000), retry()]
 
 `logging` first logs each call once — its start, and its end with the total time, retries included. A `timeout` before `retry` bounds the whole call; after it, each attempt — and a timed-out attempt is not retried. `bearerAuth` sets its header on every attempt wherever it sits. Anything that should see only the final outcome — an error page, mapping to domain errors — goes before `retry`.
 
-Plugins with the same name replace each other, so a second `timeout()` takes the first one's place instead of adding a deadline. For both a total and a per-attempt deadline, rename one:
+Plugins with the same `pluginName` replace each other, so a second `timeout()` takes the first one's place instead of adding a deadline. For both a total and a per-attempt deadline, rename one:
 
 ```ts
-plugins: [{ ...timeout(30_000), name: "callTimeout" }, retry(), timeout(10_000)] // 30 s in all, 10 s per attempt
+plugins: [{ ...timeout(30_000), pluginName: "callTimeout" }, retry(), timeout(10_000)] // 30 s in all, 10 s per attempt
 ```
 
 #### `retry(options)`
@@ -300,7 +300,7 @@ A callback that throws fails the call with its own error, untouched: not an `Art
 
 ### Write your own
 
-`createPlugin` takes a plugin and returns it, typed without annotations and checked where you write it: a missing name, an unknown key (a typo), a slot that is not a function or a plugin with nothing to run is a `TypeError` that says what to write. `use` and `plugins` run the same check on plain objects. For a piece written on its own, `createMiddleware`, `createRequestInterceptor`, `createResponseInterceptor` and `createErrorInterceptor` type it the same way — `create` plus the type's name.
+`createPlugin` takes a plugin and returns it, typed without annotations and checked where you write it: a missing `pluginName`, an unknown key (a typo, or 1.x `name`), a slot that is not a function or a plugin with nothing to run is a `TypeError` that says what to write. `use` and `plugins` run the same check on plain objects. For a piece written on its own, `createMiddleware`, `createRequestInterceptor`, `createResponseInterceptor` and `createErrorInterceptor` type it the same way — `create` plus the type's name.
 
 **`return await next(ctx)` inside `try`.** Without `await`, the promise is returned before it settles, and the `catch` never sees its error.
 
@@ -311,7 +311,7 @@ const idempotent = createMiddleware((ctx, next) =>
   next({ ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, "idempotency-key": crypto.randomUUID() } } }),
 );
 // A client of its own, so the order is exactly this: the key first, then retry.
-const payments = arthron({ baseURL: API, plugins: [{ name: "idempotency", middleware: idempotent }, retry({ methods: ["POST"] })] });
+const payments = arthron({ baseURL: API, plugins: [{ pluginName: "idempotency", middleware: idempotent }, retry({ methods: ["POST"] })] });
 ```
 
 (`api.use(…)` would not do here if `api` already has a `retry()`: the new one takes the old one's place, which may be before the key.)
@@ -325,7 +325,7 @@ declare module "arthron" {
   }
 }
 
-const traced = api.use({ name: "trace", requestInterceptor: (ctx) => (ctx.meta.skipTrace ? ctx : withTraceId(ctx)) });
+const traced = api.use({ pluginName: "trace", requestInterceptor: (ctx) => (ctx.meta.skipTrace ? ctx : withTraceId(ctx)) });
 traced.get("/health", { meta: { skipTrace: true } });
 ```
 
@@ -338,7 +338,7 @@ import { createPlugin, isArthronError } from "arthron";
 
 export const errorRedirect = (navigate: (to: string) => void) =>
   createPlugin({
-    name: "errorRedirect",
+    pluginName: "errorRedirect",
     middleware: async (ctx, next) => {
       try {
         return await next(ctx);
@@ -360,7 +360,7 @@ The same shape maps errors to your own types: `catch (e) { throw toDomainError(e
 **Attach a trace id.** A one-line request interceptor.
 
 ```ts
-const traced = api.use({ name: "trace", requestInterceptor: (ctx) => ({ ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, "x-trace-id": crypto.randomUUID() } } }) });
+const traced = api.use({ pluginName: "trace", requestInterceptor: (ctx) => ({ ...ctx, init: { ...ctx.init, headers: { ...ctx.init.headers, "x-trace-id": crypto.randomUUID() } } }) });
 ```
 
 ## Reference
@@ -373,7 +373,7 @@ type ArthronClientOptions = {
   allowedOrigins?: string[]; // other origins absolute URLs may go to (only the origin of each URL counts; no config headers there)
   headers?: HeadersOption; // anything fetch's headers take, or a record whose null drops a header (in extend)
   fetchFn?: typeof fetch; // the function requests are sent with: a fake in tests, a polyfill, a framework's fetch; default the global fetch, read per request
-  plugins?: Plugin[]; // outermost first; a named one replaces an earlier one of that name
+  plugins?: Plugin[]; // outermost first; one with the pluginName of an earlier one replaces it
   extractDescription?: (payload: unknown, response: Response) => string | undefined; // extracts ArthronError.description from a failed response's payload
   throwOn?: (res: Response) => boolean; // which non-ok responses reject (also per call)
   // …plus any fetch option as a default: credentials, cache, redirect, mode,

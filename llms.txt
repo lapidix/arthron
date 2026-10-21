@@ -13,7 +13,7 @@ const api = arthron({
   headers?: HeadersInit,         // defaults, per-call headers win (case-insensitive); { name: null } in extend/per-call drops one
   credentials?, cache?, redirect?, mode?, keepalive?, …  // any fetch option (RequestInit minus body/method/headers/signal/window) as a default; per-call wins; NOT set unless you set it; passing signal/body/method throws
   fetchFn?: typeof fetch,        // the function requests are sent with (fake in tests, polyfill, framework fetch); default the global fetch, read per request
-  plugins?: Plugin[],            // outermost first; a named one replaces an earlier one of that name
+  plugins?: Plugin[],            // outermost first; one with the pluginName of an earlier one replaces it
   extractDescription?: (payload: unknown, response: Response) => string | undefined, // extracts ArthronError.description; failed responses only
   throwOn?: (res: Response) => boolean, // which non-ok responses reject; also a per-call option
 });
@@ -62,7 +62,7 @@ isArthronError(e): e is ArthronError   // branded with Symbol.for: works (and in
 
 ```ts
 type Plugin = {
-  name: string;    // required — identity: use/extend replace a same-named plugin in place; without(name) removes it
+  pluginName: string; // required — identity: use/extend replace a plugin with the same pluginName in place; without(pluginName) removes it. Not `name`: a function has one, and would pass for a plugin
   middleware?: (ctx, next: (ctx) => Promise<Response>) => Promise<Response>; // wraps the call; may call next again (retry) or not at all
   requestInterceptor?: (ctx) => ctx;           // per attempt, before fetch
   responseInterceptor?: (res, ctx) => Response; // per successful attempt; body is single-use, clone() to peek
@@ -73,11 +73,11 @@ type RequestContext = { url: string; init: Omit<RequestInit, "headers"> & { head
 // Add keys: declare module "arthron" { interface ArthronMeta { skipTrace?: boolean } }
 ```
 
-Order: `middleware[0]( middleware[1]( attempt: request interceptors → fetch → response | error interceptors ) )` — a middleware is called once; code after `await next(ctx)` runs after the response interceptors. Inside `try`, write `return await next(ctx)` or the catch misses the error. Default order: `[logging(), bearerAuth(…), timeout(ms), retry()]` (timeout before retry = whole call, after = per attempt). Same-named plugins replace each other; for two timeouts rename one: `{ ...timeout(30_000), name: "callTimeout" }`. Values that must be fresh per attempt (token, signature) → request interceptor; the same on every attempt (idempotency key) → middleware before retry. Each attempt gets a fresh copy of ctx (headers, and a FormData/URLSearchParams body).
+Order: `middleware[0]( middleware[1]( attempt: request interceptors → fetch → response | error interceptors ) )` — a middleware is called once; code after `await next(ctx)` runs after the response interceptors. Inside `try`, write `return await next(ctx)` or the catch misses the error. Default order: `[logging(), bearerAuth(…), timeout(ms), retry()]` (timeout before retry = whole call, after = per attempt). Plugins with the same pluginName replace each other; for two timeouts rename one: `{ ...timeout(30_000), pluginName: "callTimeout" }`. Values that must be fresh per attempt (token, signature) → request interceptor; the same on every attempt (idempotency key) → middleware before retry. Each attempt gets a fresh copy of ctx (headers, and a FormData/URLSearchParams body).
 
-`api.use(...plugins)`, `api.extend(config)` and `api.without(...names)` return NEW clients; the original is unchanged. A named plugin replaces the one with the same name at its position (built-ins: "bearerAuth", "retry", "timeout", "logging", "uploadProgress"); other names append.
+`api.use(...plugins)`, `api.extend(config)` and `api.without(...names)` return NEW clients; the original is unchanged. A plugin replaces the one with the same pluginName at its position (built-ins: "bearerAuth", "retry", "timeout", "logging", "uploadProgress"); other names append.
 
-`createPlugin(p)` types a plugin and checks it (TypeError for: no name, an unknown key, a slot that is not a function, nothing to run, a bare function); `use`/`plugins` run the same check on plain objects. `createMiddleware(m)`, `createRequestInterceptor(f)`, `createResponseInterceptor(f)`, `createErrorInterceptor(f)` type a piece written on its own (create + the type's name).
+`createPlugin(p)` types a plugin and checks it (TypeError for: no pluginName, an unknown key, a 1.x name field, a slot that is not a function, nothing to run, a bare function); `use`/`plugins` run the same check on plain objects. `createMiddleware(m)`, `createRequestInterceptor(f)`, `createResponseInterceptor(f)`, `createErrorInterceptor(f)` type a piece written on its own (create + the type's name).
 
 ## Built-in plugins (from "arthron/plugins")
 

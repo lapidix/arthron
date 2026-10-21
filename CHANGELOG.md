@@ -27,13 +27,13 @@ Removes what 1.1.0 deprecated and renames what read as something else, so each n
 - Per call, `params` is now `queryParams` and `path` is `pathParams`: the first argument is already the path, and the two say which part of the URL they fill.
 - A plugin's `request`, `response` and `error` interceptors are `requestInterceptor`, `responseInterceptor` and `errorInterceptor`: each slot is named after the type it holds, and none shares a word with `api.request()`.
 - `definePlugin`, `defineMiddleware` and `defineInterceptor` are gone. `createPlugin`, `createMiddleware`, `createRequestInterceptor`, `createResponseInterceptor` and `createErrorInterceptor` take their place — `create` plus the type's name — and type what they are given without annotations.
-- A plugin's `name` is required, so every plugin can be replaced by name and removed with `without()`. `createPlugin` checks a plugin where it is written, and `use` and `plugins` check whatever they are given the same way: no name, an unknown key (a typo), a slot that is not a function, nothing to run, or a bare function — which TypeScript lets through, a function having a `name` — is a `TypeError` that says what to write.
+- A plugin's `name` is now `pluginName`, and required: every plugin can be replaced by its `pluginName` and removed with `without()`. Not `name`, because a function has one: with `name`, a bare middleware passed to `use` type-checked as a plugin; with `pluginName` it is a type error. `createPlugin` checks a plugin where it is written, and `use` and `plugins` check whatever they are given the same way: no `pluginName`, an unknown key (a typo), a slot that is not a function, nothing to run, or a bare function is a `TypeError` that says what to write.
 - A function an option holds to produce something is named for what it produces, with `Fn`: `bearerAuth({ token, refresh })` is `bearerAuth({ accessTokenFn, refreshFn })`, and `retry({ delay })` is `retry({ delayFn })`. Event callbacks (`onRetry`, `onEvent`) and yes/no decisions (`shouldRetry`, `throwOn`) keep their names.
 - `retry({ retryOn })` is `retry({ statuses })`, beside `methods`: shaped like `throwOn`, a function, it held a list.
 - `retry`'s `sleep` and `logging`'s `now` leave the public options: both were hooks for tests. Use fake timers or a spy on `performance.now` in yours.
 - The types are named after what they are: `Arthron` is `ArthronClient`, `ArthronConfig` is `ArthronClientOptions`, `ArthronPromise` is `ResponsePromise`, and `RequestInitWithBody` is `RequestOptionsWithMethod`.
 - `allowAbsoluteUrls` is replaced by `allowedOrigins`, a list: with a `baseURL`, an absolute URL may go to `baseURL`'s origin or a listed one, and any other origin is a `TypeError`. Only the origin of each entry counts; an empty list or a non-http(s) entry is a `TypeError` when the client is created. Without a `baseURL`, the list alone limits absolute URLs. Config `headers` still go to `baseURL`'s origin only. To reach any origin, as `allowAbsoluteUrls: true` did, use a client without `baseURL`.
-- A 1.x name is a `TypeError` that names its replacement: the options `fetch`, `use`, `errorDetail` and `allowAbsoluteUrls`; `params` and `path` per call; a plugin's `request`, `response` and `error`; `bearerAuth`'s `token` and `refresh`; `retry`'s `delay`, `retryOn` and `sleep`; `logging`'s `now`. Left alone, each would be an unknown key and ignored: plugins or interceptors not applied, a test's fake fetch passed over for the network, `{id}` sent unfilled, the query left off, no token sent.
+- A 1.x name is a `TypeError` that names its replacement: the options `fetch`, `use`, `errorDetail` and `allowAbsoluteUrls`; `params` and `path` per call; a plugin's `name`, `request`, `response` and `error`; `bearerAuth`'s `token` and `refresh`; `retry`'s `delay`, `retryOn` and `sleep`; `logging`'s `now`. Left alone, each would be an unknown key and ignored: plugins or interceptors not applied, a test's fake fetch passed over for the network, `{id}` sent unfilled, the query left off, no token sent.
 
 ### Moving from 1.x
 
@@ -64,9 +64,9 @@ Removes what 1.1.0 deprecated and renames what read as something else, so each n
 +api.get("/users/{id}", { pathParams: { id }, queryParams: { page: 2 } })
 
 -{ name: "trace", request: addTraceId, response: logIt, error: wrapIt }
-+{ name: "trace", requestInterceptor: addTraceId, responseInterceptor: logIt, errorInterceptor: wrapIt }
++{ pluginName: "trace", requestInterceptor: addTraceId, responseInterceptor: logIt, errorInterceptor: wrapIt }
 -definePlugin({ request: addTraceId })
-+createPlugin({ name: "trace", requestInterceptor: addTraceId })
++createPlugin({ pluginName: "trace", requestInterceptor: addTraceId })
 
 -bearerAuth({ origin: API, token: () => tok, refresh })
 +bearerAuth({ origin: API, accessTokenFn: () => tok, refreshFn: refresh })
