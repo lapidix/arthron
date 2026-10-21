@@ -133,7 +133,7 @@ try {
   const { bearerAuth, retry, timeout } = esmPlugins;
   const api = arthron({
     baseURL,
-    plugins: [retry({ delay: () => 0 }), timeout(500)],
+    plugins: [retry({ delayFn: () => 0 }), timeout(500)],
   });
 
   const body = await api.get("/echo", { params: { q: 1 } }).json();

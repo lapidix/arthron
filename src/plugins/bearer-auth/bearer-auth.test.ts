@@ -4,7 +4,7 @@ import { isArthronError } from "../../error/arthron-error";
 import { runPipeline } from "../../pipeline/pipeline";
 import { fakeFetch, jsonResponse } from "../../testkit/fetch.testkit";
 import type { RequestContext } from "../../types/request.types";
-import { retry } from "../retry/retry";
+import { retryWith } from "../retry/retry";
 import { bearerAuth } from "./bearer-auth";
 
 const API = "https://api.test";
@@ -75,7 +75,7 @@ describe("bearerAuth", () => {
       baseURL: API,
       fetchFn: fetch,
       plugins: [
-        retry({ sleep: async () => {} }),
+        retryWith({}, async () => {}),
         bearerAuth({ origin: API, accessTokenFn: async () => `t${++n}` }),
       ],
     });

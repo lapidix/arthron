@@ -14,7 +14,7 @@ describe("error page recipe (examples/error-page.ts)", () => {
       fetchFn: fakeFetch(...responses),
       plugins: [
         errorRedirect((to) => navs.push(to)),
-        retry({ sleep: async () => {} }),
+        retry({ delayFn: () => 0 }),
       ],
     });
   it("does not navigate when a retry recovers the call", async () => {

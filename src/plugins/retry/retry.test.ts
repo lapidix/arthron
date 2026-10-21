@@ -3,20 +3,30 @@ import { arthron } from "../../client/client";
 import { fakeFetch, jsonResponse } from "../../testkit/fetch.testkit";
 import type { RetryOptions } from "../../types/request.types";
 import { timeout } from "../timeout/timeout";
-import { retry } from "./retry";
+import { retry, retryWith } from "./retry";
 
 const sleepSpy = () => vi.fn(async (_ms: number) => {});
-const noSleep = { sleep: sleepSpy() };
 const err = (status: number, headers?: Record<string, string>) =>
   jsonResponse({}, { status, ...(headers ? { headers } : {}) });
-const make = (fetch: ReturnType<typeof fakeFetch>, opts: RetryOptions = {}) =>
+/** A client with retry(); `sleep` records the waits instead of waiting. */
+const make = (
+  fetch: ReturnType<typeof fakeFetch>,
+  { sleep = sleepSpy(), ...opts }: RetryOptions & { sleep?: Sleep } = {},
+) =>
   arthron({
     baseURL: "https://a",
     fetchFn: fetch,
-    plugins: [retry({ ...noSleep, ...opts })],
+    plugins: [retryWith(opts, sleep)],
   });
+type Sleep = (ms: number) => Promise<void>;
 
 describe("retry", () => {
+  it("refuses the 1.x delay and sleep options, naming what to do", () => {
+    // @ts-expect-error delay is delayFn since 2.0
+    expect(() => retry({ delay: () => 0 })).toThrow("retry({ delayFn })");
+    // @ts-expect-error sleep left the public options in 2.0
+    expect(() => retry({ sleep: async () => {} })).toThrow(/fake timers/);
+  });
   it("retries up to `retries` times on retryable status, then throws the last error", async () => {
     const fetch = fakeFetch(err(503), err(503), err(503), err(503));
     await expect(make(fetch).get("/u")).rejects.toMatchObject({ status: 503 });
@@ -66,7 +76,7 @@ describe("retry", () => {
       baseURL: "https://a",
       fetchFn: fetch,
       plugins: [
-        retry(noSleep),
+        retryWith({}, sleepSpy()),
         {
           request: () => {
             throw bug;
@@ -116,7 +126,7 @@ describe("retry", () => {
     const sleep = sleepSpy();
     await make(
       fakeFetch(err(503, { "retry-after": "soon" }), jsonResponse({})),
-      { sleep, delay: () => 300 },
+      { sleep, delayFn: () => 300 },
     ).get("/u");
     expect(sleep.mock.calls[0]?.[0]).toBe(300);
   });
@@ -145,7 +155,7 @@ describe("retry", () => {
     const sleep = sleepSpy();
     await make(fakeFetch(err(503, { "retry-after": "" }), jsonResponse({})), {
       sleep,
-      delay: () => 300,
+      delayFn: () => 300,
     }).get("/u");
     expect(sleep.mock.calls[0]?.[0]).toBe(300);
   });
@@ -169,7 +179,7 @@ describe("retry", () => {
     const sleep = sleepSpy();
     await make(fakeFetch(err(503), jsonResponse({})), {
       sleep,
-      delay: () => 2 ** 32,
+      delayFn: () => 2 ** 32,
     }).get("/u");
     expect(sleep.mock.calls[0]?.[0]).toBe(2 ** 31 - 1);
   });
@@ -243,11 +253,13 @@ describe("retry", () => {
         baseURL: "https://a",
         fetchFn: hangsOnce,
         plugins: [
-          retry({
-            ...noSleep,
-            shouldRetry: (e) =>
-              (e as Error).name === "TimeoutError" ? true : undefined,
-          }),
+          retryWith(
+            {
+              shouldRetry: (e) =>
+                (e as Error).name === "TimeoutError" ? true : undefined,
+            },
+            sleepSpy(),
+          ),
           timeout(10),
         ],
       });
@@ -269,7 +281,7 @@ describe("retry", () => {
     it("onRetry hears each retry with the wait it is about to take", async () => {
       const heard: [number, number][] = [];
       await make(fakeFetch(err(503), err(503), jsonResponse({})), {
-        delay: (n) => (n + 1) * 10,
+        delayFn: (n) => (n + 1) * 10,
         onRetry: (_e, attempt, wait) => heard.push([attempt, wait]),
       }).get("/u");
       expect(heard).toEqual([

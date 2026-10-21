@@ -25,12 +25,21 @@ function consoleSink(logger: Pick<Console, "log" | "error">) {
  * structured event instead. Cancellations are not reported.
  */
 export function logging(options: LoggingOptions = {}): Plugin {
-  const {
-    enabled = true,
-    logger = console,
-    onEvent,
-    now = () => performance.now(),
-  } = options;
+  // The 1.x test hook: ignored, a test's clock would quietly stop applying.
+  if ((options as Record<string, unknown>).now !== undefined) {
+    throw new TypeError(
+      'arthron: logging\'s now option left the public options in 2.0 — mock performance.now in tests (vi.spyOn(performance, "now"))',
+    );
+  }
+  return loggingWith(options, () => performance.now());
+}
+
+/** `logging()` with the clock injected — for this package's tests; `arthron/plugins` does not export it. */
+export function loggingWith(
+  options: LoggingOptions,
+  now: () => number,
+): Plugin {
+  const { enabled = true, logger = console, onEvent } = options;
   const emit = onEvent ?? consoleSink(logger);
   return {
     name: "logging",

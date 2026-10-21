@@ -190,7 +190,7 @@ describe("uploadProgress in the browser", () => {
   it("retries a 503 and reports a 404 as ArthronError", async () => {
     const onProgress = () => {};
     const retried = await uploads
-      .use(retry({ methods: ["POST"], delay: () => 0 }))
+      .use(retry({ methods: ["POST"], delayFn: () => 0 }))
       .post("/flaky", "x", {
         params: { id: `upload-${Math.random()}` },
         meta: { uploadProgress: onProgress },

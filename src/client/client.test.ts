@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ArthronError } from "../error/arthron-error";
 import { logging } from "../plugins/logging/logging";
-import { retry } from "../plugins/retry/retry";
+import { retry, retryWith } from "../plugins/retry/retry";
 import { timeout } from "../plugins/timeout/timeout";
 import { fakeFetch, jsonResponse } from "../testkit/fetch.testkit";
 import type { Plugin } from "../types/plugin.types";
@@ -186,7 +186,7 @@ describe("arthron — argument errors reject instead of throwing synchronously",
     const api = arthron({
       baseURL: "https://a",
       plugins: [
-        retry({ sleep: async () => {} }),
+        retryWith({}, async () => {}),
         {
           request: (ctx) => {
             attempts += 1;
@@ -638,7 +638,7 @@ describe("arthron — plugins by name", () => {
     const api = arthron({
       baseURL: "https://a",
       fetchFn: fetch,
-      plugins: [retry({ sleep: async () => {} })],
+      plugins: [retryWith({}, async () => {})],
     }).use(retry({ retries: 0 }));
     await expect(api.get("/u")).rejects.toMatchObject({ status: 503 });
     expect(fetch.calls).toHaveLength(1);
@@ -648,7 +648,7 @@ describe("arthron — plugins by name", () => {
     const api = arthron({
       baseURL: "https://a",
       fetchFn: fakeFetch(jsonResponse({}, { status: 503 }), jsonResponse({})),
-      plugins: [logging({ enabled: false }), retry({ sleep: async () => {} })],
+      plugins: [logging({ enabled: false }), retryWith({}, async () => {})],
     }).use(logging({ onEvent: (e) => phases.push(e.phase) }));
     await api.get("/u");
     expect(phases).toEqual(["start", "success"]);
@@ -705,7 +705,7 @@ describe("arthron — which responses reject", () => {
     const api = arthron({
       baseURL: "https://a/v1",
       fetchFn: fetch,
-      plugins: [retry({ sleep: async () => {} })],
+      plugins: [retryWith({}, async () => {})],
     });
     expect((await api.get("/u", { mode: "no-cors" })).type).toBe("opaque");
     expect(fetch.calls).toHaveLength(1);

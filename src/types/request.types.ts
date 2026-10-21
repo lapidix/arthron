@@ -52,7 +52,7 @@ export interface ArthronMeta {
    */
   uploadProgress?: (event: UploadProgressEvent) => void;
   /** `false` turns `retry()` off for this call; an object overrides its options. */
-  retry?: false | Omit<RetryOptions, "sleep">;
+  retry?: false | RetryOptions;
   /** Deadline for this call in ms, overriding `timeout(ms)`. `Infinity` lifts it. */
   timeout?: number;
 }
@@ -75,11 +75,11 @@ export type RetryOptions = {
   /** Methods safe to repeat (QUERY is, per RFC 10008). Compared case-insensitively. */
   methods?: readonly string[];
   /**
-   * Backoff in ms for retry number `retry` (0-based). Default "full jitter":
-   * a random share of 300 · 2^retry, so clients that failed together do not
-   * retry together.
+   * Returns the wait in ms before retry number `retry` (0-based). Default
+   * "full jitter": a random share of 300 · 2^retry, so clients that failed
+   * together do not retry together. A `Retry-After` header wins over it.
    */
-  delay?: (retry: number, error: unknown) => number;
+  delayFn?: (retry: number, error: unknown) => number;
   /**
    * Your own verdict on one failure: `true` retries, `false` stops,
    * `undefined` leaves it to `retryOn`/`methods`. It sees every error — a
@@ -94,8 +94,6 @@ export type RetryOptions = {
   ) => boolean | undefined;
   /** Called before each wait, for logs and metrics. */
   onRetry?: (error: unknown, attempt: number, waitMs: number) => void;
-  /** Injectable for tests. Default `setTimeout`; rejects with the abort reason. */
-  sleep?: (ms: number, signal?: AbortSignal | null) => Promise<void>;
   /**
    * Longest `Retry-After` (ms) worth honouring. Beyond it the request is not
    * retried at all. Default 60 000.

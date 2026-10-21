@@ -127,7 +127,7 @@ describe("uploadProgress keeps argument errors", () => {
       plugins: [
         retry({
           methods: ["PUT"],
-          delay: () => 0,
+          delayFn: () => 0,
           onRetry: () => {
             attempts += 1;
           },
@@ -185,7 +185,7 @@ describe("uploadProgress against a real server", () => {
       baseURL: base,
       headers: { authorization: "Bearer new" },
       plugins: [
-        retry({ methods: ["PUT"], delay: () => 0 }),
+        retry({ methods: ["PUT"], delayFn: () => 0 }),
         {
           error: (e) => {
             seen.push(e);
@@ -222,7 +222,7 @@ describe("uploadProgress against a real server", () => {
             token = "new";
           },
         }),
-        retry({ methods: ["PUT"], delay: () => 0 }),
+        retry({ methods: ["PUT"], delayFn: () => 0 }),
         uploadProgress(),
       ],
     });
