@@ -79,11 +79,11 @@ void observed;
 const uploads = api.use(uploadProgress());
 uploads.post("/f", new Blob([]), {
   meta: {
-    onUploadProgress: (e: UploadProgressEvent) => e.progress ?? e.loaded,
+    uploadProgress: (e: UploadProgressEvent) => e.progress ?? e.loaded,
   },
 });
-// @ts-expect-error onUploadProgress is a callback
-uploads.post("/f", new Blob([]), { meta: { onUploadProgress: 1 } });
+// @ts-expect-error meta.uploadProgress is a callback
+uploads.post("/f", new Blob([]), { meta: { uploadProgress: 1 } });
 
 export async function run(): Promise<void> {
   const pending: ArthronPromise = api.get("/users/{id}", {

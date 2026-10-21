@@ -44,7 +44,7 @@ describe("uploadProgress", () => {
     const events: UploadProgressEvent[] = [];
     const out = await sent({
       adapter: globalThis.fetch,
-      meta: { onUploadProgress: (e) => events.push(e) },
+      meta: { uploadProgress: (e) => events.push(e) },
     });
     expect(out.adapter).toBe(globalThis.fetch);
     expect(events).toEqual([]);
@@ -55,7 +55,7 @@ describe("uploadProgress", () => {
     const out = await sent({
       adapter: injected,
       init: { method: "PUT", body: "x", headers: {} },
-      meta: { onUploadProgress: () => {} },
+      meta: { uploadProgress: () => {} },
     });
     expect(out.adapter).toBe(injected);
   });
@@ -65,7 +65,7 @@ describe("uploadProgress", () => {
     const out = await sent({
       adapter: globalThis.fetch,
       init: { method: "PUT", body: blob, headers: {} },
-      meta: { onUploadProgress: () => {} },
+      meta: { uploadProgress: () => {} },
     });
     expect(out.adapter).not.toBe(globalThis.fetch);
     expect(typeof out.adapter).toBe("function");
@@ -137,7 +137,7 @@ describe("uploadProgress keeps argument errors", () => {
     });
     const err = await api
       .put("http://exa mple.test/x", "hello", {
-        meta: { onUploadProgress: () => {} },
+        meta: { uploadProgress: () => {} },
       })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TypeError);
@@ -199,7 +199,7 @@ describe("uploadProgress against a real server", () => {
     const err = await api
       .put("/u", new Blob([new Uint8Array(300_000)]), {
         meta: {
-          onUploadProgress: () => {
+          uploadProgress: () => {
             throw boom;
           },
         },
@@ -229,7 +229,7 @@ describe("uploadProgress against a real server", () => {
     const events: UploadProgressEvent[] = [];
     const out = await api
       .put("/u", new Blob([new Uint8Array(300_000)]), {
-        meta: { onUploadProgress: (e) => events.push(e) },
+        meta: { uploadProgress: (e) => events.push(e) },
       })
       .json();
     expect(out).toEqual({ n: 300_000, cl: "300000" });

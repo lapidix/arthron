@@ -182,7 +182,7 @@ The built-in plugins come from `arthron/plugins`: `import { bearerAuth, logging,
 | `retry` | middleware | `meta: { retry: false \| options }` |
 | `timeout` | middleware | `meta: { timeout: ms }` |
 | `logging` | middleware | — |
-| `uploadProgress` | request interceptor (picks the transport) | `meta: { onUploadProgress }` — only calls that pass it |
+| `uploadProgress` | request interceptor (picks the adapter) | `meta: { uploadProgress }` — only calls that pass it |
 
 Order is meaning: the first plugin is outermost. A good default:
 
@@ -277,14 +277,14 @@ The token is treated as opaque: to refresh a JWT ahead of its `exp`, do it insid
 
 #### `uploadProgress()`
 
-Does nothing by itself — only a call that passes `meta.onUploadProgress` reports progress. Every other call, on the same client too, goes out exactly as before.
+Does nothing by itself — only a call that passes `meta.uploadProgress` reports progress. Every other call, on the same client too, goes out exactly as before.
 
 ```ts
 const api = arthron({ baseURL: API, use: [retry(), uploadProgress()] }); // last in use
 
 await api.get("/me"); // as usual
 await api.post("/files", file, {
-  meta: { onUploadProgress: ({ loaded, total, progress }) => setBar(progress) }, // this call only
+  meta: { uploadProgress: ({ loaded, total, progress }) => setBar(progress) }, // this call only
 });
 ```
 
@@ -294,7 +294,7 @@ How that call is sent depends on where it runs:
 
 - **Browser:** over `XMLHttpRequest`, the only browser API that reports upload progress. On another origin, the upload listener makes every such call send a CORS preflight — an S3 bucket's CORS rules must allow the method and headers. The response arrives whole: `.sse()` / `.ndjson()` are not live on that call. What XHR cannot honour and would change the call is refused with a `TypeError` before sending: `redirect: "manual" | "error"`, `mode: "no-cors"`, and `credentials: "omit"` to the page's own origin (XHR always sends its cookies there). What only tunes fetch — `cache`, `priority`, `referrerPolicy`, `integrity`, `keepalive` — is ignored on that call. A `ReadableStream` body is sent as usual, without progress.
 - **Node:** with `fetch` as usual, the body counted as it is read, in steps of at most 64 KiB. `content-length` and the content type a `Blob` would set are kept, so an S3 presigned `PUT` accepts it. A `FormData` body is encoded with its length known up front, its files streamed rather than read into memory. jsdom on Node counts the same way.
-- **Anywhere else** — Deno, Bun, Cloudflare Workers, an Electron main process, a service worker — and on a client with an injected `fetch` or another plugin's transport: sent as usual, without progress.
+- **Anywhere else** — Deno, Bun, Cloudflare Workers, an Electron main process, a service worker — and on a client with an injected `fetch` or another plugin's adapter: sent as usual, without progress.
 
 A callback that throws fails the call with its own error, untouched: not an `ArthronError`, not retried. Put `uploadProgress()` last in `use`: a request interceptor after it that replaces `init.signal` would cut that path, and the error would come back as a network failure.
 

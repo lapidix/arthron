@@ -274,7 +274,7 @@ try {
     use: [esmPlugins.uploadProgress()],
   })
     .put("/progress-upload", new Blob([new Uint8Array(1024 * 1024)]), {
-      meta: { onUploadProgress: (e) => progress.push(e) },
+      meta: { uploadProgress: (e) => progress.push(e) },
     })
     .json();
   assert(
