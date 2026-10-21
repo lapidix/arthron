@@ -58,22 +58,33 @@ export function httpOrigin(url: string): string | undefined {
   }
 }
 
-/** `allowedOrigins` as origins, checked once when the client is created. */
-export function originSet(urls: readonly string[]): Set<string> {
-  if (urls.length === 0) {
-    throw new TypeError(
-      "arthron: allowedOrigins needs at least one URL — leave it out to stay on baseURL's origin",
-    );
-  }
+/**
+ * The origins of a list of http(s) URLs, for an option that names where
+ * requests may go. An empty list or another kind of entry is a TypeError in
+ * the option's own words.
+ */
+export function httpOrigins(
+  urls: readonly string[],
+  errors: { empty: string; invalid: (url: string) => string },
+): Set<string> {
+  if (urls.length === 0) throw new TypeError(errors.empty);
   return new Set(
     urls.map((url) => {
       const origin = httpOrigin(url);
       if (origin) return origin;
-      throw new TypeError(
-        `arthron: allowedOrigins needs http(s) URLs, got ${JSON.stringify(url)} — e.g. allowedOrigins: ["https://cdn.example.com"]`,
-      );
+      throw new TypeError(errors.invalid(JSON.stringify(url)));
     }),
   );
+}
+
+/** `allowedOrigins` as origins, checked once when the client is created. */
+export function originSet(urls: readonly string[]): Set<string> {
+  return httpOrigins(urls, {
+    empty:
+      "arthron: allowedOrigins needs at least one URL — leave it out to stay on baseURL's origin",
+    invalid: (url) =>
+      `arthron: allowedOrigins needs http(s) URLs, got ${url} — e.g. allowedOrigins: ["https://cdn.example.com"]`,
+  });
 }
 
 /** `path` is absolute and points away from `baseURL`'s origin. */

@@ -1,6 +1,6 @@
 import { isArthronError } from "../../error/arthron-error";
 import { isReadableStream } from "../../request/body";
-import { httpOrigin, originOf } from "../../request/url";
+import { httpOrigins, originOf } from "../../request/url";
 import type { Plugin } from "../../types/plugin.types";
 import type { BearerAuthOptions } from "./bearer-auth.types";
 
@@ -10,21 +10,12 @@ const REPLACED = [
 ] as const;
 
 function allowedOrigins(origin: BearerAuthOptions["origin"]): Set<string> {
-  const urls = typeof origin === "string" ? [origin] : origin;
-  if (urls.length === 0) {
-    throw new TypeError(
+  return httpOrigins(typeof origin === "string" ? [origin] : origin, {
+    empty:
       'arthron: bearerAuth({ origin }) needs at least one URL — e.g. origin: "https://api.example.com"',
-    );
-  }
-  return new Set(
-    urls.map((url) => {
-      const found = httpOrigin(url);
-      if (found) return found;
-      throw new TypeError(
-        `arthron: bearerAuth({ origin }) needs an http(s) URL, got ${JSON.stringify(url)} — e.g. origin: "https://api.example.com"`,
-      );
-    }),
-  );
+    invalid: (url) =>
+      `arthron: bearerAuth({ origin }) needs an http(s) URL, got ${url} — e.g. origin: "https://api.example.com"`,
+  });
 }
 
 /**
