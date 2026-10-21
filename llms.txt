@@ -2,7 +2,7 @@
 
 > A fetch client assembled from plugins. Returns native `Response`; middleware controls flow (can retry via `next`), interceptors transform values. Zero dependencies, ESM + CJS, Node 22+ and browsers, TypeScript 5.0+.
 
-Import: `import { arthron, isArthronError, SchemaError, definePlugin } from "arthron";` and the built-in plugins `import { bearerAuth, retry, timeout, logging, uploadProgress } from "arthron/plugins";` (only there — not from "arthron").
+Import: `import { arthron, isArthronError, SchemaError, createPlugin } from "arthron";` and the built-in plugins `import { bearerAuth, retry, timeout, logging, uploadProgress } from "arthron/plugins";` (only there — not from "arthron").
 
 ## Create
 
@@ -62,11 +62,11 @@ isArthronError(e): e is ArthronError   // branded with Symbol.for: works (and in
 
 ```ts
 type Plugin = {
-  name?: string;   // identity: use/extend replace a same-named plugin in place; without(name) removes it
+  name: string;    // required — identity: use/extend replace a same-named plugin in place; without(name) removes it
   middleware?: (ctx, next: (ctx) => Promise<Response>) => Promise<Response>; // wraps the call; may call next again (retry) or not at all
-  transformRequest?: (ctx) => ctx;             // per attempt, before fetch
-  transformResponse?: (res, ctx) => Response;  // per successful attempt; body is single-use, clone() to peek
-  transformError?: (err: ArthronError, ctx) => ArthronError; // per failed attempt; return value is always thrown
+  requestInterceptor?: (ctx) => ctx;           // per attempt, before fetch
+  responseInterceptor?: (res, ctx) => Response; // per successful attempt; body is single-use, clone() to peek
+  errorInterceptor?: (err: ArthronError, ctx) => ArthronError; // per failed attempt; return value is always thrown
 };
 type RequestContext = { url: string; init: Omit<RequestInit, "headers"> & { headers: Record<string, string> }; meta: ArthronMeta; fetchFn?: typeof fetch }; // fetchFn: the function this attempt is sent with (client's, else global) — a plugin may replace or wrap it per attempt; send still makes every ArthronError. headers: lowercase record, re-normalized after each request interceptor — spreading is safe
 // meta: per-call plugin settings from api.get(path, { meta }), never sent. Each built-in reads the key named after it: meta.bearerAuth (false), meta.retry (false | options), meta.timeout (ms), meta.uploadProgress (callback).
@@ -75,9 +75,9 @@ type RequestContext = { url: string; init: Omit<RequestInit, "headers"> & { head
 
 Order: `middleware[0]( middleware[1]( attempt: request interceptors → fetch → response | error interceptors ) )` — a middleware is called once; code after `await next(ctx)` runs after the response interceptors. Inside `try`, write `return await next(ctx)` or the catch misses the error. Default order: `[logging(), bearerAuth(…), timeout(ms), retry()]` (timeout before retry = whole call, after = per attempt). Same-named plugins replace each other; for two timeouts rename one: `{ ...timeout(30_000), name: "callTimeout" }`. Values that must be fresh per attempt (token, signature) → request interceptor; the same on every attempt (idempotency key) → middleware before retry. Each attempt gets a fresh copy of ctx (headers, and a FormData/URLSearchParams body).
 
-`api.use(...plugins)`, `api.extend(config)` and `api.without(...names)` return NEW clients; the original is unchanged. A named plugin replaces the one with the same name at its position (built-ins: "bearerAuth", "retry", "timeout", "logging", "uploadProgress"); unnamed plugins append.
+`api.use(...plugins)`, `api.extend(config)` and `api.without(...names)` return NEW clients; the original is unchanged. A named plugin replaces the one with the same name at its position (built-ins: "bearerAuth", "retry", "timeout", "logging", "uploadProgress"); other names append.
 
-Helpers (identity, for typing): `definePlugin(p)`, `defineMiddleware(m)`, `defineInterceptor.request(f) / .response(f) / .error(f)`.
+`createPlugin(p)` types a plugin and checks it (TypeError for: no name, an unknown key, a slot that is not a function, nothing to run, a bare function); `use`/`plugins` run the same check on plain objects. `createMiddleware(m)`, `createRequestInterceptor(f)`, `createResponseInterceptor(f)`, `createErrorInterceptor(f)` type a piece written on its own (create + the type's name).
 
 ## Built-in plugins (from "arthron/plugins")
 

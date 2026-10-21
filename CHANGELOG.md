@@ -25,7 +25,9 @@ Removes what 1.1.0 deprecated and renames what read as something else, so each n
 - `ArthronError.detail` is now `description` and `ArthronError.data` is `payload`, in `toJSON()` too. Both exist only for a failed response: `description` is the server's account of the failure, for people, apart from `message`, which arthron writes for logs; `payload` is that response's parsed body, apart from `response.body`, the stream. The `errorDetail` option is `extractDescription: (payload, response) => string | undefined`, and its type `DescriptionExtractor` (was `ErrorDetailResolver`).
 - The `use` option is now `plugins`: it holds a list of plugins. `api.use()` keeps its name: it is an action.
 - Per call, `params` is now `queryParams` and `path` is `pathParams`: the first argument is already the path, and the two say which part of the URL they fill.
-- A plugin's `request`, `response` and `error` interceptors are `transformRequest`, `transformResponse` and `transformError`: each transforms what it is given and returns it, where middleware controls flow.
+- A plugin's `request`, `response` and `error` interceptors are `requestInterceptor`, `responseInterceptor` and `errorInterceptor`: each slot is named after the type it holds, and none shares a word with `api.request()`.
+- `definePlugin`, `defineMiddleware` and `defineInterceptor` are gone. `createPlugin`, `createMiddleware`, `createRequestInterceptor`, `createResponseInterceptor` and `createErrorInterceptor` take their place — `create` plus the type's name — and type what they are given without annotations.
+- A plugin's `name` is required, so every plugin can be replaced by name and removed with `without()`. `createPlugin` checks a plugin where it is written, and `use` and `plugins` check whatever they are given the same way: no name, an unknown key (a typo), a slot that is not a function, nothing to run, or a bare function — which TypeScript lets through, a function having a `name` — is a `TypeError` that says what to write.
 - A function an option holds to produce something is named for what it produces, with `Fn`: `bearerAuth({ token, refresh })` is `bearerAuth({ accessTokenFn, refreshFn })`, and `retry({ delay })` is `retry({ delayFn })`. Event callbacks (`onRetry`, `onEvent`) and yes/no decisions (`shouldRetry`, `throwOn`) keep their names.
 - `retry({ retryOn })` is `retry({ statuses })`, beside `methods`: shaped like `throwOn`, a function, it held a list.
 - `retry`'s `sleep` and `logging`'s `now` leave the public options: both were hooks for tests. Use fake timers or a spy on `performance.now` in yours.
@@ -51,7 +53,7 @@ Removes what 1.1.0 deprecated and renames what read as something else, so each n
 -arthron({ baseURL: API, fetch: fakeFetch })
 +arthron({ baseURL: API, fetchFn: fakeFetch })
 -request: (ctx) => ({ ...ctx, fetch: traced(ctx.fetch) })
-+transformRequest: (ctx) => ({ ...ctx, fetchFn: traced(ctx.fetchFn) })
++requestInterceptor: (ctx) => ({ ...ctx, fetchFn: traced(ctx.fetchFn) })
 
 -arthron({ baseURL: API, use: [retry()], errorDetail: (data) => data.msg })
 +arthron({ baseURL: API, plugins: [retry()], extractDescription: (payload) => payload.msg })
@@ -62,7 +64,9 @@ Removes what 1.1.0 deprecated and renames what read as something else, so each n
 +api.get("/users/{id}", { pathParams: { id }, queryParams: { page: 2 } })
 
 -{ name: "trace", request: addTraceId, response: logIt, error: wrapIt }
-+{ name: "trace", transformRequest: addTraceId, transformResponse: logIt, transformError: wrapIt }
++{ name: "trace", requestInterceptor: addTraceId, responseInterceptor: logIt, errorInterceptor: wrapIt }
+-definePlugin({ request: addTraceId })
++createPlugin({ name: "trace", requestInterceptor: addTraceId })
 
 -bearerAuth({ origin: API, token: () => tok, refresh })
 +bearerAuth({ origin: API, accessTokenFn: () => tok, refreshFn: refresh })
