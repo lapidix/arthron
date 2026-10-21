@@ -137,11 +137,15 @@ api.use(idempotent);
 const uploads = api.use(uploadProgress());
 uploads.post("/f", new Blob([]), {
   meta: {
-    uploadProgress: (e: UploadProgressEvent) => e.fraction ?? e.loaded,
+    uploadProgress: {
+      onProgress: (e: UploadProgressEvent) => e.fraction ?? e.loaded,
+    },
   },
 });
-// @ts-expect-error meta.uploadProgress is a callback
+// @ts-expect-error meta.uploadProgress takes options
 uploads.post("/f", new Blob([]), { meta: { uploadProgress: 1 } });
+// @ts-expect-error the callback goes in { onProgress }
+uploads.post("/f", new Blob([]), { meta: { uploadProgress: () => {} } });
 
 // The 1.x names are type errors against the packed types.
 // @ts-expect-error fetch is fetchFn since 2.0

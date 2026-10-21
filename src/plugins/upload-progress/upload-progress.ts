@@ -139,10 +139,17 @@ export function uploadProgress(): Plugin {
         (ctx.meta as Record<string, unknown>)?.onUploadProgress !== undefined
       ) {
         throw new TypeError(
-          "arthron: meta.onUploadProgress was replaced by meta.uploadProgress in 2.0 — pass meta: { uploadProgress }",
+          "arthron: meta.onUploadProgress was replaced by meta.uploadProgress in 2.0 — pass meta: { uploadProgress: { onProgress } }",
         );
       }
-      const onProgress = ctx.meta?.uploadProgress;
+      const options = ctx.meta?.uploadProgress;
+      // The callback alone, from JS: the shape before its settings object.
+      if (typeof options === "function") {
+        throw new TypeError(
+          "arthron: meta.uploadProgress takes options — pass meta: { uploadProgress: { onProgress } }",
+        );
+      }
+      const onProgress = options?.onProgress;
       const { body } = ctx.init;
       if (!onProgress || body === undefined || body === null) return ctx;
       if (ctx.fetchFn !== globalThis.fetch) return ctx;

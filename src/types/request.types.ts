@@ -45,13 +45,17 @@ export interface ArthronMeta {
    */
   bearerAuth?: false;
   /**
-   * Upload progress for this call, with `uploadProgress()` on the client.
-   * Never called without that plugin or without a body, nor where progress
+   * Upload progress for this call, with `uploadProgress()` on the client:
+   * `{ onProgress: ({ loaded, total, fraction }) => … }`. `onProgress` is
+   * never called without that plugin or without a body, nor where progress
    * cannot be had: a client with its own `fetchFn`, another plugin's
    * `fetchFn`, Deno, Bun, Cloudflare Workers, a service worker, or a
    * `ReadableStream` body in a browser — those calls are sent as usual.
    */
-  uploadProgress?: (event: UploadProgressEvent) => void;
+  uploadProgress?: {
+    /** Called for each step of the upload, from 0 again on each attempt. */
+    onProgress: (event: UploadProgressEvent) => void;
+  };
   /** `false` turns `retry()` off for this call; an object overrides its options. */
   retry?: false | RetryOptions;
   /**
