@@ -41,9 +41,9 @@ export interface Plugin {
   /** Wraps the whole call and controls its flow: may call `next` again, or not at all. */
   middleware?: Middleware;
   /** Transforms each attempt's context before it is sent; returns the context to send. */
-  transformRequest?: RequestInterceptor;
+  requestInterceptor?: RequestInterceptor;
   /** Transforms each successful attempt's Response; returns the Response to pass on. */
-  transformResponse?: ResponseInterceptor;
+  responseInterceptor?: ResponseInterceptor;
   /** Transforms each failed attempt's ArthronError; returns the error to throw. */
-  transformError?: ErrorInterceptor;
+  errorInterceptor?: ErrorInterceptor;
 }

@@ -41,9 +41,9 @@ const REPLACED = {
 
 /** 1.x interceptor slots: a plugin that still uses one would have it ignored. */
 const REPLACED_SLOTS = {
-  request: "transformRequest",
-  response: "transformResponse",
-  error: "transformError",
+  request: "requestInterceptor",
+  response: "responseInterceptor",
+  error: "errorInterceptor",
 } as const;
 
 /**

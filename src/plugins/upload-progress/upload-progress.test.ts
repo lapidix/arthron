@@ -187,7 +187,7 @@ describe("uploadProgress against a real server", () => {
       plugins: [
         retry({ methods: ["PUT"], delayFn: () => 0 }),
         {
-          transformError: (e) => {
+          errorInterceptor: (e) => {
             seen.push(e);
             return e;
           },
