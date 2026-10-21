@@ -119,7 +119,8 @@ export function timeout(
   removed?: unknown,
 ): Plugin {
   // The 1.x `timeout(ms, { idle })`: from JS it would drop idle silently.
-  if (removed !== undefined) {
+  // Only an object: `[5000].map(timeout)` passes the index second.
+  if (typeof removed === "object" && removed !== null) {
     throw new TypeError(
       "arthron: timeout(ms, { idle }) was removed in 2.0 — pass one object, timeout({ total: ms, idle })",
     );

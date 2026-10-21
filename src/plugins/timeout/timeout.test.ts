@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { arthron } from "../../client/client";
 import { isArthronError } from "../../error/arthron-error";
 import { fakeFetch, jsonResponse } from "../../testkit/fetch.testkit";
+import type { Plugin } from "../../types/plugin.types";
 import { retryWith } from "../retry/retry";
 import { timeout } from "./timeout";
 
@@ -348,6 +349,16 @@ describe("timeout — idle", () => {
     const removed = () => timeout(1000, { idle: 30 });
     expect(removed).toThrow(TypeError);
     expect(removed).toThrow(/timeout\(\{ total: ms, idle \}\)/);
+  });
+  it("can be mapped over a list of deadlines — map's index is not the 1.x options", () => {
+    const asCallback = timeout as unknown as (
+      ms: number,
+      index: number,
+    ) => Plugin;
+    expect([5000, 10_000].map(asCallback).map((p) => p.pluginName)).toEqual([
+      "timeout",
+      "timeout",
+    ]);
   });
   it("applies total and idle together, whichever trips first", async () => {
     // Flows every 10 ms for 100 ms: idle never trips, total does.

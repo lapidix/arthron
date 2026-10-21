@@ -44,6 +44,19 @@ function retryAfterMs(error: ArthronError): number | undefined {
   return Math.max(0, at - Date.now());
 }
 
+/**
+ * `delayFn`'s answer, checked: setTimeout fires at once for NaN and
+ * negatives, so a 1.x `delay` moved over with its arguments swapped would
+ * retry in a tight loop.
+ */
+function checkedDelay(ms: unknown): number {
+  if (typeof ms === "number" && Number.isFinite(ms) && ms >= 0) return ms;
+  const shown = typeof ms === "string" ? JSON.stringify(ms) : String(ms);
+  throw new TypeError(
+    `arthron: retry's delayFn returned ${shown} — return the wait in ms, a finite number ≥ 0`,
+  );
+}
+
 /** The rule without `shouldRetry`: a network error or a status in `statuses`, on a method in `methods`. */
 function byDefault(
   thrown: unknown,
@@ -65,20 +78,31 @@ type Settings = {
   onRetry: RetryOptions["onRetry"];
 };
 
-/** 1.x options: unknown keys would be ignored — and a test that injected `sleep` would wait for real. */
-const REPLACED = {
-  delay: "was replaced by delayFn in 2.0 — pass retry({ delayFn })",
-  retryOn: "was replaced by statuses in 2.0 — pass retry({ statuses })",
-  sleep:
-    "left the public options in 2.0 — use fake timers in tests (vi.useFakeTimers())",
-} as const;
+/** 1.x options and what replaced them: unknown keys would be ignored. */
+const REPLACED = { delay: "delayFn", retryOn: "statuses" } as const;
 
 /** Defaults filled in and `retries` checked — `attempt >= NaN` is never true, so an unset env var would retry forever. */
-function settle(options: RetryOptions, where: string): Settings {
-  for (const [old, fix] of Object.entries(REPLACED)) {
-    if ((options as Record<string, unknown>)[old] !== undefined) {
-      throw new TypeError(`arthron: ${where} ${old} ${fix}`);
+function settle(
+  options: RetryOptions,
+  where: "retry()" | "meta.retry",
+): Settings {
+  const given = options as Record<string, unknown>;
+  for (const [old, now] of Object.entries(REPLACED)) {
+    if (given[old] !== undefined) {
+      const fix =
+        where === "meta.retry"
+          ? `meta: { retry: { ${now} } }`
+          : `retry({ ${now} })`;
+      throw new TypeError(
+        `arthron: ${where} ${old} was replaced by ${now} in 2.0 — pass ${fix}`,
+      );
     }
+  }
+  // Ignored, a test that injected it would wait for real.
+  if (given.sleep !== undefined) {
+    throw new TypeError(
+      `arthron: ${where} sleep left the public options in 2.0 — use fake timers in tests (vi.useFakeTimers())`,
+    );
   }
   const {
     retries = 2,
@@ -150,7 +174,7 @@ export function retryWith(options: RetryOptions, sleep: Sleep): Plugin {
             throw thrown;
           }
           const wait = Math.min(
-            retryAfter ?? settings.delayFn(attempt, thrown),
+            retryAfter ?? checkedDelay(settings.delayFn(attempt, thrown)),
             MAX_TIMER_MS,
           );
           settings.onRetry?.(thrown, attempt, wait);

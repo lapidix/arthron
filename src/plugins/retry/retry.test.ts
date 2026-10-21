@@ -29,6 +29,30 @@ describe("retry", () => {
     // @ts-expect-error retryOn is statuses since 2.0
     expect(() => retry({ retryOn: [503] })).toThrow("retry({ statuses })");
   });
+  it("refuses the 1.x options in meta.retry, naming the meta form", async () => {
+    const api = make(fakeFetch(jsonResponse({})));
+    const old = { delay: () => 0 } as RetryOptions;
+    await expect(api.get("/u", { meta: { retry: old } })).rejects.toThrow(
+      "arthron: meta.retry delay was replaced by delayFn in 2.0 — pass meta: { retry: { delayFn } }",
+    );
+  });
+  it.each([
+    [Number.NaN, "NaN"],
+    [-1, "-1"],
+    [Number.POSITIVE_INFINITY, "Infinity"],
+    ["300", '"300"'],
+  ])(
+    "refuses a delayFn that returns %s, naming what it needs",
+    async (value, shown) => {
+      const fetch = fakeFetch(err(503), jsonResponse({}));
+      await expect(
+        make(fetch, { delayFn: () => value as number }).get("/u"),
+      ).rejects.toThrow(
+        `arthron: retry's delayFn returned ${shown} — return the wait in ms, a finite number ≥ 0`,
+      );
+      expect(fetch.calls).toHaveLength(1);
+    },
+  );
   it("retries the statuses in `statuses`, and no others", async () => {
     const teapot = fakeFetch(err(418), jsonResponse({ ok: 1 }));
     expect(
@@ -138,7 +162,7 @@ describe("retry", () => {
       vi.useRealTimers();
     }
   });
-  it("falls back to delay() when Retry-After is garbage", async () => {
+  it("falls back to delayFn when Retry-After is garbage", async () => {
     const sleep = sleepSpy();
     await make(
       fakeFetch(err(503, { "retry-after": "soon" }), jsonResponse({})),
@@ -223,13 +247,33 @@ describe("retry", () => {
       }),
     ).rejects.toBeInstanceOf(TypeError);
   });
-  it("propagates the abort reason when aborted while sleeping", async () => {
+  it("rejects with whatever the wait rejects with, without another attempt", async () => {
     const reason = new DOMException("a", "AbortError");
     const sleep = vi.fn(async () => {
       throw reason;
     });
     const fetch = fakeFetch(err(500), jsonResponse({}));
     await expect(make(fetch, { sleep }).get("/u")).rejects.toBe(reason);
+    expect(fetch.calls).toHaveLength(1);
+  });
+  it("stops the real wait at once when the call is aborted during it", async () => {
+    const ac = new AbortController();
+    const reason = new Error("stop");
+    const fetch = fakeFetch(err(503), jsonResponse({}));
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: fetch,
+      plugins: [
+        retry({
+          delayFn: () => 60_000,
+          // Aborts once the wait has started.
+          onRetry: () => queueMicrotask(() => ac.abort(reason)),
+        }),
+      ],
+    });
+    const started = Date.now();
+    await expect(api.get("/u", { signal: ac.signal })).rejects.toBe(reason);
+    expect(Date.now() - started).toBeLessThan(1000);
     expect(fetch.calls).toHaveLength(1);
   });
 
