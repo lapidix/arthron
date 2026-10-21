@@ -23,4 +23,4 @@ try {
 
 **Not every non-ok response is a failure.** An opaque response (`mode: "no-cors"`) and the 3xx of `redirect: "manual"` come back as a `Response`, since you asked for them. `throwOn` picks which other non-ok responses reject, for the client or one call: `api.get("/maybe", { throwOn: (response) => response.status !== 404 })` returns the 404 to inspect. An ok response never rejects.
 
-**Cancellation is not an `ArthronError`.** A request that is aborted or times out rejects with the abort reason — `AbortError` / `TimeoutError`, or whatever you passed to `abort(reason)`. So does a schema mismatch (`SchemaMismatchError`, [above](/guide/responses)) and anything a plugin throws.
+**Cancellation is not an `ArthronError`.** A request that is aborted or times out rejects with the abort reason — `AbortError` / `TimeoutError`, or whatever you passed to `abort(reason)`. So does a schema mismatch (`SchemaMismatchError`, see [Responses](/guide/responses)) and anything a plugin throws.

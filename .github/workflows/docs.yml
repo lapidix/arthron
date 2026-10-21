@@ -16,8 +16,9 @@ name: Docs
 # release published with a workflow's GITHUB_TOKEN would not start this one.
 #
 # Run by hand (Actions → Docs → Run workflow), it skips that check and deploys
-# the ref you pick as it is. From `main` that also publishes docs for changes
-# no release carries yet.
+# the ref you pick as it is. The ref must be `main` or a `v*` tag, since the
+# `github-pages` environment refuses other branches. From `main` that also
+# publishes docs for changes no release carries yet.
 #
 # Needs Pages set to deploy from GitHub Actions (Settings → Pages). The
 # `github-pages` environment that creates allows only the default branch; a

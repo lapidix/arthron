@@ -33,7 +33,7 @@ Node 22+ for everything — the dev toolchain and the runtime (`engines`). CI ru
 - **Return native `Response`.** Do not introduce a response wrapper type. Body helpers live on `ResponsePromise` (`src/response/response-promise.ts`).
 - **Public surface is pinned** by `src/index.test.ts` and `src/plugins/index.test.ts` ("exports exactly the documented values"). Adding an export means updating that list, the docs pages, and `llms.txt` in the same change. Built-in plugins and their option types are exported from `arthron/plugins` only.
 - **Error messages say what to do** (`… — pass baseURL in arthron({ baseURL }) or use an absolute URL`). Keep that style.
-- **The docs site deploys on Latest releases.** Publishing a release as Latest deploys it; running the Docs workflow by hand deploys the ref you pick, so from `main` it also publishes docs for anything not released yet.
+- **The docs site deploys on Latest releases.** Publishing a release as Latest deploys it; running the Docs workflow by hand deploys the ref you pick, which must be `main` or a `v*` tag (the `github-pages` environment refuses other branches), so from `main` it also publishes docs for anything not released yet.
 - `examples/*.ts` are type-checked (`tsconfig.json` includes them) and import from `../src`. Keep them compiling. `examples/recipes.test.ts` runs the error-page recipe.
 
 ## Layout

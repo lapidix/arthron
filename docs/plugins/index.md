@@ -1,4 +1,4 @@
-# Overview
+# Plugins
 
 A plugin is an object with a required `pluginName` and at least one of four slots:
 

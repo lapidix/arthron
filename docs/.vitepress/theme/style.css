@@ -47,6 +47,10 @@
    .VPHome or .VPContent.is-home to outweigh them; where the weights tie,
    these load later. */
 
+/* These rules depend on VitePress's internal home markup (.VPHero, .main,
+   .image, .image-container, .VPContent.is-home). After bumping vitepress,
+   check / at 375px and 1280px in light and dark. */
+
 /* The hero and the cards span the same width as the nav bar, so their edges
    line up with the logo and the last nav item. --home-space is the gap above
    the hero, between the hero and the cards, and below the cards. */
