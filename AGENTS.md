@@ -1,6 +1,6 @@
 # Working in this repo
 
-arthron is a zero-dependency fetch client. Read `README.md` for what it does and `llms.txt` for the compressed API reference. Design notes live locally in `docs/superpowers/` (git-ignored).
+arthron is a zero-dependency fetch client. Read the docs in `docs/` for what it does and `llms.txt` for the compressed API reference. Design notes live locally in `docs/superpowers/` (git-ignored).
 
 ## Commands
 
@@ -14,6 +14,9 @@ pnpm check:types-pkg # attw --pack . — package types must be green for node10/
 pnpm check:types-consumer  # after build and `pnpm install --dir test/types-consumer`: the packed types on TS 5.0–7.0
 pnpm check:browsers  # after build, `pnpm install --dir test/browser` and `pnpm --dir test/browser exec playwright install`: the package in Chromium, Firefox and WebKit
 node scripts/smoke.mjs  # runs dist/ against a real local HTTP server
+pnpm install --dir docs  # once, for the docs site (VitePress lives in docs/ with its own lockfile)
+pnpm docs:dev        # the docs site with live reload
+pnpm docs:build      # builds the docs site to docs/.vitepress/dist
 ```
 
 Node 22+ for everything — the dev toolchain and the runtime (`engines`). CI runs the full check, `scripts/smoke.mjs` against the built output included, on 22, 24 and 26.
@@ -28,8 +31,9 @@ Node 22+ for everything — the dev toolchain and the runtime (`engines`). CI ru
 - **Interceptors transform, middleware controls flow.** A plugin's interceptors are `requestInterceptor`, `responseInterceptor` and `errorInterceptor`. Do not add a way for an interceptor to retry, skip, or swallow. Flow-control features are middleware (see `src/plugins/retry/`, `timeout/`).
 - **Clients are immutable.** `use`/`extend` return new instances; never mutate `resolved` after construction.
 - **Return native `Response`.** Do not introduce a response wrapper type. Body helpers live on `ResponsePromise` (`src/response/response-promise.ts`).
-- **Public surface is pinned** by `src/index.test.ts` and `src/plugins/index.test.ts` ("exports exactly the documented values"). Adding an export means updating that list, `README.md`, and `llms.txt` in the same change. Built-in plugins and their option types are exported from `arthron/plugins` only.
+- **Public surface is pinned** by `src/index.test.ts` and `src/plugins/index.test.ts` ("exports exactly the documented values"). Adding an export means updating that list, the docs pages, and `llms.txt` in the same change. Built-in plugins and their option types are exported from `arthron/plugins` only.
 - **Error messages say what to do** (`… — pass baseURL in arthron({ baseURL }) or use an absolute URL`). Keep that style.
+- **The docs site deploys on Latest releases.** Publishing a release as Latest deploys it; running the Docs workflow by hand deploys the ref you pick, so from `main` it also publishes docs for anything not released yet.
 - `examples/*.ts` are type-checked (`tsconfig.json` includes them) and import from `../src`. Keep them compiling. `examples/recipes.test.ts` runs the error-page recipe.
 
 ## Layout
@@ -51,6 +55,8 @@ src/
   types/        types used by two or more folders: request.types (RequestContext, ArthronMeta, …),
                 plugin.types (Plugin, Middleware, interceptors), response.types (ResponsePromise, SSE, schema, …)
   testkit/      fakeFetch, jsonResponse — for tests only
+docs/           the documentation site (VitePress, English): guide/, plugins/, reference/, agents.md;
+                its own package.json and lockfile, deployed by .github/workflows/docs.yml
 ```
 
 ### Where a type goes
