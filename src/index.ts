@@ -6,7 +6,11 @@ export type {
   RequestOptions,
   RequestOptionsWithMethod,
 } from "./client/client.types";
-export { ArthronError, isArthronError } from "./error/arthron-error";
+export {
+  ArthronError,
+  type ArthronErrorOptions,
+  isArthronError,
+} from "./error/arthron-error";
 export {
   createErrorInterceptor,
   createMiddleware,

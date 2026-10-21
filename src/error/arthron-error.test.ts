@@ -1,7 +1,11 @@
 import { inspect } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import { jsonResponse } from "../testkit/fetch.testkit";
-import { ArthronError, isArthronError } from "./arthron-error";
+import {
+  ArthronError,
+  type ArthronErrorOptions,
+  isArthronError,
+} from "./arthron-error";
 import { networkError, responseError } from "./create-error";
 
 const req = {
@@ -52,13 +56,32 @@ describe("ArthronError keeps request secrets out of serialization", () => {
     const text = inspect(await make(), { depth: 10 });
     for (const secret of SECRETS) expect(text).not.toContain(secret);
   });
-  it("still hands request, response and headers to code that asks for them", async () => {
+  it("still hands requestContext, response and headers to code that asks for them", async () => {
     const err = await make();
-    expect(err.request.init.headers).toEqual({
+    expect(err.requestContext.init.headers).toEqual({
       authorization: "Bearer H-SECRET",
     });
     expect(err.headers.get("x-session")).toBe("R-SECRET");
     expect(err.response?.status).toBe(401);
+  });
+});
+
+describe("new ArthronError(options)", () => {
+  it("builds an error by hand, as a test or a plugin does, with requestContext not enumerable", () => {
+    const options: ArthronErrorOptions = {
+      message: "GET https://a/x failed with 404",
+      status: 404,
+      statusText: "Not Found",
+      headers: new Headers(),
+      payload: { message: "nope" },
+      description: "nope",
+      requestContext: req,
+    };
+    const err = new ArthronError(options);
+    expect(err.requestContext).toBe(req);
+    expect(Object.keys(err)).not.toContain("requestContext");
+    // The 1.x field is gone, not aliased.
+    expect("request" in err).toBe(false);
   });
 });
 

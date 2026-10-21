@@ -84,10 +84,12 @@ export function bearerAuth(options: BearerAuthOptions): Plugin {
         return await next(ctx);
       } catch (error) {
         if (!isArthronError(error) || error.status !== 401) throw error;
-        if (!ours(error.request.url)) throw error;
+        if (!ours(error.requestContext.url)) throw error;
         // Refresh only if the token that failed is still the current one —
         // otherwise another call has refreshed it already.
-        if (error.request.init.headers.authorization === (await bearer())) {
+        if (
+          error.requestContext.init.headers.authorization === (await bearer())
+        ) {
           refreshing ??= startRefresh(refreshFn);
           await refreshing;
         }

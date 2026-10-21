@@ -50,6 +50,15 @@ describe("public surface", () => {
     // @ts-expect-error RequestInitWithBody is RequestOptionsWithMethod since 2.0
     expectTypeOf<import("./").RequestInitWithBody>().not.toBeNever();
   });
+  it("exports what new ArthronError() takes, with requestContext", () => {
+    expectTypeOf<
+      ConstructorParameters<typeof import("./").ArthronError>[0]
+    >().toEqualTypeOf<import("./").ArthronErrorOptions>();
+    expectTypeOf<import("./").ArthronErrorOptions>().toHaveProperty(
+      "requestContext",
+    );
+    expectTypeOf<import("./").ArthronError>().not.toHaveProperty("request");
+  });
   it("drops the 1.x define helpers for create…", () => {
     // @ts-expect-error definePlugin is createPlugin since 2.0
     expectTypeOf<typeof import("./").definePlugin>().not.toBeNever();

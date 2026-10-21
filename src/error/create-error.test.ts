@@ -44,7 +44,7 @@ describe("responseError", () => {
     expect(err.statusText).toBe("Bad");
     expect(err.payload).toEqual({ message: "nope" });
     expect(err.response?.status).toBe(400);
-    expect(err.request).toBe(req);
+    expect(err.requestContext).toBe(req);
   });
   it("leaves error.response readable", async () => {
     const err = await responseError(

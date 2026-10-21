@@ -100,13 +100,13 @@ function parseBody(read: {
 }
 
 /** The request as error messages name it: method and URL, no query or userinfo. */
-function describeRequest(request: RequestContext): string {
-  return `${request.init.method ?? "GET"} ${redactUrl(request.url)}`;
+function describeRequest(requestContext: RequestContext): string {
+  return `${requestContext.init.method ?? "GET"} ${redactUrl(requestContext.url)}`;
 }
 
 export async function responseError(
   response: Response,
-  request: RequestContext,
+  requestContext: RequestContext,
   extractDescription: DescriptionExtractor = defaultDescription,
 ): Promise<ArthronError> {
   const read = await readCapped(response, MAX_ERROR_BODY_BYTES);
@@ -126,13 +126,13 @@ export async function responseError(
   }
   return new ArthronError({
     // arthron's own words for logs; the server's go in `description`.
-    message: `${describeRequest(request)} failed with ${status}`,
+    message: `${describeRequest(requestContext)} failed with ${status}`,
     description,
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,
     payload,
-    request,
+    requestContext,
     response,
   });
 }
@@ -174,20 +174,22 @@ export function redactErrorUrl(
 
 export function networkError(
   cause: unknown,
-  request: RequestContext,
+  requestContext: RequestContext,
 ): ArthronError {
   // Some runtimes' messages repeat the URL, query and userinfo included.
-  redactErrorUrl(cause, request.url);
+  redactErrorUrl(cause, requestContext.url);
   const reason =
     cause instanceof Error && cause.message ? cause.message : "network error";
-  const hint = isReadableStream(request.init.body) ? STREAM_BODY_HINT : "";
+  const hint = isReadableStream(requestContext.init.body)
+    ? STREAM_BODY_HINT
+    : "";
   return new ArthronError({
-    message: `${describeRequest(request)} failed: ${reason}${hint}`,
+    message: `${describeRequest(requestContext)} failed: ${reason}${hint}`,
     status: 0,
     statusText: "",
     headers: new Headers(),
     payload: undefined,
-    request,
+    requestContext,
     cause,
   });
 }
