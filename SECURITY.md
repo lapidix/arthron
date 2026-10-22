@@ -31,7 +31,7 @@ Please keep the details private until the advisory is published, or for 90 days 
 
 ## Scope
 
-In scope is arthron doing something its [README](README.md#rules-worth-knowing) says it does not, for example:
+In scope is arthron doing something its [documentation](https://lapidix.github.io/arthron/) says it does not, for example:
 
 - config headers reaching an origin other than `baseURL`'s — an `allowedOrigins` entry included;
 - a request reaching an origin outside `baseURL`'s and `allowedOrigins` on a client that has either;
@@ -42,7 +42,7 @@ In scope is arthron doing something its [README](README.md#rules-worth-knowing) 
 
 Out of scope:
 
-- behaviour of the `fetch` implementation, the runtime or the server — for example fetch keeping `x-api-key` on a cross-origin redirect, which the README documents;
+- behaviour of the `fetch` implementation, the runtime or the server — for example fetch keeping `x-api-key` on a cross-origin redirect, which [the documentation](https://lapidix.github.io/arthron/guide/clients#redirects) covers;
 - what you opt into: the origins you list in `allowedOrigins`, a client without `baseURL` or `allowedOrigins` (it requests any http(s) URL, with its config headers), and your own plugins and interceptors;
 - issues in development dependencies. arthron has no runtime dependencies.
 

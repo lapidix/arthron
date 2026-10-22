@@ -4,6 +4,7 @@
   "description": "A lightweight fetch client you assemble from plugins. Zero dependencies, returns native Response.",
   "license": "MIT",
   "author": "lapidix",
+  "homepage": "https://lapidix.github.io/arthron/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lapidix/arthron.git"
@@ -61,6 +62,9 @@
     "check:types-pkg": "attw --pack .",
     "check:types-consumer": "node test/types-consumer/check.mjs",
     "check:browsers": "pnpm --dir test/browser test",
+    "docs:dev": "pnpm --dir docs dev",
+    "docs:build": "pnpm --dir docs build",
+    "docs:preview": "pnpm --dir docs preview",
     "release:approve": "node scripts/approve-release.mjs",
     "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && node scripts/smoke.mjs && pnpm check:types-pkg"
   },
