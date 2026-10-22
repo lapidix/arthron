@@ -151,7 +151,7 @@ try {
 
 **Nothing leaks through an error.** `requestContext`, `response` and `headers` (the response's) are not enumerable, and `toJSON()` returns only name, message, description, status, statusText, method, a URL without query or userinfo, and `payload`. So `JSON.stringify(e)`, `console.error(e)` and error trackers never print your tokens. Error bodies are read up to 64 KiB — enough for any error message, and a huge or endless error body cannot fill memory; past the limit `payload` is the raw text and the rest of the body is cancelled. `isArthronError(e)` and `e instanceof ArthronError` work across copies of the package — the ESM and CJS builds loaded side by side, a CJS dependency's client caught by your ESM code.
 
-**Not every non-ok response is a failure.** An opaque response (`mode: "no-cors"`) and the 3xx of `redirect: "manual"` come back as a `Response`, since you asked for them. `throwOn` picks which other non-ok responses reject, for the client or one call: `api.get("/maybe", { throwOn: (response) => response.status !== 404 })` returns the 404 to inspect. An ok response never rejects.
+**Not every non-ok response is a failure.** An opaque response (`mode: "no-cors"`) and the 3xx of `redirect: "manual"` come back as a `Response`, since you asked for them. `throwOn` picks which non-ok responses reject, for the client or one call (a call's wins): `api.get("/maybe", { throwOn: (response) => response.status !== 404 })` returns the 404 to inspect. A `throwOn` you pass replaces that default, so it decides for opaque responses and manual 3xx too — the one above rejects them. An ok response never rejects.
 
 **Cancellation is not an `ArthronError`.** A request that is aborted or times out rejects with the abort reason — `AbortError` / `TimeoutError`, or whatever you passed to `abort(reason)`. So does a schema mismatch (`SchemaMismatchError`, above) and anything a plugin throws.
 
@@ -213,7 +213,7 @@ api.get(path, requestOptions)
   │  fill pathParams · join baseURL + path + queryParams
   │  check the origin (baseURL / allowedOrigins) · merge headers · serialize the body
   ▼
-middleware[0] → middleware[1] → …                once per call, outermost first
+middleware[0] → middleware[1] → …                outermost first; the outermost once per call
   │  next(requestContext)                        a middleware may call it again (retry)
   ▼
 attempt ─ request interceptors → fetchFn(url, init)
@@ -227,10 +227,10 @@ ResponsePromise ─ await → Response · .json() .text() .sse() .ndjson()
 ```
 
 1. **Before the plugins.** The URL is built, its origin checked, the client's and the call's headers merged and the body serialized. A mistake here — no `baseURL`, a body JSON would mangle, an origin the client may not call — is a rejected `TypeError`, and no plugin runs.
-2. **Middleware** wraps the whole call, outermost first. It is called once; `await next(requestContext)` runs everything below it and resumes with the result, or the error to `catch`. A middleware may call `next` again — that is a retry — or not at all.
+2. **Middleware** wraps the whole call, outermost first. The outermost one runs once per call; one below a middleware that calls `next` again runs again each time (`[retry(), timeout(5_000)]` is 5 s per attempt). `await next(requestContext)` runs everything below it and resumes with the result, or the error to `catch`. A middleware may call `next` again — that is a retry — or not at all.
 3. **An attempt** is one trip to the network: request interceptors, then `fetchFn`, then response or error interceptors. A retry runs the whole attempt again, so a refreshed token or a new trace id is picked up without extra code, and each attempt starts from a fresh copy of the context.
 4. **Where errors come from.** Only a non-ok response (unless `throwOn` lets it through) and a failed `fetch` become an `ArthronError`, and only those reach error interceptors. Cancellation and exceptions thrown by plugins pass through untouched.
-5. **What you get back.** The middleware unwinds, last one first, and the call resolves with the `Response` — untouched unless a response interceptor returned a new one. The body helpers sit on top of that promise.
+5. **What you get back.** The middleware unwinds, last one first, and the call resolves with the `Response` — untouched unless a response interceptor or a middleware returned a different one. The body helpers sit on top of that promise.
 
 ## Plugins
 
@@ -255,13 +255,13 @@ type RequestContext = {
 
 | | Middleware | Interceptor |
 |---|---|---|
-| Runs | Once per call, wrapping everything below | Once per attempt |
+| Runs | Around everything below it: once per call, or again each time a middleware above it calls `next` again | Once per attempt |
 | Gets | `requestContext` and `next` | A value: context, `Response`, or `ArthronError` |
 | Can | Call `next` again (retry), skip it, add a deadline | Return a changed value |
 | Cannot | — | Retry, skip, or stop the error from being thrown |
 | Examples | `retry`, `timeout`, `logging`, auth refresh, error pages | auth header, tracing id, enriching one attempt's error |
 
-Request interceptors are not the outermost layer, as axios users may expect: they run inside every middleware, on every attempt — which is also why a `timeout` bounds a slow interceptor. `requestContext.init.headers` is always a plain record with lowercased names, restored to that shape after every request interceptor, so `{ ...requestContext.init.headers, name: value }` is safe. Response bodies are single-use: a response interceptor that wants to inspect the body must `response.clone()`; one that changes it returns a new `Response`.
+Request interceptors are not the outermost layer, as axios users may expect: they run inside every middleware, on every attempt — which is also why a slow interceptor's time counts toward a `timeout`. The interceptor itself is cut off only if it listens to `requestContext.init.signal`; otherwise it runs to the end, and fetch then rejects with a `TimeoutError`. `requestContext.init.headers` is always a plain record with lowercased names, restored to that shape after every request interceptor, so `{ ...requestContext.init.headers, name: value }` is safe. Response bodies are single-use: a response interceptor that wants to inspect the body must `response.clone()`; one that changes it returns a new `Response`.
 
 ### Built in
 
@@ -281,7 +281,7 @@ Order is meaning: the first plugin is outermost. A good default:
 plugins: [logging(), bearerAuth(…), timeout(10_000), retry()]
 ```
 
-`logging` first logs each call once — its start, and its end with the total time, retries included. A `timeout` before `retry` bounds the whole call; after it, each attempt — and a timed-out attempt is not retried. `bearerAuth` sets its header on every attempt wherever it sits. Anything that should see only the final outcome — an error page, mapping to domain errors — goes before `retry`.
+`logging` first logs each call once — its start, and its end with the total time, retries included. A `timeout` before `retry` bounds the whole call; after it, each attempt — and by default a timed-out attempt is not retried. `bearerAuth` sets its header on every attempt wherever it sits. Anything that should see only the final outcome — an error page, mapping to domain errors — goes before `retry`.
 
 Plugins with the same `pluginName` replace each other, so a second `timeout()` takes the first one's place instead of adding a deadline. For both a total and a per-attempt deadline, rename one:
 
@@ -313,10 +313,10 @@ Honours `Retry-After` (seconds or HTTP date). Never retries a `ReadableStream` b
 
 #### `timeout(ms)` / `timeout({ total?, idle? })`
 
-Aborts a call that takes too long, or goes quiet for too long. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore.
+Aborts a call that takes too long, or goes quiet for too long. Rejects with a `TimeoutError`, which error interceptors skip and `retry` does not repeat unless your `shouldRetry` returns `true` for it.
 
 ```ts
-arthron({ plugins: [retry(), timeout(5_000)] }); // 5 s per attempt — a timed-out attempt is not retried
+arthron({ plugins: [retry(), timeout(5_000)] }); // 5 s per attempt — by default a timed-out attempt is not retried
 arthron({ plugins: [timeout(5_000), retry()] }); // 5 s for all attempts together
 arthron({ plugins: [timeout({ idle: 30_000 })] }); // for streams: 30 s without data
 ```
@@ -372,7 +372,7 @@ const api = arthron({
 
 | option | default | |
 |---|---|---|
-| `tokenOrigins` | required | a list of URLs; only their origins count, so `[baseURL]` works as is — a relative one (`"/api"`) is on the page's origin. An entry that is not an http(s) URL, an empty list or one string instead of a list is a `TypeError` |
+| `tokenOrigins` | required | a list of URLs; only their origins count, so `[baseURL]` works as is. Requests from a relative `baseURL` (`"/api"`) go to the page's origin: list that origin (`"https://app.example.com"`), since `"/api"` itself is not an http(s) URL. An entry that is not an http(s) URL, an empty list or one string instead of a list is a `TypeError` |
 | `accessTokenFn` | required | `() => string \| null \| undefined`, or a promise of one; read on every attempt. No token, no header |
 | `refreshFn` | — | `() => Promise<void>`, called after a 401 to refresh the session, so the next `accessTokenFn()` returns the new token; then the call is redone once. Without it, a 401 is thrown as is |
 
@@ -531,7 +531,7 @@ extend(clientOptions) → new client
 without(...pluginNames) → new client without those plugins
 ```
 
-All arguments after `path` are optional, except `method` in `request`. Every method returns a `ResponsePromise`: a `Promise<Response>` with `.json()`, `.text()`, `.blob()`, `.arrayBuffer()`, `.formData()`, `.sse()` and `.ndjson()`.
+All arguments after `path` are optional, except `method` in `request`. Every request method returns a `ResponsePromise`: a `Promise<Response>` with `.json()`, `.text()`, `.blob()`, `.arrayBuffer()`, `.formData()`, `.sse()` and `.ndjson()`.
 
 ### `ArthronError`
 
