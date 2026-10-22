@@ -33,7 +33,7 @@ symbol alone, use the thickness of two plates.
 | Horizontal lockup | 120 px wide | 30 mm wide |
 | Stacked lockup | 72 px wide | 18 mm wide |
 | Symbol | 24 px | 8 mm |
-| Below 24 px | use the favicon cut (two plates, no edge highlights) | — |
+| Below 24 px | use the favicon: the symbol's three plates without the edge highlights, scaled to fill the canvas | — |
 
 ## Colour
 
