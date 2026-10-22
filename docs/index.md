@@ -2,7 +2,7 @@
 layout: home
 hero:
   text: A lightweight <span class="accent">fetch</span> client you assemble from plugins.
-  tagline: Plain <code>Response</code> in, plain <code>Response</code> out. Retry, timeouts and auth are plugins you opt into.
+  tagline: Fetch options in, native Response out. Retry, timeouts and auth only when you add them.
   actions:
     - theme: brand
       text: Get started

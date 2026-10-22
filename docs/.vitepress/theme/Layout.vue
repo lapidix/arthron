@@ -3,10 +3,15 @@ import { useData } from "vitepress";
 import DefaultTheme, { VPImage } from "vitepress/theme-without-fonts";
 import { ref } from "vue";
 import HeroCode from "./HeroCode.md";
+import HomeCompare from "./HomeCompare.vue";
+import HomeErrors from "./HomeErrors.vue";
+import HomeFlow from "./HomeFlow.vue";
 
 // The default layout with three slots of the home hero filled: the logo mark
 // above the heading, the install command under the buttons, and the README
-// example in place of the hero image.
+// example in place of the hero image. Under the cards come three sections:
+// the same call written with fetch alone, the example's call played step by
+// step, and the error messages.
 const { Layout } = DefaultTheme;
 const { theme } = useData();
 
@@ -72,6 +77,11 @@ function copyWithTextField(text: string) {
     </template>
     <template #home-hero-image>
       <div class="hero-code vp-doc"><HeroCode /></div>
+    </template>
+    <template #home-features-after>
+      <HomeCompare />
+      <HomeFlow />
+      <HomeErrors />
     </template>
   </Layout>
 </template>

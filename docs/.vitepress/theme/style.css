@@ -22,6 +22,18 @@
   --vp-button-alt-hover-border: var(--vp-c-divider);
   --vp-button-alt-hover-bg: var(--vp-c-bg-soft);
   --vp-button-alt-active-border: var(--vp-c-divider);
+
+  /* The feature cards on the home page. */
+  --home-card-bg: linear-gradient(180deg, #ffffff, #fafafa);
+  --home-card-shadow:
+    0 1px 2px rgba(24, 24, 27, 0.08), 0 6px 12px -4px rgba(24, 24, 27, 0.08),
+    0 24px 48px -20px rgba(15, 118, 110, 0.3);
+
+  /* The middleware layers of the home diagram. The fill is translucent, so
+     each nested layer comes out a shade deeper. */
+  --home-layer-bg: rgba(20, 184, 166, 0.07);
+  --home-layer-border: rgba(15, 118, 110, 0.24);
+  --home-layer-lit-bg: rgba(20, 184, 166, 0.16);
 }
 
 .dark {
@@ -41,6 +53,15 @@
      light teals in dark mode and would leave its white text unreadable. */
   --vp-button-brand-hover-bg: #115e59;
   --vp-button-brand-active-bg: #134e4a;
+
+  --home-card-bg: linear-gradient(180deg, #242428, #1c1c1f);
+  --home-card-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.5),
+    0 24px 48px -20px rgba(0, 0, 0, 0.8);
+
+  --home-layer-bg: rgba(45, 212, 191, 0.06);
+  --home-layer-border: rgba(45, 212, 191, 0.24);
+  --home-layer-lit-bg: rgba(45, 212, 191, 0.14);
 }
 
 /* Home page. The default home styles are scoped, so these rules add
@@ -72,21 +93,24 @@
 }
 
 .VPHome .VPHero.VPHomeHero,
-.VPHome .VPFeatures.VPHomeFeatures {
+.VPHome .VPFeatures.VPHomeFeatures,
+.VPHome .home-section {
   padding-right: 24px;
   padding-left: 24px;
 }
 
 @media (min-width: 768px) {
   .VPHome .VPHero.VPHomeHero,
-  .VPHome .VPFeatures.VPHomeFeatures {
+  .VPHome .VPFeatures.VPHomeFeatures,
+  .VPHome .home-section {
     padding-right: 32px;
     padding-left: 32px;
   }
 }
 
 .VPHome .VPHomeHero .container,
-.VPHome .VPHomeFeatures .container {
+.VPHome .VPHomeFeatures .container,
+.VPHome .home-section .container {
   max-width: calc(var(--vp-layout-max-width) - 64px);
 }
 
@@ -130,14 +154,6 @@
 
 .VPHome .VPHero .tagline {
   font-weight: 400;
-}
-
-.VPHome .tagline code {
-  border-radius: 4px;
-  padding: 3px 6px;
-  background-color: var(--vp-code-bg);
-  color: var(--vp-code-color);
-  font-size: 0.875em;
 }
 
 .VPHome .VPHero .VPButton.medium {
@@ -256,26 +272,31 @@
   white-space: nowrap;
 }
 
-/* The hero code wraps a line that does not fit instead of scrolling, and
-   indents the rest of the line under its start. */
+/* The hero code, and the code of the sections under the cards, wraps a line
+   that does not fit instead of scrolling, and indents the rest of the line
+   under its start. */
 
-.VPHome .hero-code {
+.VPHome .hero-code,
+.VPHome .home-code {
   width: 100%;
   min-width: 0;
 }
 
-.VPHome .hero-code div[class*="language-"] {
+.VPHome .hero-code div[class*="language-"],
+.VPHome .home-code div[class*="language-"] {
   margin: 0;
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
 }
 
-.VPHome .hero-code pre code {
+.VPHome .hero-code pre code,
+.VPHome .home-code pre code {
   width: auto;
   white-space: normal;
 }
 
-.VPHome .hero-code .line {
+.VPHome .hero-code .line,
+.VPHome .home-code .line {
   display: block;
   padding-left: 6ch;
   text-indent: -6ch;
@@ -283,18 +304,712 @@
   overflow-wrap: anywhere;
 }
 
-.VPHome .hero-code .line:empty::before {
+.VPHome .hero-code .line:empty::before,
+.VPHome .home-code .line:empty::before {
   content: " ";
 }
 
-/* Features: three cards on the page background. */
+/* Features: three cards raised off the page. A tight shadow sets each card
+   down and a wide one, tinted teal in light mode, lifts it; the surface is a
+   shade lighter at the top, as if lit from above. They are not links, so they
+   do not move on hover. The colors are --home-card-bg and --home-card-shadow
+   at the top. */
 
 .VPHome .VPHomeFeatures .VPFeature {
   border-color: var(--vp-c-divider);
-  border-radius: 8px;
-  background-color: var(--vp-c-bg);
+  border-radius: 12px;
+  background: var(--home-card-bg);
+  box-shadow: var(--home-card-shadow);
 }
 
 .VPHome .VPHomeFeatures .details {
   font-weight: 400;
+}
+
+/* The sections under the cards: HomeCompare.vue, HomeFlow.vue and
+   HomeErrors.vue. A split section puts its text first and its figure under
+   it on narrow screens; from 960px, side by side in the hero's proportions. */
+
+.VPHome .home-section {
+  margin-top: var(--home-space);
+}
+
+.VPHome .home-section .container {
+  margin: 0 auto;
+}
+
+.VPHome .home-section-title {
+  letter-spacing: -0.02em;
+  line-height: 32px;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
+
+.VPHome .home-section-lede {
+  margin-top: 12px;
+  line-height: 26px;
+  font-size: 16px;
+  color: var(--vp-c-text-2);
+}
+
+.VPHome .home-section-more {
+  display: inline-block;
+  margin-top: 24px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--vp-c-brand-1);
+  transition: color 0.25s;
+}
+
+.VPHome .home-section-more::after {
+  margin-left: 6px;
+  content: "→";
+}
+
+.VPHome .home-section-more:hover {
+  color: var(--vp-c-brand-2);
+}
+
+.VPHome .home-section-figure {
+  margin-top: 40px;
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .VPHome .home-section-title {
+    line-height: 36px;
+    font-size: 28px;
+  }
+}
+
+@media (min-width: 960px) {
+  .VPHome .home-section-split .container {
+    display: flex;
+    align-items: center;
+  }
+
+  .VPHome .home-section-split .home-section-text {
+    flex: 0 0 calc(45% - 24px);
+  }
+
+  .VPHome .home-section-split .home-section-figure {
+    flex: 1;
+    margin: 0 0 0 48px;
+  }
+}
+
+/* The same call, with fetch alone: the heading over the two versions, which
+   sit side by side from 960px. The arthron one is raised like the cards. */
+
+.VPHome .home-compare-text {
+  max-width: 640px;
+}
+
+.VPHome .home-compare-panes {
+  display: grid;
+  gap: 24px;
+  margin-top: 32px;
+}
+
+@media (min-width: 960px) {
+  .VPHome .home-compare-panes {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.VPHome .home-compare .vp-doc {
+  --vp-code-font-size: 13px;
+}
+
+.VPHome .home-compare-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--vp-c-text-1);
+}
+
+.VPHome .home-compare-label span {
+  font-family: var(--vp-font-family-base);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--vp-c-text-2);
+}
+
+.VPHome .home-compare-pane.is-arthron .home-compare-label {
+  color: var(--vp-c-brand-1);
+}
+
+.VPHome .home-compare-pane.is-arthron div[class*="language-"] {
+  border-color: var(--home-layer-border);
+  box-shadow: var(--home-card-shadow);
+}
+
+.VPHome .home-compare-pane .home-section-more {
+  margin-top: 16px;
+}
+
+/* How a call flows: the steps on the left, the diagram on the right. The
+   diagram runs top to bottom: the call, the plugins nested around one
+   attempt, what comes back, and what logging printed. The part of the
+   current step is lit. */
+
+.VPHome .home-flow-steps {
+  display: grid;
+  gap: 2px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.VPHome .home-flow-step {
+  counter-increment: step;
+}
+
+.VPHome .home-flow-step button {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border-radius: 8px;
+  padding: 6px 10px;
+  width: 100%;
+  text-align: left;
+  line-height: 22px;
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+  transition:
+    background-color 0.25s,
+    color 0.25s;
+}
+
+.VPHome .home-flow-step button::before {
+  flex: none;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  line-height: 20px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--vp-c-text-3);
+  content: counter(step);
+  transition:
+    background-color 0.25s,
+    border-color 0.25s,
+    color 0.25s;
+}
+
+.VPHome .home-flow-step button:hover {
+  background-color: var(--vp-c-bg-soft);
+}
+
+.VPHome .home-flow-step.is-done button::before {
+  border-color: var(--home-layer-border);
+  background-color: var(--home-layer-bg);
+  color: var(--vp-c-brand-1);
+}
+
+.VPHome .home-flow-step.is-current button {
+  background-color: var(--vp-c-brand-soft);
+  color: var(--vp-c-text-1);
+}
+
+/* The page background as the digit's color: white on the dark teal of light
+   mode, near black on the light teal of dark mode. */
+.VPHome .home-flow-step.is-current button::before {
+  border-color: var(--vp-c-brand-1);
+  background-color: var(--vp-c-brand-1);
+  color: var(--vp-c-bg);
+}
+
+/* The diagram sits on a raised panel like the cards, under a bar that says
+   which step is playing and a progress track with one segment per step. The
+   current segment fills over one step's time while the playback runs. */
+.VPHome .home-flow-stage {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--home-card-bg);
+  box-shadow: var(--home-card-shadow);
+}
+
+@media (min-width: 640px) {
+  .VPHome .home-flow-stage {
+    padding: 20px 24px 24px;
+  }
+}
+
+.VPHome .home-flow-bar {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.VPHome .home-flow-status {
+  display: flex;
+  flex-direction: column;
+  min-height: 44px;
+  line-height: 22px;
+  font-size: 14px;
+  color: var(--vp-c-text-1);
+}
+
+.VPHome .home-flow-count {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vp-c-brand-1);
+}
+
+.VPHome .home-flow-progress {
+  display: flex;
+  gap: 4px;
+  margin: 12px 0 20px;
+}
+
+.VPHome .home-flow-progress span {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 2px;
+  height: 4px;
+  background-color: var(--vp-c-divider);
+}
+
+.VPHome .home-flow-progress span::after {
+  position: absolute;
+  inset: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+  background-color: var(--vp-c-brand-1);
+  content: "";
+}
+
+.VPHome .home-flow-progress span.is-done::after,
+.VPHome .home-flow-progress span.is-current::after {
+  transform: scaleX(1);
+}
+
+.VPHome .home-flow-progress.is-playing span.is-current::after {
+  animation: home-flow-fill var(--home-flow-step) linear;
+}
+
+@keyframes home-flow-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.VPHome .home-flow-toggle {
+  flex: none;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  padding: 0 10px;
+  background-color: var(--vp-c-bg);
+  line-height: 26px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--vp-c-text-2);
+  transition:
+    border-color 0.25s,
+    color 0.25s;
+}
+
+.VPHome .home-flow-toggle:hover {
+  border-color: var(--vp-c-brand-1);
+  color: var(--vp-c-brand-1);
+}
+
+.VPHome .home-flow-call {
+  display: table;
+  margin: 0 auto;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
+  padding: 4px 16px;
+  background-color: var(--vp-c-bg);
+  box-shadow: var(--home-card-shadow);
+  line-height: 22px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 13px;
+  color: var(--vp-c-text-1);
+}
+
+/* A down arrow between the parts: a line with a head under it. */
+.VPHome .home-flow-arrow {
+  position: relative;
+  display: block;
+  margin: 0 auto 6px;
+  width: 2px;
+  height: 22px;
+  background-color: var(--vp-c-brand-1);
+}
+
+.VPHome .home-flow-arrow::after {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-top: 6px solid var(--vp-c-brand-1);
+  border-right: 5px solid transparent;
+  border-left: 5px solid transparent;
+  content: "";
+}
+
+.VPHome .home-flow-layer {
+  border: 1px solid var(--home-layer-border);
+  border-radius: 12px;
+  padding: 10px;
+  background-color: var(--home-layer-bg);
+  transition:
+    border-color 0.3s,
+    box-shadow 0.3s;
+}
+
+.VPHome .home-flow-layer > .home-flow-layer,
+.VPHome .home-flow-attempt {
+  margin-top: 10px;
+}
+
+/* The lit part: a solid teal edge with a halo, a deeper fill, and a dot that
+   pulses at the end of its heading. While the playback runs, the headings of
+   the other parts fade back. */
+.VPHome .home-flow-layer.is-lit {
+  border-color: var(--vp-c-brand-1);
+  background-color: var(--home-layer-lit-bg);
+  box-shadow:
+    0 0 0 1px var(--vp-c-brand-1),
+    0 0 0 6px var(--vp-c-brand-soft);
+}
+
+.VPHome .home-flow-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  align-items: baseline;
+  padding: 0 4px;
+  line-height: 20px;
+  font-size: 13px;
+  color: var(--vp-c-text-2);
+  transition: color 0.3s;
+}
+
+.VPHome .home-flow-stage.is-running .home-flow-head {
+  color: var(--vp-c-text-3);
+}
+
+.VPHome .home-flow-stage.is-running .is-lit > .home-flow-head {
+  color: var(--vp-c-text-1);
+}
+
+.VPHome .is-lit > .home-flow-head::after {
+  align-self: center;
+  margin-left: auto;
+  border-radius: 50%;
+  width: 8px;
+  height: 8px;
+  background-color: currentColor;
+  color: var(--vp-c-brand-1);
+  animation: home-flow-pulse 1.2s ease-out infinite;
+  content: "";
+}
+
+@keyframes home-flow-pulse {
+  from {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  to {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+
+.VPHome .home-flow-name {
+  font-family: var(--vp-font-family-mono);
+  font-weight: 500;
+  color: var(--vp-c-brand-1);
+}
+
+.VPHome .home-flow-attempt,
+.VPHome .home-flow-result {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background-color: var(--vp-c-bg);
+  box-shadow: var(--home-card-shadow);
+  transition:
+    border-color 0.3s,
+    box-shadow 0.3s;
+}
+
+.VPHome .home-flow-attempt {
+  padding: 10px;
+}
+
+.VPHome .home-flow-attempt.is-lit,
+.VPHome .home-flow-result.is-lit {
+  border-color: var(--vp-c-brand-1);
+  box-shadow:
+    0 0 0 1px var(--vp-c-brand-1),
+    0 0 0 6px var(--vp-c-brand-soft),
+    var(--home-card-shadow);
+}
+
+.VPHome .home-flow-result {
+  position: relative;
+}
+
+.VPHome .home-flow-result.is-lit::after {
+  position: absolute;
+  top: 16px;
+  right: 14px;
+  border-radius: 50%;
+  width: 8px;
+  height: 8px;
+  background-color: currentColor;
+  color: var(--vp-c-brand-1);
+  animation: home-flow-pulse 1.2s ease-out infinite;
+  content: "";
+}
+
+.VPHome .home-flow-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: flex-start;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.VPHome .home-flow-chain li {
+  position: relative;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  padding: 2px 10px;
+  background-color: var(--vp-c-bg-alt);
+  line-height: 22px;
+  font-size: 13px;
+  color: var(--vp-c-text-1);
+}
+
+.VPHome .home-flow-chain li + li::before {
+  position: absolute;
+  bottom: 100%;
+  left: 16px;
+  line-height: 18px;
+  font-size: 12px;
+  color: var(--vp-c-text-3);
+  content: "↓";
+}
+
+@media (min-width: 640px) {
+  .VPHome .home-flow-chain {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+  }
+
+  .VPHome .home-flow-chain li + li::before {
+    top: 50%;
+    bottom: auto;
+    left: -18px;
+    transform: translateY(-50%);
+    content: "→";
+  }
+}
+
+/* Each attempt's outcome shows once the playback reaches it; the rows keep
+   their space so the diagram does not move. */
+.VPHome .home-flow-tries {
+  display: grid;
+  gap: 2px;
+  margin: 10px 0 0;
+  padding: 0 4px;
+  list-style: none;
+  line-height: 20px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
+  color: var(--vp-c-text-2);
+}
+
+.VPHome .home-flow-tries li,
+.VPHome .home-flow-log {
+  opacity: 0;
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
+}
+
+.VPHome .home-flow-tries li {
+  transform: translateY(4px);
+}
+
+.VPHome .home-flow-tries li.is-shown,
+.VPHome .home-flow-log.is-shown {
+  opacity: 1;
+  transform: none;
+}
+
+/* The status of each attempt as a badge: red for the 503, teal for the 200. */
+.VPHome .home-flow-tries span {
+  margin: 0 6px;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-weight: 600;
+}
+
+.VPHome .home-flow-tries .is-error {
+  background-color: var(--vp-c-danger-soft);
+}
+
+.VPHome .home-flow-tries .is-ok {
+  background-color: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+}
+
+.VPHome .home-flow-tries .is-error,
+.VPHome .home-flow-result.is-error .home-flow-name {
+  color: var(--vp-c-danger-1);
+}
+
+.VPHome .home-flow-results {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 480px) {
+  .VPHome .home-flow-results {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.VPHome .home-flow-result {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px;
+  line-height: 20px;
+  font-size: 13px;
+  color: var(--vp-c-text-2);
+}
+
+.VPHome .home-flow-console {
+  margin-top: 16px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  padding: 10px 14px;
+  background-color: var(--vp-code-block-bg);
+  line-height: 20px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
+  color: var(--vp-c-text-2);
+}
+
+.VPHome .home-flow-log {
+  overflow-wrap: anywhere;
+}
+
+/* The failed attempt is lit in red: the attempt's edge, halo and dot, the
+   step count and the filling segment over the diagram, and the step in the
+   list, whose digit stays red once it is done. */
+.VPHome .home-flow-attempt.is-lit.is-failed {
+  border-color: var(--vp-c-danger-1);
+  box-shadow:
+    0 0 0 1px var(--vp-c-danger-1),
+    0 0 0 6px var(--vp-c-danger-soft),
+    var(--home-card-shadow);
+}
+
+.VPHome .home-flow-attempt.is-failed > .home-flow-head::after,
+.VPHome .home-flow-stage.is-failed .home-flow-count {
+  color: var(--vp-c-danger-1);
+}
+
+.VPHome .home-flow-stage.is-failed .home-flow-progress span.is-current::after {
+  background-color: var(--vp-c-danger-1);
+}
+
+.VPHome .home-flow-step.is-failed.is-current button {
+  background-color: var(--vp-c-danger-soft);
+}
+
+.VPHome .home-flow-step.is-failed.is-current button::before {
+  border-color: var(--vp-c-danger-1);
+  background-color: var(--vp-c-danger-1);
+}
+
+.VPHome .home-flow-step.is-failed.is-done button::before {
+  border-color: var(--vp-c-danger-1);
+  background-color: var(--vp-c-danger-soft);
+  color: var(--vp-c-danger-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .VPHome .home-flow *,
+  .VPHome .home-flow *::before,
+  .VPHome .home-flow *::after {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* Mistakes come with the fix: the messages in a console, each under the code
+   that throws it. */
+
+.VPHome .home-errors-agents {
+  margin-top: 24px;
+  border: 1px solid var(--home-layer-border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  background-color: var(--home-layer-bg);
+  line-height: 22px;
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+}
+
+.VPHome .home-errors-agents strong {
+  font-family: var(--vp-font-family-mono);
+  font-weight: 500;
+  color: var(--vp-c-text-1);
+}
+
+.VPHome .home-errors-agents .home-section-more {
+  margin-top: 6px;
+}
+
+.VPHome .home-errors-console {
+  display: grid;
+  gap: 18px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  padding: 18px 20px;
+  background-color: var(--vp-code-block-bg);
+  box-shadow: var(--home-card-shadow);
+  line-height: 21px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 13px;
+}
+
+.VPHome .home-errors-code {
+  color: var(--vp-c-text-1);
+}
+
+.VPHome .home-errors-code span {
+  color: var(--vp-c-text-3);
+}
+
+.VPHome .home-errors-message {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  color: var(--vp-c-text-2);
+}
+
+.VPHome .home-errors-message span {
+  color: var(--vp-c-danger-1);
 }

@@ -10,14 +10,16 @@ const api = arthron({
   plugins: [logging(), timeout(10_000), retry()],
 });
 
-try {
-  const user = await api
-    .get("/users/{id}", { pathParams: { id } })
-    .json<User>();
-} catch (e) {
-  if (isArthronError(e))
-    // 4xx/5xx or a network failure
-    toast(e.description ?? "Something went wrong");
-  else throw e; // cancellation, or a bug in a plugin
+async function getUser(id: string) {
+  try {
+    return await api
+      .get("/users/{id}", { pathParams: { id } })
+      .json<User>();
+  } catch (e) {
+    // ArthronError: a 4xx/5xx or a network failure.
+    // Cancellation and plugin bugs are not.
+    if (isArthronError(e) && e.status === 404) return null;
+    throw e;
+  }
 }
 ```
