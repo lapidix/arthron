@@ -31,6 +31,10 @@ export const groups: Group[] = [
     text: "Plugins",
     items: [
       { link: "/plugins/", text: "Overview" },
+      {
+        link: "/plugins/middleware-and-interceptors",
+        text: "Middleware and interceptors",
+      },
       { link: "/plugins/retry", text: "retry" },
       { link: "/plugins/timeout", text: "timeout" },
       { link: "/plugins/logging", text: "logging" },
@@ -39,10 +43,6 @@ export const groups: Group[] = [
       { link: "/plugins/write-your-own", text: "Write your own" },
       { link: "/plugins/recipes", text: "Recipes" },
     ],
-  },
-  {
-    text: "Reference",
-    items: [{ link: "/reference/api", text: "API" }],
   },
   {
     text: "More",

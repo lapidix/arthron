@@ -54,12 +54,15 @@ export default defineConfig({
   themeConfig: {
     logo: { light: "/arthron-symbol.svg", dark: "/arthron-symbol-dark.svg" },
     nav: [
-      { text: "Guide", link: "/guide/quick-start", activeMatch: "/guide/" },
+      { text: "Quick start", link: "/guide/quick-start" },
       { text: "Plugins", link: "/plugins/", activeMatch: "/plugins/" },
-      { text: "Reference", link: "/reference/api" },
       {
         text: `v${version}`,
-        items: [{ text: "Changelog", link: changelog }],
+        items: [
+          { text: "Changelog", link: changelog },
+          { text: "Moving from 1.x", link: `${changelog}#moving-from-1x` },
+          { text: "npm", link: "https://www.npmjs.com/package/arthron" },
+        ],
       },
     ],
     sidebar: sidebar(),

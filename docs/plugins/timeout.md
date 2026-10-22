@@ -1,18 +1,65 @@
-# `timeout(ms)` / `timeout({ total?, idle? })`
+# timeout
 
-Aborts a call that takes too long, or goes quiet for too long. Rejects with a `TimeoutError`, which `retry` and error interceptors ignore.
+`timeout(ms)` or `timeout({ total?, idle? })` aborts a call that takes too long, or that goes quiet for too long.
+
+It rejects with a `TimeoutError`. That is not an `ArthronError`: error interceptors skip it, and `retry` does not repeat it unless your `shouldRetry` returns `true` for it.
 
 ```ts
-arthron({ plugins: [retry(), timeout(5_000)] }); // 5 s per attempt — a timed-out attempt is not retried
-arthron({ plugins: [timeout(5_000), retry()] }); // 5 s for all attempts together
-arthron({ plugins: [timeout({ idle: 30_000 })] }); // for streams: 30 s without data
+// 5 s for the call
+arthron({ plugins: [timeout(5_000)] });
+// for streams: 30 s without data
+arthron({ plugins: [timeout({ idle: 30_000 })] });
 ```
 
-| option | default | |
-|---|---|---|
-| `total` | none | ms from the start of the attempt until the body has been fully read — a server that sends headers and then stalls still trips it. `timeout(ms)` is `timeout({ total: ms })` |
-| `idle` | none | ms without data — while waiting for the headers and between chunks. A stream that keeps flowing is never cut off |
+## Options
 
-**Per call:** `meta: { timeout: false }` lifts the deadlines, `meta: { timeout: 120_000 }` replaces the total one, and `meta: { timeout: { idle: 60_000 } }` replaces the parts it sets — the same shape as `meta.retry`.
+| Option | Default | What it does |
+| --- | --- | --- |
+| `total` | none | Ms until the body has been fully read. A server that sends headers and then stalls still trips it. |
+| `idle` | none | Ms without data: while waiting for the headers, and between chunks. A stream that keeps flowing is never cut off. |
 
-A total deadline also cuts off a stream that is still flowing; for streams, bound the silence with `idle` instead, or combine both: `timeout({ total: 600_000, idle: 30_000 })`, whichever trips first. Options with neither are a `TypeError`. `Infinity` means no deadline. It combines with a `signal` you pass yourself, and its timer never keeps a Node process alive on its own.
+`timeout(ms)` is short for `timeout({ total: ms })`.
+
+- Options with neither `total` nor `idle` are a `TypeError`.
+- `Infinity` means no deadline.
+- Any other deadline outside 0–2147483647 ms is a `TypeError`.
+
+## Streams
+
+A total deadline also cuts off a stream that is still flowing. For streams, bound the silence with `idle` instead.
+
+Or combine both. Whichever trips first ends the call:
+
+```ts
+timeout({ total: 600_000, idle: 30_000 });
+```
+
+## Where it goes in plugins
+
+The total deadline counts from the start of what `timeout` wraps, so its place in `plugins` decides what it bounds:
+
+```ts
+// 5 s per attempt; by default a timed-out one is not retried
+arthron({ plugins: [retry(), timeout(5_000)] });
+// 5 s for all attempts together
+arthron({ plugins: [timeout(5_000), retry()] });
+```
+
+- After `retry`, each attempt gets its own deadline. A timed-out attempt is not retried, unless `shouldRetry` returns `true` for its `TimeoutError`.
+- Before `retry`, one deadline covers all attempts together.
+
+## Per-call settings
+
+`meta.timeout` has the same shape as `meta.retry`:
+
+| `meta` | Effect on this call |
+| --- | --- |
+| `{ timeout: false }` | Lifts the deadlines. |
+| `{ timeout: 120_000 }` | Replaces the total deadline. |
+| `{ timeout: { idle: 60_000 } }` | Replaces the parts it sets; the others keep the values given to `timeout`. |
+
+## Signals and timers
+
+It combines with a `signal` you pass yourself.
+
+Its timer never keeps a Node process alive on its own.

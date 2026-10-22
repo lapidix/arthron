@@ -41,11 +41,14 @@ const api = arthron({
   plugins: [logging(), timeout(10_000), retry()], // 10 s for the whole call, retries included
 });
 
-try {
-  const user = await api.get("/users/{id}", { pathParams: { id } }).json<User>();
-} catch (e) {
-  if (isArthronError(e)) toast(e.description ?? "Something went wrong"); // 4xx/5xx or a network failure
-  else throw e; // cancellation, or a bug in a plugin
+async function getUser(id: string) {
+  try {
+    return await api.get("/users/{id}", { pathParams: { id } }).json<User>();
+  } catch (e) {
+    // ArthronError: a 4xx/5xx or a network failure. Cancellation and plugin bugs are not.
+    if (isArthronError(e) && e.status === 404) return null;
+    throw e;
+  }
 }
 ```
 
@@ -144,7 +147,7 @@ try {
 }
 ```
 
-**`message` is for logs, `description` is for people.** `message` is written by arthron — method, URL without query, status — so a log line or an error tracker says which request failed, and never carries text the server chose. `description` is the server's account of the failure: by default the payload's `message`, else `error` (a string), else `error.message`, else `detail`. It is the right thing for a toast (`e.description ?? "Something went wrong"`), but untrusted — render it as text, never as HTML, and filter it if your gateway leaks internal routes in it. For an API that puts it elsewhere, pass `extractDescription: (payload) => (payload as { msg?: string }).msg` to the client; one that throws on an unexpected body leaves `description` undefined and the error intact.
+**`message` is for logs, `description` is for people.** `message` is written by arthron — method, URL without query, status — so a log line or an error tracker says which request failed, and never carries text the server chose. `description` is the server's account of the failure: by default the payload's `message`, else `error` (a string), else `error.message`, else `detail`. It is the text to show a person (`e.description ?? "Something went wrong"`), but untrusted — render it as text, never as HTML, and filter it if your gateway leaks internal routes in it. For an API that puts it elsewhere, pass `extractDescription: (payload) => (payload as { msg?: string }).msg` to the client; one that throws on an unexpected body leaves `description` undefined and the error intact.
 
 **Nothing leaks through an error.** `requestContext`, `response` and `headers` (the response's) are not enumerable, and `toJSON()` returns only name, message, description, status, statusText, method, a URL without query or userinfo, and `payload`. So `JSON.stringify(e)`, `console.error(e)` and error trackers never print your tokens. Error bodies are read up to 64 KiB — enough for any error message, and a huge or endless error body cannot fill memory; past the limit `payload` is the raw text and the rest of the body is cancelled. `isArthronError(e)` and `e instanceof ArthronError` work across copies of the package — the ESM and CJS builds loaded side by side, a CJS dependency's client caught by your ESM code.
 
