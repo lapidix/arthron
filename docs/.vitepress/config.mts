@@ -71,7 +71,6 @@ export default defineConfig({
       pattern: `${github}/edit/main/docs/:path`,
       text: "Edit this page on GitHub",
     },
-    footer: { message: "Released under the MIT License." },
     search: { provider: "local" },
   },
 

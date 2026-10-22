@@ -74,7 +74,8 @@
 
 /* The hero and the cards span the same width as the nav bar, so their edges
    line up with the logo and the last nav item. --home-space is the gap above
-   the hero, between the hero and the cards, and below the cards. */
+   the hero, between the hero, the cards and each section under them, and
+   below the last section. */
 
 .VPHome {
   --home-space: 48px;
@@ -128,7 +129,7 @@
 }
 
 /* On a screen taller than the page, the spare height goes above and below
-   the content in equal parts, not all of it above the footer. */
+   the content in equal parts, not all of it under the last section. */
 .VPContent.is-home {
   display: flex;
   flex-direction: column;
