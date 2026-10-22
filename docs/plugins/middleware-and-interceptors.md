@@ -1,8 +1,16 @@
+<script setup>
+import CallLayers from "../.vitepress/theme/CallLayers.vue";
+</script>
+
 # Middleware and interceptors
 
 A plugin does its work in two kinds of slots. Middleware controls the flow of a call; interceptors transform the values of one attempt. This page covers what each one gets and returns, when it runs, and which to reach for.
 
 ## At a glance
+
+The plugins of `[logging(), timeout(10_000), retry()]` around one attempt:
+
+<CallLayers />
 
 | Aspect | Middleware | Interceptor |
 | --- | --- | --- |

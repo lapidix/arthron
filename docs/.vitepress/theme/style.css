@@ -34,6 +34,12 @@
   --home-layer-bg: rgba(20, 184, 166, 0.07);
   --home-layer-border: rgba(15, 118, 110, 0.24);
   --home-layer-lit-bg: rgba(20, 184, 166, 0.16);
+
+  /* Interceptors in the home diagram: indigo, to tell them from the teal
+     middleware layers. */
+  --home-interceptor: #4f46e5;
+  --home-interceptor-bg: rgba(79, 70, 229, 0.08);
+  --home-interceptor-border: rgba(79, 70, 229, 0.35);
 }
 
 .dark {
@@ -62,6 +68,10 @@
   --home-layer-bg: rgba(45, 212, 191, 0.06);
   --home-layer-border: rgba(45, 212, 191, 0.24);
   --home-layer-lit-bg: rgba(45, 212, 191, 0.14);
+
+  --home-interceptor: #a5b4fc;
+  --home-interceptor-bg: rgba(165, 180, 252, 0.12);
+  --home-interceptor-border: rgba(165, 180, 252, 0.4);
 }
 
 /* Home page. The default home styles are scoped, so these rules add
@@ -698,7 +708,7 @@
   content: "";
 }
 
-.VPHome .home-flow-layer {
+:is(.VPHome, .vp-doc) .home-flow-layer {
   border: 1px solid var(--home-layer-border);
   border-radius: 12px;
   padding: 10px;
@@ -708,8 +718,8 @@
     box-shadow 0.3s;
 }
 
-.VPHome .home-flow-layer > .home-flow-layer,
-.VPHome .home-flow-attempt {
+:is(.VPHome, .vp-doc) .home-flow-layer > .home-flow-layer,
+:is(.VPHome, .vp-doc) .home-flow-attempt {
   margin-top: 10px;
 }
 
@@ -724,7 +734,7 @@
     0 0 0 6px var(--vp-c-brand-soft);
 }
 
-.VPHome .home-flow-head {
+:is(.VPHome, .vp-doc) .home-flow-head {
   display: flex;
   flex-wrap: wrap;
   gap: 0 10px;
@@ -765,13 +775,70 @@
   }
 }
 
-.VPHome .home-flow-name {
+/* "middleware" beside each layer's name, in the layers' teal. */
+:is(.VPHome, .vp-doc) .home-flow-tag {
+  border-radius: 4px;
+  padding: 0 6px;
+  background-color: var(--vp-c-brand-soft);
+  line-height: 18px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vp-c-brand-1);
+}
+
+/* The legend under the steps: one swatch per kind, in the diagram's
+   colors. */
+:is(.VPHome, .vp-doc) .home-flow-legend {
+  display: grid;
+  gap: 10px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+:is(.VPHome, .vp-doc) .home-flow-legend li {
+  position: relative;
+  padding-left: 28px;
+  line-height: 22px;
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+}
+
+:is(.VPHome, .vp-doc) .home-flow-legend strong {
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
+
+:is(.VPHome, .vp-doc) .home-flow-legend li::before {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  border: 1px solid;
+  border-radius: 4px;
+  width: 16px;
+  height: 16px;
+  content: "";
+}
+
+:is(.VPHome, .vp-doc) .home-flow-legend li.is-middleware::before {
+  border-color: var(--home-layer-border);
+  background-color: var(--vp-c-brand-soft);
+}
+
+:is(.VPHome, .vp-doc) .home-flow-legend li.is-interceptor::before {
+  border-color: var(--home-interceptor-border);
+  background-color: var(--home-interceptor-bg);
+}
+
+:is(.VPHome, .vp-doc) .home-flow-name {
   font-family: var(--vp-font-family-mono);
   font-weight: 500;
   color: var(--vp-c-brand-1);
 }
 
-.VPHome .home-flow-attempt,
+:is(.VPHome, .vp-doc) .home-flow-attempt,
 .VPHome .home-flow-result {
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
@@ -782,7 +849,7 @@
     box-shadow 0.3s;
 }
 
-.VPHome .home-flow-attempt {
+:is(.VPHome, .vp-doc) .home-flow-attempt {
   padding: 10px;
 }
 
@@ -812,7 +879,7 @@
   content: "";
 }
 
-.VPHome .home-flow-chain {
+:is(.VPHome, .vp-doc) .home-flow-chain {
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -822,7 +889,7 @@
   list-style: none;
 }
 
-.VPHome .home-flow-chain li {
+:is(.VPHome, .vp-doc) .home-flow-chain li {
   position: relative;
   border: 1px solid var(--vp-c-divider);
   border-radius: 6px;
@@ -833,7 +900,13 @@
   color: var(--vp-c-text-1);
 }
 
-.VPHome .home-flow-chain li + li::before {
+:is(.VPHome, .vp-doc) .home-flow-chain li.is-interceptor {
+  border-color: var(--home-interceptor-border);
+  background-color: var(--home-interceptor-bg);
+  color: var(--home-interceptor);
+}
+
+:is(.VPHome, .vp-doc) .home-flow-chain li + li::before {
   position: absolute;
   bottom: 100%;
   left: 16px;
@@ -844,13 +917,13 @@
 }
 
 @media (min-width: 640px) {
-  .VPHome .home-flow-chain {
+  :is(.VPHome, .vp-doc) .home-flow-chain {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 8px 24px;
   }
 
-  .VPHome .home-flow-chain li + li::before {
+  :is(.VPHome, .vp-doc) .home-flow-chain li + li::before {
     top: 50%;
     bottom: auto;
     left: -18px;
@@ -1057,4 +1130,16 @@
 
 .VPHome .home-errors-message span {
   color: var(--vp-c-danger-1);
+}
+
+/* The same parts drawn on a docs page (CallLayers.vue): the rules above
+   marked :is(.VPHome, .vp-doc) apply there too. The page's own figure
+   and list spacing is replaced. */
+
+.vp-doc .call-layers {
+  margin: 16px 0 24px;
+}
+
+.vp-doc .call-layers li + li {
+  margin-top: 0;
 }

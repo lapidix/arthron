@@ -232,6 +232,16 @@ onBeforeUnmount(() => {
             </button>
           </li>
         </ol>
+        <ul class="home-flow-legend">
+          <li class="is-middleware">
+            <strong>Middleware</strong> wraps the call and decides its flow:
+            retries, deadlines, skipping.
+          </li>
+          <li class="is-interceptor">
+            <strong>Interceptors</strong> change one value on every attempt:
+            the request, the response or the error.
+          </li>
+        </ul>
         <a class="home-section-more" :href="withBase('/guide/call-flow')">
           Read how a call flows
         </a>
@@ -297,6 +307,7 @@ onBeforeUnmount(() => {
         >
           <div class="home-flow-head">
             <span class="home-flow-name">logging()</span>
+            <span class="home-flow-tag">middleware</span>
             <span>one line when the call starts, one when it ends</span>
           </div>
           <div
@@ -305,6 +316,7 @@ onBeforeUnmount(() => {
           >
             <div class="home-flow-head">
               <span class="home-flow-name">timeout(10_000)</span>
+              <span class="home-flow-tag">middleware</span>
               <span>one deadline for the whole call</span>
             </div>
             <div
@@ -313,6 +325,7 @@ onBeforeUnmount(() => {
             >
               <div class="home-flow-head">
                 <span class="home-flow-name">retry()</span>
+                <span class="home-flow-tag">middleware</span>
                 <span>runs the attempt again on a retryable failure</span>
               </div>
               <div
@@ -327,9 +340,9 @@ onBeforeUnmount(() => {
                   <span>one trip to the network</span>
                 </div>
                 <ol class="home-flow-chain">
-                  <li>request interceptors</li>
+                  <li class="is-interceptor">request interceptors</li>
                   <li>fetch</li>
-                  <li>response or error interceptors</li>
+                  <li class="is-interceptor">response or error interceptors</li>
                 </ol>
                 <ul class="home-flow-tries">
                   <li
