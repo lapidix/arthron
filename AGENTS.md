@@ -55,7 +55,7 @@ src/
   types/        types used by two or more folders: request.types (RequestContext, ArthronMeta, …),
                 plugin.types (Plugin, Middleware, interceptors), response.types (ResponsePromise, SSE, schema, …)
   testkit/      fakeFetch, jsonResponse — for tests only
-docs/           the documentation site (VitePress, English): guide/, plugins/, reference/, agents.md;
+docs/           the documentation site (VitePress, English): guide/, plugins/, agents.md;
                 its own package.json and lockfile, deployed by .github/workflows/docs.yml
 ```
 

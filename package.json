@@ -4,6 +4,7 @@
   "description": "A lightweight fetch client you assemble from plugins. Zero dependencies, returns native Response.",
   "license": "MIT",
   "author": "lapidix",
+  "homepage": "https://lapidix.github.io/arthron/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lapidix/arthron.git"

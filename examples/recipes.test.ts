@@ -4,7 +4,7 @@ import { retry } from "../src/plugins/retry/retry";
 import { fakeFetch, jsonResponse } from "../src/testkit/fetch.testkit";
 import { errorRedirect } from "./error-page";
 
-// The README recipes live in examples/ so they are type-checked — and here,
+// The documented recipes live in examples/ so they are type-checked — and here,
 // so they are known to work.
 
 describe("error page recipe (examples/error-page.ts)", () => {
