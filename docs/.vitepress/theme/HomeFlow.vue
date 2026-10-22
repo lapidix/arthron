@@ -2,15 +2,27 @@
 import { withBase } from "vitepress";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 
-// One call of the hero example, getUser("42"), played step by step: the
-// first attempt gets a 503, retry runs it again, the second gets a 200. Each
+// One call of the hero example, getUser("42"), played step by step in one
+// of two scenarios: retry gets past a 503 and the call ends in a Response,
+// or every attempt gets a 503 and the call ends in an ArthronError. Each
 // step lights one part of the diagram. Keep the layers in step with
 // HeroCode.md, and the log lines with what logging() prints.
 
-type Part = "logging" | "timeout" | "retry" | "attempt" | "response";
+type Part = "logging" | "timeout" | "retry" | "attempt" | "response" | "error";
 
-// failed: the step lights its part in red, not teal.
-const steps: { part: Part; text: string; failed?: true }[] = [
+type Scenario = {
+  label: string;
+  // failed: the step lights its part in red, not teal.
+  steps: { part: Part; text: string; failed?: true }[];
+  // One row per attempt, shown from the step at index `at`.
+  tries: { at: number; status: number; result: string }[];
+  // logging's last line, shown from the step at index `endAt`.
+  end: { at: number; line: string };
+};
+
+const url = "https://api.example.com/users/42";
+
+const opening: Scenario["steps"] = [
   { part: "logging", text: "logging writes the first line." },
   {
     part: "timeout",
@@ -26,30 +38,86 @@ const steps: { part: Part; text: string; failed?: true }[] = [
     part: "retry",
     text: "A 503 can be retried: retry waits a moment and runs the attempt again.",
   },
-  { part: "attempt", text: "This time the server answers 200." },
+];
+
+const scenarios: Scenario[] = [
   {
-    part: "logging",
-    text: "The Response goes back out through retry and timeout, and logging writes the last line.",
+    label: "Retry recovers",
+    steps: [
+      ...opening,
+      { part: "attempt", text: "This time the server answers 200." },
+      {
+        part: "logging",
+        text: "The Response goes back out through retry and timeout, and logging writes the last line.",
+      },
+      {
+        part: "response",
+        text: "getUser gets the Response fetch gave and reads it with .json().",
+      },
+    ],
+    tries: [
+      { at: 3, status: 503, result: "ArthronError" },
+      { at: 5, status: 200, result: "Response" },
+    ],
+    end: { at: 6, line: `[arthron] ← GET ${url} 200 412ms` },
   },
   {
-    part: "response",
-    text: "getUser gets the Response fetch gave and reads it with .json().",
+    label: "Retry gives up",
+    steps: [
+      ...opening,
+      {
+        part: "attempt",
+        text: "The server answers 503 again.",
+        failed: true,
+      },
+      {
+        part: "retry",
+        text: "retry waits again and runs the attempt a third time.",
+      },
+      {
+        part: "attempt",
+        text: "The server answers 503 a third time.",
+        failed: true,
+      },
+      {
+        part: "logging",
+        text: "Its two retries used up, retry lets the ArthronError go. It goes back out through timeout, and logging writes the last line.",
+        failed: true,
+      },
+      {
+        part: "error",
+        text: "getUser rethrows it, since it is not a 404, and the caller gets the ArthronError.",
+        failed: true,
+      },
+    ],
+    tries: [
+      { at: 3, status: 503, result: "ArthronError" },
+      { at: 5, status: 503, result: "ArthronError" },
+      { at: 7, status: 503, result: "ArthronError" },
+    ],
+    end: { at: 8, line: `[arthron] ✕ GET ${url} 503 713ms` },
   },
 ];
 
-const last = steps.length - 1;
+const ordinals = ["1st", "2nd", "3rd"];
 const stepMs = 1800;
 const endMs = 4000;
+
+const chosen = ref(0);
+const scenario = computed(() => scenarios[chosen.value] ?? scenarios[0]);
+const steps = computed(() => scenario.value.steps);
+const last = computed(() => steps.value.length - 1);
 
 // -1 before the first step: nothing lit, no attempt made, no line logged.
 const current = ref(-1);
 const playing = ref(false);
-const lit = computed(() => steps[current.value]?.part);
-const failed = computed(() => steps[current.value]?.failed === true);
+const lit = computed(() => steps.value[current.value]?.part);
+const failed = computed(() => steps.value[current.value]?.failed === true);
 
 const root = ref<HTMLElement>();
 let timer: ReturnType<typeof setTimeout> | undefined;
 let observer: IntersectionObserver | undefined;
+let reducedMotion = false;
 // Set when the reader pauses or picks a step, so scrolling back into view
 // does not start the playback again.
 let pausedByReader = false;
@@ -57,7 +125,7 @@ let pausedByReader = false;
 function schedule() {
   clearTimeout(timer);
   if (!playing.value) return;
-  const atEnd = current.value >= last;
+  const atEnd = current.value >= last.value;
   timer = setTimeout(
     () => {
       current.value = atEnd ? 0 : current.value + 1;
@@ -70,7 +138,7 @@ function schedule() {
 function start() {
   if (playing.value) return;
   playing.value = true;
-  if (current.value < 0 || current.value >= last) current.value = 0;
+  if (current.value < 0 || current.value >= last.value) current.value = 0;
   schedule();
 }
 
@@ -95,10 +163,25 @@ function show(index: number) {
   current.value = index;
 }
 
+// Picking a scenario plays it from the start, or, without motion, shows
+// how it ended.
+function choose(index: number) {
+  stop();
+  chosen.value = index;
+  if (reducedMotion) {
+    current.value = last.value;
+    return;
+  }
+  pausedByReader = false;
+  current.value = 0;
+  start();
+}
+
 onMounted(() => {
   // Without motion, the diagram shows the call as it ended.
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    current.value = last;
+    reducedMotion = true;
+    current.value = last.value;
     return;
   }
   observer = new IntersectionObserver(
@@ -124,14 +207,15 @@ onBeforeUnmount(() => {
       <div class="home-section-text">
         <h2 class="home-section-title">How a call flows</h2>
         <p class="home-section-lede">
-          One call from the example, whose first attempt gets a 503. The
-          plugins wrap the call, outermost first: it goes in through each one
-          and comes back out the same way.
+          One call from the example, played two ways: retry gets past a 503,
+          or gives up after three. The plugins wrap the call, outermost
+          first: it goes in through each one and comes back out the same
+          way.
         </p>
         <ol class="home-flow-steps">
           <li
             v-for="(step, index) in steps"
-            :key="index"
+            :key="`${chosen}-${index}`"
             class="home-flow-step"
             :class="{
               'is-current': index === current,
@@ -157,6 +241,19 @@ onBeforeUnmount(() => {
         class="home-section-figure home-flow-stage"
         :class="{ 'is-running': current >= 0, 'is-failed': failed }"
       >
+        <div class="home-flow-scenarios" role="group" aria-label="Scenario">
+          <button
+            v-for="(option, index) in scenarios"
+            :key="option.label"
+            type="button"
+            class="home-flow-scenario"
+            :aria-pressed="index === chosen"
+            @click="choose(index)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+
         <div class="home-flow-bar">
           <p class="home-flow-status">
             <span class="home-flow-count">{{
@@ -180,7 +277,7 @@ onBeforeUnmount(() => {
         >
           <span
             v-for="(step, index) in steps"
-            :key="index"
+            :key="`${chosen}-${index}`"
             :class="{
               'is-done': index < current,
               'is-current': index === current,
@@ -191,7 +288,13 @@ onBeforeUnmount(() => {
         <div class="home-flow-call">getUser("42")</div>
         <span class="home-flow-arrow" />
 
-        <div class="home-flow-layer" :class="{ 'is-lit': lit === 'logging' }">
+        <div
+          class="home-flow-layer"
+          :class="{
+            'is-lit': lit === 'logging',
+            'is-failed': lit === 'logging' && failed,
+          }"
+        >
           <div class="home-flow-head">
             <span class="home-flow-name">logging()</span>
             <span>one line when the call starts, one when it ends</span>
@@ -229,11 +332,16 @@ onBeforeUnmount(() => {
                   <li>response or error interceptors</li>
                 </ol>
                 <ul class="home-flow-tries">
-                  <li :class="{ 'is-shown': current >= 3 }">
-                    1st <span class="is-error">503</span> ArthronError
-                  </li>
-                  <li :class="{ 'is-shown': current >= 5 }">
-                    2nd <span class="is-ok">200</span> Response
+                  <li
+                    v-for="(attempt, index) in scenario.tries"
+                    :key="`${chosen}-${index}`"
+                    :class="{ 'is-shown': current >= attempt.at }"
+                  >
+                    {{ ordinals[index] }}
+                    <span :class="attempt.status < 400 ? 'is-ok' : 'is-error'">
+                      {{ attempt.status }}
+                    </span>
+                    {{ attempt.result }}
                   </li>
                 </ul>
               </div>
@@ -250,7 +358,10 @@ onBeforeUnmount(() => {
             <span class="home-flow-name">Response</span>
             <span>the one fetch gave</span>
           </div>
-          <div class="home-flow-result is-error">
+          <div
+            class="home-flow-result is-error"
+            :class="{ 'is-lit is-failed': lit === 'error' }"
+          >
             <span class="home-flow-name">ArthronError</span>
             <span>a 4xx/5xx or a network failure retry did not fix</span>
           </div>
@@ -258,10 +369,13 @@ onBeforeUnmount(() => {
 
         <div class="home-flow-console">
           <div class="home-flow-log" :class="{ 'is-shown': current >= 0 }">
-            [arthron] → GET https://api.example.com/users/42
+            [arthron] → GET {{ url }}
           </div>
-          <div class="home-flow-log" :class="{ 'is-shown': current >= 6 }">
-            [arthron] ← GET https://api.example.com/users/42 200 412ms
+          <div
+            class="home-flow-log"
+            :class="{ 'is-shown': current >= scenario.end.at }"
+          >
+            {{ scenario.end.line }}
           </div>
         </div>
       </div>

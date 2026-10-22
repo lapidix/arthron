@@ -547,6 +547,39 @@
   }
 }
 
+/* The two scenarios, as a pair of buttons over the bar. The chosen one
+   stands out from the tray it sits in. */
+.VPHome .home-flow-scenarios {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  padding: 3px;
+  background-color: var(--vp-c-bg-soft);
+}
+
+.VPHome .home-flow-scenario {
+  border-radius: 6px;
+  padding: 0 12px;
+  line-height: 28px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--vp-c-text-2);
+  transition:
+    background-color 0.25s,
+    color 0.25s;
+}
+
+.VPHome .home-flow-scenario:hover {
+  color: var(--vp-c-text-1);
+}
+
+.VPHome .home-flow-scenario[aria-pressed="true"] {
+  background-color: var(--vp-c-bg);
+  color: var(--vp-c-brand-1);
+}
+
 .VPHome .home-flow-bar {
   display: flex;
   gap: 16px;
@@ -916,10 +949,12 @@
   overflow-wrap: anywhere;
 }
 
-/* The failed attempt is lit in red: the attempt's edge, halo and dot, the
-   step count and the filling segment over the diagram, and the step in the
-   list, whose digit stays red once it is done. */
-.VPHome .home-flow-attempt.is-lit.is-failed {
+/* A failed step lights its part in red: the edge, halo and dot of the
+   attempt, the logging layer or the ArthronError result, the step count and
+   the filling segment over the diagram, and the step in the list, whose
+   digit stays red once it is done. */
+.VPHome .home-flow-attempt.is-lit.is-failed,
+.VPHome .home-flow-result.is-lit.is-failed {
   border-color: var(--vp-c-danger-1);
   box-shadow:
     0 0 0 1px var(--vp-c-danger-1),
@@ -927,7 +962,16 @@
     var(--home-card-shadow);
 }
 
-.VPHome .home-flow-attempt.is-failed > .home-flow-head::after,
+.VPHome .home-flow-layer.is-lit.is-failed {
+  border-color: var(--vp-c-danger-1);
+  background-color: var(--vp-c-danger-soft);
+  box-shadow:
+    0 0 0 1px var(--vp-c-danger-1),
+    0 0 0 6px var(--vp-c-danger-soft);
+}
+
+.VPHome .is-failed > .home-flow-head::after,
+.VPHome .home-flow-result.is-failed::after,
 .VPHome .home-flow-stage.is-failed .home-flow-count {
   color: var(--vp-c-danger-1);
 }
