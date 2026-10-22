@@ -29,6 +29,10 @@
 
 ```sh
 npm i arthron
+# or
+pnpm add arthron
+# or
+yarn add arthron
 ```
 
 ```ts

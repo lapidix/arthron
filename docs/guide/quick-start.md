@@ -4,9 +4,21 @@ Install arthron, create a client with a few plugins and make your first call.
 
 ## Install
 
-```sh
+::: code-group
+
+```sh [npm]
 npm i arthron
 ```
+
+```sh [pnpm]
+pnpm add arthron
+```
+
+```sh [yarn]
+yarn add arthron
+```
+
+:::
 
 ## Make a call
 
