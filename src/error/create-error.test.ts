@@ -1,5 +1,5 @@
 import { inspect } from "node:util";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { jsonResponse } from "../testkit/fetch.testkit";
 import { ArthronError } from "./arthron-error";
 import {
@@ -204,6 +204,35 @@ describe("responseError reads at most 64 KiB of the body", () => {
     expect((err.payload as string).length).toBe(LIMIT);
     expect(seen.cancelled).toBe(true);
     expect(seen.pulled).toBeLessThanOrEqual(LIMIT + 16 * 1024);
+  });
+  it("does not copy an oversized source chunk into another oversized buffer", async () => {
+    const chunk = new Uint8Array(1024 * 1024).fill(97);
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(chunk);
+          controller.close();
+        },
+      }),
+      { status: 500 },
+    );
+    const allocations: number[] = [];
+    vi.stubGlobal(
+      "Uint8Array",
+      new Proxy(Uint8Array, {
+        construct(target, args, newTarget) {
+          if (typeof args[0] === "number") allocations.push(args[0]);
+          return Reflect.construct(target, args, newTarget);
+        },
+      }),
+    );
+    try {
+      const err = await responseError(response, req);
+      expect((err.payload as string).length).toBe(LIMIT);
+      expect(Math.max(...allocations)).toBeLessThanOrEqual(LIMIT);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
   it("settles on a body that never ends", { timeout: 2000 }, async () => {
     const { seen, response } = source(Number.POSITIVE_INFINITY);

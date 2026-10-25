@@ -64,7 +64,9 @@ async function readCapped(
     while (size <= limit) {
       const { value, done } = await reader.read();
       if (done) break;
-      chunks.push(value);
+      // A custom fetch may deliver more than the limit in one chunk. Keep
+      // only its prefix instead of allocating another buffer of that size.
+      chunks.push(value.subarray(0, Math.max(0, limit - size)));
       size += value.byteLength;
     }
   } catch {
@@ -73,7 +75,7 @@ async function readCapped(
     await reader?.cancel().catch(() => {});
     reader?.releaseLock();
   }
-  const bytes = new Uint8Array(size);
+  const bytes = new Uint8Array(Math.min(size, limit));
   let offset = 0;
   for (const chunk of chunks) {
     bytes.set(chunk, offset);

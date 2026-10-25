@@ -32,14 +32,12 @@ Everything else, such as cancellation or a bug in a plugin, is rethrown as it is
 
 - Requests stay on `baseURL`'s origin unless you list others, and the client's headers never leave it. See [Where requests and headers go](/guide/clients#where-requests-and-headers-go).
 - Path values cannot escape their segment.
-- Errors never print your tokens or query strings.
+- Error messages omit URL query strings and userinfo; error serialization excludes request headers and bodies. Server-provided error payloads may still contain secrets.
 - Error bodies and streams are read within limits.
 
 ## Mistakes fail loudly
 
-A wrong option, a body JSON would mangle, a 1.x name: each is a `TypeError` that says what to write instead.
-
-Each one fails before anything is sent.
+Common configuration mistakes, bodies that cannot be safely serialized as JSON, and most 1.x names produce a `TypeError` that says what to change. Request argument errors fail before anything is sent.
 
 ## Small and portable
 

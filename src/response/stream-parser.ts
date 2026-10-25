@@ -5,6 +5,7 @@ import type {
 } from "../types/response.types";
 
 const DEFAULT_LIMIT = 8 * 1024 * 1024;
+const DECODE_CHUNK_BYTES = 16 * 1024;
 
 /**
  * Yield the body line by line, reassembling lines split across chunks. Only
@@ -28,26 +29,42 @@ async function* lines(
   let pending = "";
   // The previous chunk ended in "\r": a "\n" opening this one belongs to it.
   let afterCR = false;
+  const scan = function* (decoded: string): Generator<string> {
+    let text = decoded;
+    if (afterCR && text.startsWith("\n")) {
+      text = text.slice(1);
+      afterCR = false;
+    }
+    if (text) afterCR = text.endsWith("\r");
+    let start = 0;
+    breaks.lastIndex = 0;
+    for (let m = breaks.exec(text); m; m = breaks.exec(text)) {
+      yield checked(pending + text.slice(start, m.index));
+      pending = "";
+      start = breaks.lastIndex;
+    }
+    // Check before the break arrives, including inside an oversized chunk.
+    pending = checked(pending + text.slice(start));
+  };
   try {
     while (true) {
       const { value, done } = await reader.read();
-      let text = decoder.decode(value, { stream: !done });
-      if (afterCR && text.startsWith("\n")) {
-        text = text.slice(1);
-        afterCR = false;
+      if (value) {
+        // A fetch implementation may deliver a huge chunk. Decode bounded
+        // pieces so maxLineLength is checked before copying all its text.
+        for (
+          let offset = 0;
+          offset < value.byteLength;
+          offset += DECODE_CHUNK_BYTES
+        ) {
+          const part = value.subarray(offset, offset + DECODE_CHUNK_BYTES);
+          yield* scan(decoder.decode(part, { stream: true }));
+        }
       }
-      if (text) afterCR = text.endsWith("\r");
-      let start = 0;
-      breaks.lastIndex = 0;
-      for (let m = breaks.exec(text); m; m = breaks.exec(text)) {
-        yield checked(pending + text.slice(start, m.index));
-        pending = "";
-        start = breaks.lastIndex;
+      if (done) {
+        yield* scan(decoder.decode());
+        break;
       }
-      // Checked before the break arrives too, so a line without one cannot
-      // grow without bound.
-      pending = checked(pending + text.slice(start));
-      if (done) break;
     }
     if (pending) yield pending;
   } finally {

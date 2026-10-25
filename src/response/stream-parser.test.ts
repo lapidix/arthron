@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { parseNdjson, parseSse } from "./stream-parser";
 
 const stream = (...chunks: string[]) =>
@@ -196,6 +196,22 @@ describe("stream limits", () => {
       ),
     ).toEqual(["a".repeat(48)]);
   });
+  it("decodes a large source chunk in bounded pieces before rejecting a long line", async () => {
+    const { seen, response } = tracked("a".repeat(1024 * 1024));
+    const decode = vi.spyOn(TextDecoder.prototype, "decode");
+    try {
+      await expect(
+        collect(parseNdjson(response, { maxLineLength: 50 })),
+      ).rejects.toThrow(/maxLineLength/);
+      const largest = Math.max(
+        ...decode.mock.calls.map(([input]) => input?.byteLength ?? 0),
+      );
+      expect(largest).toBeLessThanOrEqual(64 * 1024);
+      expect(seen.cancelled).toBe(true);
+    } finally {
+      decode.mockRestore();
+    }
+  });
   it("rejects an SSE event whose data outgrows maxDataLength", async () => {
     const { seen, response } = tracked(
       "data: 0123456789\n",
@@ -223,6 +239,19 @@ describe("stream limits", () => {
     ).toEqual([
       { type: "message", data: "a", lastEventId: "" },
       { type: "message", data: "b", lastEventId: "" },
+    ]);
+  });
+  it("keeps CRLF and UTF-8 characters split across internal decode pieces", async () => {
+    const comment = `:${"x".repeat(16 * 1024 - 2)}\r\n`;
+    const data = `data: ${"a".repeat(16 * 1024 - 7)}é\n\n`;
+    expect(
+      await collect(parseSse(stream(comment, data), { maxLineLength: 20_000 })),
+    ).toEqual([
+      {
+        type: "message",
+        data: `${"a".repeat(16 * 1024 - 7)}é`,
+        lastEventId: "",
+      },
     ]);
   });
 });

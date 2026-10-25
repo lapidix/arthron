@@ -37,7 +37,7 @@ The URL is built and its origin checked. The client's and the call's headers are
 A mistake here is a rejected `TypeError`, and no plugin runs. For example:
 
 - a relative path with no `baseURL`
-- a body JSON would mangle
+- a body that cannot be safely serialized as JSON
 - an origin the client may not call
 
 See [When an argument is wrong](/guide/requests#when-an-argument-is-wrong).

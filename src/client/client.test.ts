@@ -342,6 +342,17 @@ describe("arthron — config", () => {
       arthron({ allowedOrigins: ["ftp://cdn.test/x?sig=s3cret"] }),
     ).not.toThrow(/s3cret/);
   });
+  it.each([
+    [123, "a number"],
+    [null, "null"],
+    [{ url: "https://cdn.test?token=secret" }, "an object"],
+  ])("names a non-string allowedOrigins entry as %s", (entry, shown) => {
+    expect(() =>
+      arthron({ allowedOrigins: [entry as unknown as string] }),
+    ).toThrow(
+      `arthron: allowedOrigins needs http(s) URLs, got ${shown} — e.g. allowedOrigins: ["https://cdn.example.com"]`,
+    );
+  });
   it("refuses a baseURL with a scheme but no host — an unset variable would let the path pick the host", () => {
     const host = "";
     expect(() => arthron({ baseURL: `https://${host}` })).toThrow(
