@@ -75,18 +75,18 @@ const api = arthron({
 
 An extractor that throws on an unexpected body leaves `description` undefined and the error intact.
 
-## Nothing leaks through an error
+## What an error includes
 
 - `requestContext`, `response` and `headers` (the response's) are not enumerable.
 - `toJSON()` returns only `name`, `message`, `description`, `status`, `statusText`, `method`, a URL without query or userinfo, and `payload`.
 
-So `JSON.stringify(e)`, `console.error(e)` and error trackers never print your tokens.
+The URL in arthron's message omits query strings and userinfo. `payload` and `description` come from the server and are included as received, so treat them as sensitive if your API may put secrets in an error body. The built-in logger prints the redacted URL and status; its `onEvent` callback also receives the error object.
 
 ### Error bodies are capped
 
-Error bodies are read up to 64 KiB. That is enough for any error message, and a huge or endless error body cannot fill memory.
+Error bodies are read up to 64 KiB, so a huge or endless body does not make arthron keep reading it.
 
-Past the limit, `payload` is the raw text and the rest of the body is cancelled.
+Past the limit, `payload` is the truncated text and the rest of the body is cancelled.
 
 ## Responses that do not reject
 

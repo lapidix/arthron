@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { fillPath, resolveUrl } from "./url";
+import { fillPath, redactUrl, resolveUrl } from "./url";
+
+describe("redactUrl", () => {
+  it("removes userinfo even when an absolute URL cannot be parsed", () => {
+    expect(redactUrl("https://user:password@/x?token=secret")).toBe(
+      "https:///x",
+    );
+  });
+});
 
 describe("resolveUrl", () => {
   it("joins baseURL and path with exactly one slash", () => {

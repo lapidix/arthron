@@ -16,7 +16,7 @@ export function redactUrl(url: string): string {
     const parsed = new URL(url);
     return `${parsed.origin}${parsed.pathname}`;
   } catch {
-    return url.split(/[?#]/)[0] ?? url;
+    return withoutSecrets(url);
   }
 }
 

@@ -62,8 +62,8 @@ Coming from 1.x? Most old names throw a `TypeError` that names the new one; the 
 - **Plain `Response` in, plain `Response` out.** `await api.get(…)` is the `Response` fetch gave; `.json()`, `.sse()` and friends read the body when you want it.
 - **Everything beyond fetch is a plugin.** Retry, timeouts, auth refresh, logging and upload progress use the same API yours do.
 - **One error type, two causes.** `ArthronError` means the server said no or the network failed; anything else is rethrown as it is.
-- **Safe by default.** Requests and the client's headers stay on `baseURL`'s origin, path values cannot escape their segment, and errors never print your tokens.
-- **Mistakes fail loudly.** A wrong option, a body JSON would mangle or a 1.x name is a `TypeError` that says what to write instead, before anything is sent.
+- **Safe by default.** Requests and the client's headers stay on `baseURL`'s origin, path values cannot escape their segment, and error messages omit URL query strings and userinfo. Error serialization excludes request headers and bodies; server-provided error payloads may still contain secrets.
+- **Mistakes fail loudly.** Common configuration mistakes, bodies that cannot be safely serialized as JSON, and most 1.x names produce a `TypeError` that says what to change.
 - **Small and portable.** Zero dependencies, ESM and CJS, TypeScript 5.0+, Node 22+ and browsers.
 
 ## Plugins
@@ -74,7 +74,7 @@ The built-ins come from `arthron/plugins`. They are plain plugins: anything they
 | --- | --- |
 | [`retry`](https://lapidix.github.io/arthron/plugins/retry) | Repeats a failed attempt |
 | [`timeout`](https://lapidix.github.io/arthron/plugins/timeout) | Aborts a slow or silent call |
-| [`logging`](https://lapidix.github.io/arthron/plugins/logging) | Logs one line when a call starts and one when it ends |
+| [`logging`](https://lapidix.github.io/arthron/plugins/logging) | Logs the start and, unless cancelled, the outcome of a call |
 | [`bearerAuth`](https://lapidix.github.io/arthron/plugins/bearer-auth) | Sends a token, refreshes on 401 |
 | [`uploadProgress`](https://lapidix.github.io/arthron/plugins/upload-progress) | Reports upload progress |
 

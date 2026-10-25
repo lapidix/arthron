@@ -1,6 +1,6 @@
 # logging
 
-`logging(options)` logs one line when a call starts and one when it ends, with the status and the total time, retries included.
+`logging(options)` logs one line when a call starts and another on success or failure, with the status and the total time, retries included. Cancellation has no ending line.
 
 ```text
 [arthron] → GET https://api.example.com/users
@@ -51,7 +51,7 @@ logging({
 ## What is not logged
 
 - Query strings and `user:pass@` are never printed.
-- Cancellations are not logged. A cancelled call, a `TimeoutError` included, logs its start but no end.
+- A cancelled call, including a `TimeoutError`, logs its start but no success or error event.
 
 ## Per-call settings
 
