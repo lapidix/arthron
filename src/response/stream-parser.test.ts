@@ -88,6 +88,38 @@ describe("parseSse", () => {
     for await (const _ of parseSse(endless)) break;
     expect(cancelled).toBe(true);
   });
+  it("finishes early iteration when cancelling the source never settles", async () => {
+    let finishCancel = () => {};
+    let cancelled = false;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("data: 1\n\n"));
+        },
+        cancel() {
+          cancelled = true;
+          return new Promise<void>((resolve) => {
+            finishCancel = resolve;
+          });
+        },
+      }),
+    );
+    try {
+      const pending = (async () => {
+        for await (const _ of parseSse(response)) break;
+      })();
+      const outcome = await Promise.race([
+        pending.then(() => "done"),
+        new Promise<string>((resolve) =>
+          setTimeout(() => resolve("stalled"), 20),
+        ),
+      ]);
+      expect(outcome).toBe("done");
+      expect(cancelled).toBe(true);
+    } finally {
+      finishCancel();
+    }
+  });
   it("skips blocks with no data", async () => {
     expect(await collect(parseSse(stream("event: ping\n\n")))).toEqual([]);
   });

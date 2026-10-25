@@ -148,6 +148,25 @@ describe("timeout — the response it hands back", () => {
       ).toEqual([]);
     }
   });
+  it("clears deadlines when an unread response is aborted", async () => {
+    const scheduled = vi.spyOn(globalThis, "setTimeout");
+    const cleared = vi.spyOn(globalThis, "clearTimeout");
+    try {
+      const api = arthron({
+        baseURL: "https://a",
+        fetchFn: fakeFetch(new Response("buffered")),
+        plugins: [timeout(30_000)],
+      });
+      const caller = new AbortController();
+      await api.get("/unread", { signal: caller.signal });
+      const timer = scheduled.mock.results[0]?.value;
+      caller.abort();
+      expect(cleared).toHaveBeenCalledWith(timer);
+    } finally {
+      scheduled.mockRestore();
+      cleared.mockRestore();
+    }
+  });
 });
 
 describe("timeout — meta.timeout per call", () => {
