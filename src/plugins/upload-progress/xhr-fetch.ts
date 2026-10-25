@@ -1,4 +1,5 @@
 import {
+  createResponse,
   type FetchedFields,
   withFields,
 } from "../../response/rebuild-response";
@@ -102,18 +103,25 @@ export function xhrFetch(
         if (xhr.status === 0) {
           return settle(() => reject(new TypeError("Network request failed")));
         }
-        const headers = parseResponseHeaders(xhr.getAllResponseHeaders());
-        const body = NULL_BODY_STATUSES.has(xhr.status) ? null : xhr.response;
-        const res = new Response(body, {
-          status: xhr.status,
-          statusText: xhr.statusText,
-          headers,
-        });
-        const page = (globalThis as { location?: { href?: string } }).location
-          ?.href;
-        settle(() =>
-          resolve(withFields(res, responseFields(url, xhr.responseURL, page))),
-        );
+        // Thrown in an event handler, an error would leave the call pending.
+        let res: Response;
+        try {
+          const headers = parseResponseHeaders(xhr.getAllResponseHeaders());
+          const body = NULL_BODY_STATUSES.has(xhr.status) ? null : xhr.response;
+          const page = (globalThis as { location?: { href?: string } }).location
+            ?.href;
+          res = withFields(
+            createResponse(body, {
+              status: xhr.status,
+              statusText: xhr.statusText,
+              headers,
+            }),
+            responseFields(url, xhr.responseURL, page),
+          );
+        } catch (error) {
+          return settle(() => reject(error));
+        }
+        settle(() => resolve(res));
       };
       xhr.onerror = xhr.ontimeout = () =>
         settle(() => reject(new TypeError("Network request failed")));

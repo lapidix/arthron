@@ -69,6 +69,13 @@ export default async function setup(project: TestProject) {
       case "/missing":
         json(404, { message: "no such user" });
         return;
+      case "/blocked": {
+        // A status past 599, as LinkedIn answers bots. An upload's body is
+        // read first, or the browser may see a reset instead.
+        await readBody(req).catch(() => null);
+        res.writeHead(999, { "content-type": "text/plain" }).end("blocked");
+        return;
+      }
       case "/redirect":
         res.writeHead(302, { location: "/json" }).end();
         return;

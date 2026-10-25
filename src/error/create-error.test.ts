@@ -106,6 +106,22 @@ describe("responseError", () => {
     expect(err.message).toBe("POST https://a/x failed with 404");
     expect(err.description).toBe("Cannot POST /internal/admin\r\nX-Fake: 1");
   });
+  it("keeps a status the Response constructor refuses, such as LinkedIn's 999", async () => {
+    // fetch hands over any status a server sends; `new Response` takes 200–599.
+    const fetched = Object.defineProperty(
+      new Response("blocked", { status: 500 }),
+      "status",
+      { value: 999 },
+    );
+    const err = await responseError(fetched, req);
+    expect(err).toBeInstanceOf(ArthronError);
+    expect(err.status).toBe(999);
+    expect(err.message).toBe("GET https://a/x failed with 999");
+    expect(err.payload).toBe("blocked");
+    expect([err.response?.status, err.response?.ok]).toEqual([999, false]);
+    expect(err.response?.clone().status).toBe(999);
+    expect(await err.response?.text()).toBe("blocked");
+  });
 });
 
 describe("networkError", () => {

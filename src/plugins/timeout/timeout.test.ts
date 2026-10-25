@@ -110,6 +110,22 @@ describe("timeout — the response it hands back", () => {
     ]);
     await res.text();
   });
+  it("keeps a status the Response constructor refuses, such as LinkedIn's 999", async () => {
+    const fetched = Object.defineProperty(
+      new Response("blocked", { status: 500 }),
+      "status",
+      { value: 999 },
+    );
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: fakeFetch(fetched),
+      throwOn: () => false,
+      plugins: [timeout(1000)],
+    });
+    const res = await api.get("/u");
+    expect([res.status, res.ok, res.clone().status]).toEqual([999, false, 999]);
+    expect(await res.text()).toBe("blocked");
+  });
   it("does not keep the Node process alive while a body sits unread", async () => {
     const spy = vi.spyOn(globalThis, "setTimeout");
     try {
