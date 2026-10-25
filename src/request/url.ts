@@ -81,9 +81,20 @@ export function httpOrigins(
   if (urls.length === 0) throw new TypeError(errors.empty);
   return new Set(
     urls.map((url) => {
-      const origin = httpOrigin(url);
+      const value: unknown = url;
+      if (typeof value !== "string") {
+        const kind = value === null ? "null" : typeof value;
+        const shown =
+          kind === "null"
+            ? kind
+            : `${/^[aeiou]/.test(kind) ? "an" : "a"} ${kind}`;
+        throw new TypeError(errors.invalid(shown));
+      }
+      const origin = httpOrigin(value);
       if (origin) return origin;
-      throw new TypeError(errors.invalid(JSON.stringify(withoutSecrets(url))));
+      throw new TypeError(
+        errors.invalid(JSON.stringify(withoutSecrets(value))),
+      );
     }),
   );
 }
