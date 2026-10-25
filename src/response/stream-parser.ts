@@ -70,7 +70,9 @@ async function* lines(
   } finally {
     // Leaving early (break, return, a throw) must close the connection too —
     // releasing the lock alone leaves the body streaming.
-    await reader.cancel().catch(() => {});
+    // A producer may never settle cancel(), including an open tee branch.
+    // Consumer break and parser errors must still finish promptly.
+    void reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }

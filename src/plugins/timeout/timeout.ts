@@ -26,9 +26,11 @@ function guardBody(
     start(controller) {
       onAbort = () => {
         controller.error(signal.reason);
-        reader.cancel(signal.reason).catch(() => {});
+        release();
+        void reader.cancel(signal.reason).catch(() => {});
       };
-      signal.addEventListener("abort", onAbort, { once: true });
+      if (signal.aborted) onAbort();
+      else signal.addEventListener("abort", onAbort, { once: true });
     },
     async pull(controller) {
       let chunk: ReadableStreamReadResult<Uint8Array>;

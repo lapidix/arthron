@@ -24,14 +24,14 @@ function assertSendable(url: string, method: string): void {
     new Request(url, { method });
   } catch (cause) {
     // fetch's own message repeats the full URL, query included.
-    redactErrorUrl(cause, url);
+    const safeCause = redactErrorUrl(cause, url);
     const reason = redactUrlIn(
       cause instanceof Error ? cause.message : String(cause),
       url,
     );
     throw new TypeError(
       `arthron: cannot send ${method} ${redactUrl(url)} (${reason}) — use an absolute URL or a baseURL with a scheme (https://…), and a valid HTTP method`,
-      { cause },
+      { cause: safeCause },
     );
   }
 }

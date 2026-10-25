@@ -72,7 +72,10 @@ async function readCapped(
   } catch {
     return undefined;
   } finally {
-    await reader?.cancel().catch(() => {});
+    // A stream's cancel promise may never settle (notably when another tee
+    // branch is still open). Request cancellation, but do not hold the error
+    // behind cleanup controlled by the body producer.
+    void reader?.cancel().catch(() => {});
     reader?.releaseLock();
   }
   const bytes = new Uint8Array(Math.min(size, limit));
@@ -149,29 +152,64 @@ const STREAM_BODY_HINT =
 
 /**
  * Take `url`'s query and userinfo out of an error the runtime threw, in
- * place: its message and stack, string fields (Node's `input`), and its
- * causes. `console.error` and error trackers print that chain, not
- * `toJSON()`. It stays the same object, so `cause.code` and `instanceof`
- * still work; a field that cannot be redefined (a frozen error) is left.
+ * place when possible: its message and stack, string fields (Node's
+ * `input`), and its causes. An immutable error is copied with its prototype
+ * and fields so it cannot put the full URL back into logs via `cause`.
  */
 export function redactErrorUrl(
   error: unknown,
   url: string,
-  seen = new Set<object>(),
-): void {
-  if (typeof error !== "object" || error === null || seen.has(error)) return;
-  seen.add(error);
+  seen = new Map<object, object>(),
+): unknown {
+  if (typeof error === "string") return redactUrlIn(error, url);
+  if (typeof error !== "object" || error === null) return error;
+  if (seen.has(error)) return seen.get(error);
   const fields = error as Record<string, unknown>;
+  let safe = error;
+  const changes = new Map<string, unknown>();
   for (const key of new Set(["message", "stack", ...Object.keys(error)])) {
     const value = fields[key];
     if (typeof value !== "string") continue;
     const redacted = redactUrlIn(value, url);
     if (redacted === value) continue;
-    try {
-      Object.defineProperty(error, key, { value: redacted });
-    } catch {}
+    changes.set(key, redacted);
+    if (safe === error) {
+      try {
+        Object.defineProperty(error, key, { value: redacted });
+      } catch {
+        // Keep the original untouched if it is frozen or a field is read-only.
+        // Copy its own fields and prototype, then redact the copy below.
+        const descriptors = Object.getOwnPropertyDescriptors(error);
+        for (const descriptor of Object.values(descriptors)) {
+          descriptor.configurable = true;
+        }
+        safe = Object.create(Object.getPrototypeOf(error), descriptors);
+      }
+    }
   }
-  redactErrorUrl(fields.cause, url, seen);
+  seen.set(error, safe);
+  if (safe !== error) {
+    for (const [key, value] of changes) {
+      Object.defineProperty(safe, key, { value, configurable: true });
+    }
+  }
+  const cause = fields.cause;
+  const safeCause = redactErrorUrl(cause, url, seen);
+  if (safeCause !== cause) {
+    try {
+      Object.defineProperty(safe, "cause", { value: safeCause });
+    } catch {
+      // A read-only cause can live on an otherwise mutable error.
+      const descriptors = Object.getOwnPropertyDescriptors(safe);
+      for (const descriptor of Object.values(descriptors)) {
+        descriptor.configurable = true;
+      }
+      safe = Object.create(Object.getPrototypeOf(safe), descriptors);
+      Object.defineProperty(safe, "cause", { value: safeCause });
+      seen.set(error, safe);
+    }
+  }
+  return safe;
 }
 
 export function networkError(
@@ -179,9 +217,11 @@ export function networkError(
   requestContext: RequestContext,
 ): ArthronError {
   // Some runtimes' messages repeat the URL, query and userinfo included.
-  redactErrorUrl(cause, requestContext.url);
+  const safeCause = redactErrorUrl(cause, requestContext.url);
   const reason =
-    cause instanceof Error && cause.message ? cause.message : "network error";
+    safeCause instanceof Error && safeCause.message
+      ? safeCause.message
+      : "network error";
   const hint = isReadableStream(requestContext.init.body)
     ? STREAM_BODY_HINT
     : "";
@@ -192,6 +232,6 @@ export function networkError(
     headers: new Headers(),
     payload: undefined,
     requestContext,
-    cause,
+    cause: safeCause,
   });
 }

@@ -156,6 +156,39 @@ describe("networkError", () => {
     expect(inner.code).toBe("ERR_INVALID_URL");
     expect(inspect(err, { depth: 10 })).not.toMatch(/s3cret|pw@/);
   });
+  it("keeps immutable runtime errors and their causes out of logs", () => {
+    const url = "https://u:pw@a/x?token=s3cret";
+    const inner = Object.freeze(new TypeError(`bad URL: ${url}`));
+    const cause = Object.freeze(
+      Object.assign(
+        new TypeError(`fetch failed for ${url}`, { cause: inner }),
+        {
+          code: "ERR_FETCH",
+        },
+      ),
+    );
+    const err = networkError(cause, {
+      url,
+      init: { method: "GET", headers: {} },
+      meta: {},
+    });
+    expect(err.message).toBe(
+      "GET https://a/x failed: fetch failed for https://a/x",
+    );
+    expect(inspect(err, { depth: 10 })).not.toMatch(/s3cret|pw@/);
+    expect((err.cause as Error).cause).toBeInstanceOf(TypeError);
+    expect((err.cause as typeof cause).code).toBe("ERR_FETCH");
+    expect(cause.message).toContain("s3cret");
+  });
+  it("redacts a URL when fetch rejects with a string", () => {
+    const url = "https://u:pw@a/x?token=s3cret";
+    const err = networkError(`failed for ${url}`, {
+      url,
+      init: { method: "GET", headers: {} },
+      meta: {},
+    });
+    expect(inspect(err, { depth: 10 })).not.toMatch(/s3cret|pw@/);
+  });
   it("says why a ReadableStream body fails in a browser and what to send instead", () => {
     const streaming = {
       ...req,
@@ -239,6 +272,38 @@ describe("responseError reads at most 64 KiB of the body", () => {
     const err = await responseError(response, req);
     expect(err.status).toBe(500);
     expect(seen.cancelled).toBe(true);
+  });
+  it("returns the capped error without waiting for a stalled cancel", async () => {
+    let finishCancel = () => {};
+    let cancelled = false;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(LIMIT + 1));
+        },
+        cancel() {
+          cancelled = true;
+          return new Promise<void>((resolve) => {
+            finishCancel = resolve;
+          });
+        },
+      }),
+      { status: 500 },
+    );
+    try {
+      const pending = responseError(response, req);
+      const outcome = await Promise.race([
+        pending.then(() => "done"),
+        new Promise<string>((resolve) =>
+          setTimeout(() => resolve("stalled"), 20),
+        ),
+      ]);
+      expect(outcome).toBe("done");
+      expect(cancelled).toBe(true);
+      expect((await pending).status).toBe(500);
+    } finally {
+      finishCancel();
+    }
   });
   it("leaves error.response readable with what was read, keeping url and redirected", async () => {
     const original = Object.defineProperties(
