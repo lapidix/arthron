@@ -16,7 +16,7 @@ arthron({ plugins: [timeout({ idle: 30_000 })] });
 | Option | Default | What it does |
 | --- | --- | --- |
 | `total` | none | Ms until the body has been fully read. A server that sends headers and then stalls still trips it. |
-| `idle` | none | Ms without data: while waiting for the headers, and between chunks. A stream that keeps flowing is never cut off. |
+| `idle` | none | Ms without data while arthron waits for it: for the headers, then for each chunk a read asks for. The time your code takes between reads does not count, so a stream that keeps flowing is never cut off. |
 
 `timeout(ms)` is short for `timeout({ total: ms })`.
 
