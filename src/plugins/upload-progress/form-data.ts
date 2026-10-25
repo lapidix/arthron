@@ -29,7 +29,9 @@ export function encodeFormData(form: FormData): {
   const b = boundary();
   const parts: Part[] = [];
   for (const [name, value] of form) {
-    let head = `--${b}\r\nContent-Disposition: form-data; name="${escapeName(name)}"`;
+    // A name's line breaks become CRLF before escaping, as in the runtime's
+    // encoder; a filename is only escaped.
+    let head = `--${b}\r\nContent-Disposition: form-data; name="${escapeName(normalizeBreaks(name))}"`;
     if (typeof value === "string") {
       parts.push(encoder.encode(`${head}\r\n\r\n`));
       parts.push(encoder.encode(normalizeBreaks(value)));
