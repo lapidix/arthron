@@ -29,4 +29,10 @@ export type LoggingOptions = {
   logger?: Pick<Console, "log" | "error">;
   /** Receive structured events instead of the default console lines. */
   onEvent?: (event: LogEvent) => void;
+  /**
+   * Default `false`. `true` reports a call that timed out — a `TimeoutError`,
+   * from `timeout()` or `AbortSignal.timeout()` — as an error event, `status`
+   * undefined. Other cancellations are never reported.
+   */
+  timeouts?: boolean;
 };

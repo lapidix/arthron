@@ -3,7 +3,7 @@ import { networkError, responseError } from "../../error/create-error";
 import { runPipeline } from "../../pipeline/pipeline";
 import { jsonResponse } from "../../testkit/fetch.testkit";
 import { logging, loggingWithClock } from "./logging";
-import type { LogEvent } from "./logging.types";
+import type { LogEvent, LoggingOptions } from "./logging.types";
 
 const ctx = {
   url: "https://a/u?secret=1",
@@ -188,6 +188,48 @@ describe("logging", () => {
     expect(events.map((e) => (e as { phase: string }).phase)).toEqual([
       "start",
     ]);
+  });
+  describe("timeouts", () => {
+    const timedOut = () =>
+      new DOMException("arthron: request timed out after 5ms", "TimeoutError");
+    const run = (options: LoggingOptions, thrown: unknown) =>
+      runPipeline([loggingWithClock(options, clock())], ctx, async () => {
+        throw thrown;
+      }).catch(() => {});
+
+    it("are not reported by default", async () => {
+      const events: LogEvent[] = [];
+      await run({ onEvent: (e) => events.push(e) }, timedOut());
+      expect(events.map((e) => e.phase)).toEqual(["start"]);
+    });
+    it("are reported as errors with timeouts: true", async () => {
+      const events: LogEvent[] = [];
+      const error = timedOut();
+      await run({ timeouts: true, onEvent: (e) => events.push(e) }, error);
+      expect(events[1]).toEqual({
+        phase: "error",
+        method: "POST",
+        url: "https://a/u",
+        status: undefined,
+        duration: 12,
+        error,
+      });
+    });
+    it("print an error line with timeouts: true", async () => {
+      const logger = spyLogger();
+      await run({ timeouts: true, logger }, timedOut());
+      expect(logger.error).toHaveBeenCalledWith(
+        "[arthron] ✕ POST https://a/u - 12ms",
+      );
+    });
+    it("leave other cancellations unreported with timeouts: true", async () => {
+      const events: LogEvent[] = [];
+      await run(
+        { timeouts: true, onEvent: (e) => events.push(e) },
+        new DOMException("a", "AbortError"),
+      );
+      expect(events.map((e) => e.phase)).toEqual(["start"]);
+    });
   });
   it("defaults method to GET", async () => {
     const logger = spyLogger();

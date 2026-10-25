@@ -28,6 +28,7 @@ Put `logging()` first in `plugins`. It then wraps `retry()` and logs each call o
 | `enabled` | `true` | Turns logging on or off. Pass `process.env.NODE_ENV !== "production"` or similar: arthron never reads env. |
 | `logger` | `console` | Where the lines go: anything with `log` and `error`. A failed call goes to `error`, the rest to `log`. |
 | `onEvent` | — | Receives each event as an object, instead of console lines. |
+| `timeouts` | `false` | `true` reports a call that timed out (a `TimeoutError`, from `timeout()` or `AbortSignal.timeout()`) as an error, with no status. |
 
 ## Events
 
@@ -51,7 +52,7 @@ logging({
 ## What is not logged
 
 - Query strings and `user:pass@` are never printed.
-- A cancelled call, including a `TimeoutError`, logs its start but no success or error event.
+- A cancelled call logs its start but no success or error event. A `TimeoutError` counts as a cancellation unless you pass `timeouts: true`.
 
 ## Per-call settings
 
