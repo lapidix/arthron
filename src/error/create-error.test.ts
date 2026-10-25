@@ -196,6 +196,42 @@ describe("networkError", () => {
     expect((err.cause as typeof cause).code).toBe("ERR_FETCH");
     expect(cause.message).toContain("s3cret");
   });
+  it("keeps the stack of an immutable error it copies", () => {
+    // The URL is only in `input`, so the stack needs no redacting — but
+    // V8's stack accessor reads nothing on a copy.
+    const url = "https://u:pw@a/x?token=s3cret";
+    const cause = Object.freeze(
+      Object.assign(new TypeError("Invalid URL"), { input: url }),
+    );
+    const err = networkError(cause, {
+      url,
+      init: { method: "GET", headers: {} },
+      meta: {},
+    });
+    const copy = err.cause as typeof cause;
+    expect(copy).not.toBe(cause);
+    expect(copy.input).toBe("https://a/x");
+    expect(copy.stack).toBe(cause.stack);
+  });
+  it("copies an immutable DOMException so it can still be read and printed", () => {
+    const url = "https://u:pw@a/x?token=s3cret";
+    const cause = Object.freeze(
+      new DOMException(`failed for ${url}`, "NetworkError"),
+    );
+    const err = networkError(cause, {
+      url,
+      init: { method: "GET", headers: {} },
+      meta: {},
+    });
+    const copy = err.cause as DOMException;
+    expect(copy).toBeInstanceOf(DOMException);
+    expect([copy.name, copy.message, copy.code]).toEqual([
+      "NetworkError",
+      "failed for https://a/x",
+      19,
+    ]);
+    expect(inspect(err, { depth: 10 })).not.toMatch(/s3cret|pw@/);
+  });
   it("redacts a URL when fetch rejects with a string", () => {
     const url = "https://u:pw@a/x?token=s3cret";
     const err = networkError(`failed for ${url}`, {

@@ -150,6 +150,43 @@ export async function responseError(
 const STREAM_BODY_HINT =
   " — in a browser, a ReadableStream body streams only over HTTP/2; send a Blob or ArrayBuffer to an HTTP/1.1 server";
 
+/** `error[key]`, or `undefined` if reading it throws. */
+function readField(error: object, key: PropertyKey): unknown {
+  try {
+    return (error as Record<PropertyKey, unknown>)[key];
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * An error that cannot be changed, copied with its prototype and own fields
+ * so the copy can be. Values are read through the original: V8's own
+ * `stack` accessor reads nothing on another object, and DOMException's
+ * `name`, `message` and `code` getters throw on one.
+ */
+function copyError(error: object): object {
+  const descriptors: Record<PropertyKey, PropertyDescriptor> =
+    Object.getOwnPropertyDescriptors(error);
+  for (const key of Reflect.ownKeys(descriptors)) {
+    const descriptor = descriptors[key] as PropertyDescriptor;
+    descriptors[key] =
+      descriptor.get || descriptor.set
+        ? {
+            value: readField(error, key),
+            enumerable: descriptor.enumerable ?? false,
+            configurable: true,
+          }
+        : { ...descriptor, configurable: true };
+  }
+  for (const key of ["name", "message", "stack", "code"]) {
+    if (Object.hasOwn(descriptors, key)) continue;
+    const value = readField(error, key);
+    if (value !== undefined) descriptors[key] = { value, configurable: true };
+  }
+  return Object.create(Object.getPrototypeOf(error), descriptors);
+}
+
 /**
  * Take `url`'s query and userinfo out of an error the runtime threw, in
  * place when possible: its message and stack, string fields (Node's
@@ -177,13 +214,9 @@ export function redactErrorUrl(
       try {
         Object.defineProperty(error, key, { value: redacted });
       } catch {
-        // Keep the original untouched if it is frozen or a field is read-only.
-        // Copy its own fields and prototype, then redact the copy below.
-        const descriptors = Object.getOwnPropertyDescriptors(error);
-        for (const descriptor of Object.values(descriptors)) {
-          descriptor.configurable = true;
-        }
-        safe = Object.create(Object.getPrototypeOf(error), descriptors);
+        // Frozen, or this field is read-only: redact a copy below. Fields
+        // redacted before this one stay redacted on the original as well.
+        safe = copyError(error);
       }
     }
   }
@@ -200,11 +233,7 @@ export function redactErrorUrl(
       Object.defineProperty(safe, "cause", { value: safeCause });
     } catch {
       // A read-only cause can live on an otherwise mutable error.
-      const descriptors = Object.getOwnPropertyDescriptors(safe);
-      for (const descriptor of Object.values(descriptors)) {
-        descriptor.configurable = true;
-      }
-      safe = Object.create(Object.getPrototypeOf(safe), descriptors);
+      safe = copyError(safe);
       Object.defineProperty(safe, "cause", { value: safeCause });
       seen.set(error, safe);
     }
