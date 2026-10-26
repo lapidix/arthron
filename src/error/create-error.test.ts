@@ -230,6 +230,29 @@ describe("networkError", () => {
     expect(copy.input).toBe("https://a/x");
     expect(copy.stack).toBe(cause.stack);
   });
+  it("leaves the stack of a copied error assignable", () => {
+    // A read-only cause gets the mutable error around it copied. Stack
+    // rewriters (source maps, error trackers) assign to `stack`.
+    const url = "https://u:pw@a/x?token=s3cret";
+    const cause = Object.defineProperty(
+      new TypeError("fetch failed"),
+      "cause",
+      {
+        value: Object.freeze(new Error(`connect ${url}`)),
+      },
+    );
+    const err = networkError(cause, {
+      url,
+      init: { method: "GET", headers: {} },
+      meta: {},
+    });
+    const copy = err.cause as Error;
+    const inner = copy.cause as Error;
+    expect(copy).not.toBe(cause);
+    copy.stack = "rewritten";
+    inner.stack = "rewritten";
+    expect([copy.stack, inner.stack]).toEqual(["rewritten", "rewritten"]);
+  });
   it("copies an immutable DOMException so it can still be read and printed", () => {
     const url = "https://u:pw@a/x?token=s3cret";
     const cause = Object.freeze(

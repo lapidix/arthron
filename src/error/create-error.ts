@@ -163,7 +163,8 @@ function readField(error: object, key: PropertyKey): unknown {
  * An error that cannot be changed, copied with its prototype and own fields
  * so the copy can be. Values are read through the original: V8's own
  * `stack` accessor reads nothing on another object, and DOMException's
- * `name`, `message` and `code` getters throw on one.
+ * `name`, `message` and `code` getters throw on one. Those become writable
+ * fields: stack rewriters assign to `stack`.
  */
 function copyError(error: object): object {
   const descriptors: Record<PropertyKey, PropertyDescriptor> =
@@ -174,6 +175,7 @@ function copyError(error: object): object {
       descriptor.get || descriptor.set
         ? {
             value: readField(error, key),
+            writable: true,
             enumerable: descriptor.enumerable ?? false,
             configurable: true,
           }
@@ -182,7 +184,9 @@ function copyError(error: object): object {
   for (const key of ["name", "message", "stack", "code"]) {
     if (Object.hasOwn(descriptors, key)) continue;
     const value = readField(error, key);
-    if (value !== undefined) descriptors[key] = { value, configurable: true };
+    if (value !== undefined) {
+      descriptors[key] = { value, writable: true, configurable: true };
+    }
   }
   return Object.create(Object.getPrototypeOf(error), descriptors);
 }
