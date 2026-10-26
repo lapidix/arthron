@@ -90,6 +90,17 @@ const server = createServer((req, res) => {
     res.end("x".repeat(1024 * 1024));
     return;
   }
+  if (req.url === "/status-999") {
+    res.writeHead(999, { "content-type": "text/plain" }).end("blocked");
+    return;
+  }
+  if (req.url === "/utf8-reason") {
+    // writeHead refuses a non-Latin-1 reason phrase; some servers send one.
+    req.socket.end(
+      "HTTP/1.1 500 실패\r\ncontent-length: 4\r\nconnection: close\r\n\r\nfail",
+    );
+    return;
+  }
   if (req.url?.startsWith("/fail")) {
     res.writeHead(500, { "content-type": "application/json" }).end("{}");
     return;
@@ -238,6 +249,34 @@ try {
       huge.payload.length === 64 * 1024 &&
       (await huge.response.text()).length === 64 * 1024,
     "a 1 MB error body is read only up to 64 KiB",
+  );
+
+  const unusual = await arthron({ baseURL })
+    .get("/status-999")
+    .catch((e) => e);
+  assert(
+    isArthronError(unusual) &&
+      unusual.status === 999 &&
+      unusual.payload === "blocked",
+    "a status past 599 rejects with an ArthronError carrying it",
+  );
+  const kept = await arthron({
+    baseURL,
+    throwOn: () => false,
+    plugins: [timeout(500)],
+  }).get("/status-999");
+  assert(
+    kept.status === 999 && !kept.ok && (await kept.text()) === "blocked",
+    "timeout hands back a status past 599 with its body",
+  );
+  const utf8Reason = await arthron({ baseURL })
+    .get("/utf8-reason")
+    .catch((e) => e);
+  assert(
+    isArthronError(utf8Reason) &&
+      utf8Reason.status === 500 &&
+      utf8Reason.statusText === "실패",
+    "a UTF-8 status text rejects with an ArthronError carrying it",
   );
 
   const tooLong = await (async () => {

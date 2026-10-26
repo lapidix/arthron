@@ -86,6 +86,12 @@ describe("arthron in the browser", () => {
     expect(err.description).toBe("no such user");
   });
 
+  it("rejects a status past 599 with an ArthronError carrying it", async () => {
+    const err = await api.get("/blocked").catch((e: unknown) => e);
+    expect(isArthronError(err) && err.status).toBe(999);
+    expect(isArthronError(err) && err.payload).toBe("blocked");
+  });
+
   it("follows a redirect by default", async () => {
     expect(await api.get("/redirect").json()).toEqual({ ok: true });
   });
@@ -202,6 +208,10 @@ describe("uploadProgress in the browser", () => {
       .catch((e: unknown) => e);
     expect(isArthronError(err) && err.status).toBe(404);
     expect(isArthronError(err) && err.description).toBe("no such user");
+    const unusual = await uploads
+      .post("/blocked", "x", { meta: { uploadProgress: { onProgress } } })
+      .catch((e: unknown) => e);
+    expect(isArthronError(unusual) && unusual.status).toBe(999);
   });
 
   it("times out with TimeoutError", async () => {

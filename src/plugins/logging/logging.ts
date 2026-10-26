@@ -1,8 +1,14 @@
 import { isArthronError } from "../../error/arthron-error";
-import { isCancellation } from "../../error/create-error";
+import { isCancellation, isTimeout } from "../../error/create-error";
 import { redactUrl } from "../../request/url";
 import type { Plugin } from "../../types/plugin.types";
 import type { LogEvent, LoggingOptions } from "./logging.types";
+
+/** What an error line shows without a status: the error's name (`TimeoutError`, `TypeError`), else `-`. */
+function nameOf(error: unknown): string {
+  const name = (error as { name?: unknown } | null | undefined)?.name;
+  return typeof name === "string" && name !== "" ? name : "-";
+}
 
 function consoleSink(logger: Pick<Console, "log" | "error">) {
   return (e: LogEvent) => {
@@ -14,7 +20,7 @@ function consoleSink(logger: Pick<Console, "log" | "error">) {
       );
     } else {
       logger.error(
-        `[arthron] ✕ ${e.method} ${e.url} ${e.status ?? "-"} ${e.duration}ms`,
+        `[arthron] ✕ ${e.method} ${e.url} ${e.status ?? nameOf(e.error)} ${e.duration}ms`,
       );
     }
   };
@@ -24,7 +30,8 @@ function consoleSink(logger: Pick<Console, "log" | "error">) {
  * One event when a request starts, one when it settles, with status and
  * elapsed time. Wraps the whole call, so retries are included in the time.
  * Default output is a console line per event; pass `onEvent` to get the
- * structured event instead. Cancellations are not reported.
+ * structured event instead. Cancellations are not reported, timeouts only
+ * with `timeouts: true`.
  */
 export function logging(options: LoggingOptions = {}): Plugin {
   // The 1.x test hook: ignored, a test's clock would quietly stop applying.
@@ -41,7 +48,14 @@ export function loggingWithClock(
   options: LoggingOptions,
   now: () => number,
 ): Plugin {
-  const { enabled = true, logger = console, onEvent } = options;
+  const {
+    enabled = true,
+    logger = console,
+    onEvent,
+    timeouts = false,
+  } = options;
+  const reported = (error: unknown, signal: AbortSignal | null | undefined) =>
+    !isCancellation(error, signal) || (timeouts && isTimeout(error));
   const emit = onEvent ?? consoleSink(logger);
   return {
     pluginName: "logging",
@@ -57,7 +71,7 @@ export function loggingWithClock(
       try {
         res = await next(ctx);
       } catch (error) {
-        if (!isCancellation(error, ctx.init.signal)) {
+        if (reported(error, ctx.init.signal)) {
           const status = isArthronError(error) ? error.status : undefined;
           emit({
             phase: "error",

@@ -110,6 +110,36 @@ describe("timeout — the response it hands back", () => {
     ]);
     await res.text();
   });
+  it("keeps a status the Response constructor refuses, such as LinkedIn's 999", async () => {
+    const fetched = Object.defineProperty(
+      new Response("blocked", { status: 500 }),
+      "status",
+      { value: 999 },
+    );
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: fakeFetch(fetched),
+      throwOn: () => false,
+      plugins: [timeout(1000)],
+    });
+    const res = await api.get("/u");
+    expect([res.status, res.ok, res.clone().status]).toEqual([999, false, 999]);
+    expect(await res.text()).toBe("blocked");
+  });
+  it("keeps a status text the Response constructor refuses, and ok with it", async () => {
+    const fetched = Object.defineProperty(new Response("done"), "statusText", {
+      value: "성공",
+    });
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: fakeFetch(fetched),
+      plugins: [timeout(1000)],
+    });
+    const res = await api.get("/u");
+    expect([res.status, res.ok, res.statusText]).toEqual([200, true, "성공"]);
+    expect(res.clone().statusText).toBe("성공");
+    expect(await res.text()).toBe("done");
+  });
   it("does not keep the Node process alive while a body sits unread", async () => {
     const spy = vi.spyOn(globalThis, "setTimeout");
     try {
@@ -401,6 +431,30 @@ describe("timeout — idle", () => {
       plugins: [timeout({ idle: 20 })],
     });
     await expect(api.get("/u")).rejects.toMatchObject({ name: "TimeoutError" });
+  });
+  it("does not count the time the reader spends between reads", async () => {
+    // Flows every 5 ms; the reader takes 40 ms over each event.
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: drip(5, 5),
+      plugins: [timeout({ idle: 25 })],
+    });
+    let events = 0;
+    for await (const _ of api.get("/s").sse()) {
+      events += 1;
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    expect(events).toBe(5);
+  });
+  it("does not count the wait before the body is read", async () => {
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: fakeFetch(new Response("all here")),
+      plugins: [timeout({ idle: 20 })],
+    });
+    const res = await api.get("/u");
+    await new Promise((r) => setTimeout(r, 40));
+    expect(await res.text()).toBe("all here");
   });
   it("rejects a bad idle value when the plugin is created", () => {
     expect(() => timeout({ idle: -1 })).toThrow(TypeError);

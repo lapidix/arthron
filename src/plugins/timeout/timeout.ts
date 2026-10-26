@@ -4,15 +4,20 @@ import type { ArthronMeta, TimeoutOptions } from "../../types/request.types";
 
 const MAX_TIMER_MS = 2 ** 31 - 1;
 
+/** The idle deadline, started while a read waits on the server and stopped when data comes. */
+type IdleTimer = { start: () => void; stop: () => void };
+
 /**
  * Wrap `body` so the deadline keeps running until it is fully read, and so an
  * abort while reading surfaces as a stream error instead of a silent stall.
+ * The idle deadline runs only while a read waits on the source: the time the
+ * caller takes between reads is not the server going quiet.
  */
 function guardBody(
   body: ReadableStream<Uint8Array>,
   signal: AbortSignal,
   finish: () => void,
-  onChunk: () => void,
+  idle: IdleTimer,
 ): ReadableStream<Uint8Array> {
   const reader = body.getReader();
   let onAbort = () => {};
@@ -34,6 +39,7 @@ function guardBody(
     },
     async pull(controller) {
       let chunk: ReadableStreamReadResult<Uint8Array>;
+      idle.start();
       try {
         chunk = await reader.read();
       } catch (error) {
@@ -45,7 +51,7 @@ function guardBody(
         controller.close();
         return;
       }
-      onChunk();
+      idle.stop();
       controller.enqueue(chunk.value);
     },
     cancel(reason) {
@@ -174,21 +180,25 @@ export function timeout(
               `arthron: request timed out after ${deadline}ms`,
             );
       let quiet: ReturnType<typeof setTimeout> | undefined;
-      // Restarted whenever something arrives: the headers, then every chunk.
-      const stillAlive = () => {
-        if (idleMs === undefined) return;
-        clearTimeout(quiet);
-        quiet = deadlineTimer(
-          controller,
-          idleMs,
-          `arthron: no data for ${idleMs}ms`,
-        );
+      // Runs while we wait on the server: for the headers, then for each
+      // chunk a read asks for.
+      const idleTimer: IdleTimer = {
+        start: () => {
+          if (idleMs === undefined) return;
+          clearTimeout(quiet);
+          quiet = deadlineTimer(
+            controller,
+            idleMs,
+            `arthron: no data for ${idleMs}ms`,
+          );
+        },
+        stop: () => clearTimeout(quiet),
       };
       const finish = () => {
         clearTimeout(total);
-        clearTimeout(quiet);
+        idleTimer.stop();
       };
-      stillAlive();
+      idleTimer.start();
 
       let res: Response;
       try {
@@ -204,10 +214,10 @@ export function timeout(
         finish();
         return res;
       }
-      stillAlive();
+      idleTimer.stop();
       return rebuildResponse(
         res,
-        guardBody(res.body, signal, finish, stillAlive),
+        guardBody(res.body, signal, finish, idleTimer),
       );
     },
   };

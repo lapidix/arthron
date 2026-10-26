@@ -1,6 +1,6 @@
 # logging
 
-`logging(options)` logs one line when a call starts and another on success or failure, with the status and the total time, retries included. Cancellation has no ending line.
+`logging(options)` logs one line when a call starts and another on success or failure, with the status and the total time, retries included. A failure without a status, such as a plugin's own error, shows the error's name in its place. Cancellation has no ending line.
 
 ```text
 [arthron] → GET https://api.example.com/users
@@ -28,6 +28,7 @@ Put `logging()` first in `plugins`. It then wraps `retry()` and logs each call o
 | `enabled` | `true` | Turns logging on or off. Pass `process.env.NODE_ENV !== "production"` or similar: arthron never reads env. |
 | `logger` | `console` | Where the lines go: anything with `log` and `error`. A failed call goes to `error`, the rest to `log`. |
 | `onEvent` | — | Receives each event as an object, instead of console lines. |
+| `timeouts` | `false` | `true` reports a call that timed out before its response arrived (a `TimeoutError`, from `timeout()` or `AbortSignal.timeout()`) as an error, with no status. Its line reads `TimeoutError` where the status goes. |
 
 ## Events
 
@@ -51,7 +52,8 @@ logging({
 ## What is not logged
 
 - Query strings and `user:pass@` are never printed.
-- A cancelled call, including a `TimeoutError`, logs its start but no success or error event.
+- A cancelled call logs its start but no success or error event. A `TimeoutError` counts as a cancellation unless you pass `timeouts: true`.
+- A timeout while you read the body is not an error event. The call logged its success when the response arrived, and the timeout rejects your read.
 
 ## Per-call settings
 

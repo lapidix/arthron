@@ -41,6 +41,25 @@ describe("encodeFormData", () => {
     expect([blob.name, await blob.text()]).toEqual(["blob", "xyz"]);
   });
 
+  it("writes names and filenames as the runtime's encoder does", async () => {
+    const f = new FormData();
+    f.append('a\nb\rc\r\nd"e', "v");
+    f.append("file", new File(["x"], 'n\na\rm\r\ne".txt'));
+    // Each with its own boundary; the runtime's may end without a final CRLF.
+    const text = async (body: BodyInit, type: string) =>
+      (await new Response(body).text())
+        .replaceAll(type.split("boundary=")[1] as string, "BOUNDARY")
+        .replace(/\r\n$/, "");
+    const ours = encodeFormData(f);
+    const runtime = new Request("https://a", { method: "POST", body: f });
+    expect(await text(ours.stream, ours.type)).toBe(
+      await text(
+        await runtime.arrayBuffer(),
+        runtime.headers.get("content-type") as string,
+      ),
+    );
+  });
+
   it("uses a fresh boundary each time", () => {
     expect(encodeFormData(new FormData()).type).not.toBe(
       encodeFormData(new FormData()).type,

@@ -106,6 +106,39 @@ describe("responseError", () => {
     expect(err.message).toBe("POST https://a/x failed with 404");
     expect(err.description).toBe("Cannot POST /internal/admin\r\nX-Fake: 1");
   });
+  it("keeps a status the Response constructor refuses, such as LinkedIn's 999", async () => {
+    // fetch hands over any status a server sends; `new Response` takes 200–599.
+    const fetched = Object.defineProperty(
+      new Response("blocked", { status: 500 }),
+      "status",
+      { value: 999 },
+    );
+    const err = await responseError(fetched, req);
+    expect(err).toBeInstanceOf(ArthronError);
+    expect(err.status).toBe(999);
+    expect(err.message).toBe("GET https://a/x failed with 999");
+    expect(err.payload).toBe("blocked");
+    expect([err.response?.status, err.response?.ok]).toEqual([999, false]);
+    expect(err.response?.clone().status).toBe(999);
+    expect(await err.response?.text()).toBe("blocked");
+  });
+  it("keeps a status text the Response constructor refuses", async () => {
+    // Node's fetch reads a reason phrase as UTF-8; `new Response` takes
+    // Latin-1 only.
+    const fetched = Object.defineProperty(
+      new Response("{}", { status: 500 }),
+      "statusText",
+      { value: "실패" },
+    );
+    const err = await responseError(fetched, req);
+    expect(err).toBeInstanceOf(ArthronError);
+    expect(err.message).toBe("GET https://a/x failed with 500 실패");
+    expect([err.statusText, err.response?.statusText]).toEqual([
+      "실패",
+      "실패",
+    ]);
+    expect(err.response?.clone().statusText).toBe("실패");
+  });
 });
 
 describe("networkError", () => {
@@ -179,6 +212,65 @@ describe("networkError", () => {
     expect((err.cause as Error).cause).toBeInstanceOf(TypeError);
     expect((err.cause as typeof cause).code).toBe("ERR_FETCH");
     expect(cause.message).toContain("s3cret");
+  });
+  it("keeps the stack of an immutable error it copies", () => {
+    // The URL is only in `input`, so the stack needs no redacting — but
+    // V8's stack accessor reads nothing on a copy.
+    const url = "https://u:pw@a/x?token=s3cret";
+    const cause = Object.freeze(
+      Object.assign(new TypeError("Invalid URL"), { input: url }),
+    );
+    const err = networkError(cause, {
+      url,
+      init: { method: "GET", headers: {} },
+      meta: {},
+    });
+    const copy = err.cause as typeof cause;
+    expect(copy).not.toBe(cause);
+    expect(copy.input).toBe("https://a/x");
+    expect(copy.stack).toBe(cause.stack);
+  });
+  it("leaves the stack of a copied error assignable", () => {
+    // A read-only cause gets the mutable error around it copied. Stack
+    // rewriters (source maps, error trackers) assign to `stack`.
+    const url = "https://u:pw@a/x?token=s3cret";
+    const cause = Object.defineProperty(
+      new TypeError("fetch failed"),
+      "cause",
+      {
+        value: Object.freeze(new Error(`connect ${url}`)),
+      },
+    );
+    const err = networkError(cause, {
+      url,
+      init: { method: "GET", headers: {} },
+      meta: {},
+    });
+    const copy = err.cause as Error;
+    const inner = copy.cause as Error;
+    expect(copy).not.toBe(cause);
+    copy.stack = "rewritten";
+    inner.stack = "rewritten";
+    expect([copy.stack, inner.stack]).toEqual(["rewritten", "rewritten"]);
+  });
+  it("copies an immutable DOMException so it can still be read and printed", () => {
+    const url = "https://u:pw@a/x?token=s3cret";
+    const cause = Object.freeze(
+      new DOMException(`failed for ${url}`, "NetworkError"),
+    );
+    const err = networkError(cause, {
+      url,
+      init: { method: "GET", headers: {} },
+      meta: {},
+    });
+    const copy = err.cause as DOMException;
+    expect(copy).toBeInstanceOf(DOMException);
+    expect([copy.name, copy.message, copy.code]).toEqual([
+      "NetworkError",
+      "failed for https://a/x",
+      19,
+    ]);
+    expect(inspect(err, { depth: 10 })).not.toMatch(/s3cret|pw@/);
   });
   it("redacts a URL when fetch rejects with a string", () => {
     const url = "https://u:pw@a/x?token=s3cret";
