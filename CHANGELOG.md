@@ -12,6 +12,37 @@ From 1.0.0 arthron follows [Semantic Versioning](https://semver.org/):
 
 A minor deprecates rather than removes: the old API keeps working, marked `@deprecated` with what to use instead, until the next major. A major may also rename or remove without a deprecation first; its entry then says how to move over, and an old option name that would otherwise be ignored throws a `TypeError` naming its replacement.
 
+## [2.1.0] — 2026-10-26
+
+### Added
+
+- `logging({ timeouts: true })` reports a call that timed out before its response arrived — a `TimeoutError`, from `timeout()` or `AbortSignal.timeout()` — as an error event with no status. Off by default: a `TimeoutError` still counts as a cancellation and logs only its start. Other cancellations are never reported, and a timeout while the body is read rejects that read, after the success event.
+
+### Changed
+
+- `logging()`'s console line for a failure without a status shows the error's name where the status goes — `✕ GET https://api.example.com/users TimeoutError 5003ms`, `TypeError` for a plugin's own error — and `-` only when it has none. The events are unchanged: their `status` stays `undefined`.
+
+### Fixed
+
+- `timeout({ idle })` no longer cuts off a stream that is still flowing. The deadline restarted only when a chunk reached your code, so it also counted your code's time between reads: a reader slower than `idle` (an SSE consumer doing async work per event), or one that read a buffered body later than `idle` after the headers, got a `TimeoutError` while the server was still sending. It now runs only while arthron waits on the server — for the headers, then for the next chunk, read one ahead of your code. A body you leave unread past its first chunk is therefore not cut off: cancel it, or add `total`.
+- A status past 599 is an `ArthronError` carrying it. fetch passes on any status a server sends (LinkedIn answers bots with 999), but `new Response` takes 200–599 only, so rebuilding such a response — the error body copy, the `timeout()` guard — threw a `RangeError`: error interceptors and `retry` never saw it, and over `uploadProgress()`'s XMLHttpRequest the call never settled. The response keeps its real `status`, with `ok` false, through `clone()` too, and the XMLHttpRequest load handler now rejects whatever it cannot turn into a `Response`.
+- A status text with characters past Latin-1 no longer turns a response into a `TypeError` when arthron rebuilds it. Node's fetch reads a reason phrase as UTF-8, and `new Response` takes Latin-1 only: a `500 실패` was a `TypeError` instead of an `ArthronError`, and a `200` under `timeout()` failed the call. The status text is kept as the server sent it.
+- With `uploadProgress()` in Node, a `FormData` field name with a line break is encoded as the runtime encodes it — a bare CR or LF becomes CRLF before escaping — so it goes out the same with progress as without.
+- A non-string entry in `allowedOrigins` or `bearerAuth`'s `tokenOrigins` is a `TypeError` that says what to pass, without printing the entry. It was a raw `url.split` error.
+- Reading a capped error body and iterating `.sse()` or `.ndjson()` no longer wait on the body's `cancel()`, which a producer may never settle (an open `clone()` branch, for one): the `ArthronError` arrives, and a `break` out of the loop finishes, at once.
+- When the caller aborts a call whose body is unread, `timeout()` clears its deadlines at once, also when the signal was already aborted as the body guard started.
+
+### Security
+
+- A network error's `cause` no longer carries the request URL's query or userinfo. They are taken out of the whole cause chain — message, stack and string fields such as Node's `input` — and out of a string rejection reason, so `console.error` and error trackers, which print the cause chain rather than `toJSON()`, do not log a token. An immutable error is copied for that, with its prototype and fields, `stack` included. The same goes for the cause of the `TypeError` for a URL or method fetch cannot send.
+- A URL that cannot be parsed loses its `user:pass@` in error messages too, not only its query.
+- The 64 KiB error-body cap and `maxLineLength` in `.sse()` and `.ndjson()` hold for a huge chunk too. A fetch that delivered one had it copied whole before the cap applied, and decoded whole before line lengths were checked; both now work on bounded pieces, keeping CRLF and UTF-8 sequences that span two.
+
+### Documentation
+
+- The documentation site, https://lapidix.github.io/arthron/: the guide, each plugin, how a call flows, and a page for coding agents. The README now points to it, and it redeploys whenever a release is published as Latest.
+- The README, the site and `llms.txt` describe error serialization, the order `retry` runs in, and cancellation logging as they behave.
+
 ## [2.0.1] — 2026-10-21
 
 The first 2.x release on npm: 2.0.0 was tagged but not published, and everything listed under it is in this release.
@@ -241,6 +272,7 @@ First stable release. Compared with 0.1.0:
 
 - The auth-refresh recipe refreshes once for concurrent 401s and only sends the token to the API's origin; the error-page recipe runs once per call. Both are tested.
 
+[2.1.0]: https://github.com/lapidix/arthron/releases/tag/v2.1.0
 [2.0.1]: https://github.com/lapidix/arthron/releases/tag/v2.0.1
 [2.0.0]: https://github.com/lapidix/arthron/releases/tag/v2.0.0
 [1.2.0]: https://github.com/lapidix/arthron/releases/tag/v1.2.0
