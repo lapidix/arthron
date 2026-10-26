@@ -1,8 +1,14 @@
 import { isArthronError } from "../../error/arthron-error";
-import { isCancellation } from "../../error/create-error";
+import { isCancellation, isTimeout } from "../../error/create-error";
 import { redactUrl } from "../../request/url";
 import type { Plugin } from "../../types/plugin.types";
 import type { LogEvent, LoggingOptions } from "./logging.types";
+
+/** What an error line shows without a status: the error's name (`TimeoutError`, `TypeError`), else `-`. */
+function nameOf(error: unknown): string {
+  const name = (error as { name?: unknown } | null | undefined)?.name;
+  return typeof name === "string" && name !== "" ? name : "-";
+}
 
 function consoleSink(logger: Pick<Console, "log" | "error">) {
   return (e: LogEvent) => {
@@ -14,7 +20,7 @@ function consoleSink(logger: Pick<Console, "log" | "error">) {
       );
     } else {
       logger.error(
-        `[arthron] ✕ ${e.method} ${e.url} ${e.status ?? "-"} ${e.duration}ms`,
+        `[arthron] ✕ ${e.method} ${e.url} ${e.status ?? nameOf(e.error)} ${e.duration}ms`,
       );
     }
   };
@@ -49,8 +55,7 @@ export function loggingWithClock(
     timeouts = false,
   } = options;
   const reported = (error: unknown, signal: AbortSignal | null | undefined) =>
-    !isCancellation(error, signal) ||
-    (timeouts && (error as { name?: unknown } | null)?.name === "TimeoutError");
+    !isCancellation(error, signal) || (timeouts && isTimeout(error));
   const emit = onEvent ?? consoleSink(logger);
   return {
     pluginName: "logging",

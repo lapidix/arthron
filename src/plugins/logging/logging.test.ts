@@ -43,13 +43,24 @@ describe("logging", () => {
       "[arthron] ✕ POST https://a/u 0 12ms",
     );
   });
-  it("logs non-ArthronError failures with '-' for status", async () => {
+  it("logs non-ArthronError failures with the error's name for status", async () => {
     const logger = spyLogger();
     await expect(
       runPipeline([loggingWithClock({ logger }, clock())], ctx, async () => {
         throw new RangeError("bug");
       }),
     ).rejects.toBeInstanceOf(RangeError);
+    expect(logger.error).toHaveBeenCalledWith(
+      "[arthron] ✕ POST https://a/u RangeError 12ms",
+    );
+  });
+  it("logs '-' for status when what was thrown has no name", async () => {
+    const logger = spyLogger();
+    await expect(
+      runPipeline([loggingWithClock({ logger }, clock())], ctx, async () => {
+        throw "bug";
+      }),
+    ).rejects.toBe("bug");
     expect(logger.error).toHaveBeenCalledWith(
       "[arthron] ✕ POST https://a/u - 12ms",
     );
@@ -219,7 +230,7 @@ describe("logging", () => {
       const logger = spyLogger();
       await run({ timeouts: true, logger }, timedOut());
       expect(logger.error).toHaveBeenCalledWith(
-        "[arthron] ✕ POST https://a/u - 12ms",
+        "[arthron] ✕ POST https://a/u TimeoutError 12ms",
       );
     });
     it("leave other cancellations unreported with timeouts: true", async () => {

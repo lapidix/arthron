@@ -16,7 +16,13 @@ export function isCancellation(
 ): boolean {
   if (signal?.aborted) return true;
   const name = (error as { name?: unknown } | null | undefined)?.name;
-  return name === "AbortError" || name === "TimeoutError";
+  return name === "AbortError" || isTimeout(error);
+}
+
+/** A deadline ran out: `timeout()`, or `AbortSignal.timeout()` as the signal. Matched by name, like isCancellation. */
+export function isTimeout(error: unknown): boolean {
+  const name = (error as { name?: unknown } | null | undefined)?.name;
+  return name === "TimeoutError";
 }
 
 /**
