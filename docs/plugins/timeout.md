@@ -16,7 +16,7 @@ arthron({ plugins: [timeout({ idle: 30_000 })] });
 | Option | Default | What it does |
 | --- | --- | --- |
 | `total` | none | Ms until the body has been fully read. A server that sends headers and then stalls still trips it. |
-| `idle` | none | Ms without data while arthron waits for it: for the headers, then for each chunk a read asks for. The time your code takes between reads does not count, so a stream that keeps flowing is never cut off. |
+| `idle` | none | Ms without data while arthron waits on the server: for the headers, then for the next chunk, one ahead of your reads. The time your code takes between reads does not count, so a stream that keeps flowing is never cut off. |
 
 `timeout(ms)` is short for `timeout({ total: ms })`.
 
@@ -33,6 +33,8 @@ Or combine both. Whichever trips first ends the call:
 ```ts
 timeout({ total: 600_000, idle: 30_000 });
 ```
+
+`idle` does not cut off a body you leave unread once its first chunk is in. Read it, cancel it with `response.body?.cancel()`, or set `total` as well.
 
 ## Where it goes in plugins
 
