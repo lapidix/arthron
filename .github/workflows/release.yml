@@ -40,6 +40,10 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
+          # The runner's cached Node can lag a security release. Unlike npm
+          # below, the newest patch comes from where the cached one does
+          # (actions/node-versions), so take it.
+          check-latest: true
           registry-url: https://registry.npmjs.org
       # Staged publishing needs npm >= 11.15.0; Node 22 ships an older npm.
       # Pinned: this job can publish, so it must not pull whatever is newest.

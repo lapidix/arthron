@@ -25,6 +25,10 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
+          # The runner's cached Node can lag a security release (its 22.23.3
+          # and 24.21.0 missed the Brotli fix, CVE-2026-111497): take the
+          # newest patch of the line, here and in every job below.
+          check-latest: true
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # A release PR that bumps the version without notes fails here, before
@@ -50,6 +54,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
+          check-latest: true
           cache: pnpm
           cache-dependency-path: |
             pnpm-lock.yaml
@@ -71,6 +76,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
+          check-latest: true
           cache: pnpm
           cache-dependency-path: |
             pnpm-lock.yaml
@@ -98,6 +104,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
+          check-latest: true
           cache: pnpm
           cache-dependency-path: docs/pnpm-lock.yaml
       - if: steps.has-docs.outputs.present == 'true'
