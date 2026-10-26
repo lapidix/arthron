@@ -122,6 +122,23 @@ describe("responseError", () => {
     expect(err.response?.clone().status).toBe(999);
     expect(await err.response?.text()).toBe("blocked");
   });
+  it("keeps a status text the Response constructor refuses", async () => {
+    // Node's fetch reads a reason phrase as UTF-8; `new Response` takes
+    // Latin-1 only.
+    const fetched = Object.defineProperty(
+      new Response("{}", { status: 500 }),
+      "statusText",
+      { value: "실패" },
+    );
+    const err = await responseError(fetched, req);
+    expect(err).toBeInstanceOf(ArthronError);
+    expect(err.message).toBe("GET https://a/x failed with 500 실패");
+    expect([err.statusText, err.response?.statusText]).toEqual([
+      "실패",
+      "실패",
+    ]);
+    expect(err.response?.clone().statusText).toBe("실패");
+  });
 });
 
 describe("networkError", () => {

@@ -126,6 +126,20 @@ describe("timeout — the response it hands back", () => {
     expect([res.status, res.ok, res.clone().status]).toEqual([999, false, 999]);
     expect(await res.text()).toBe("blocked");
   });
+  it("keeps a status text the Response constructor refuses, and ok with it", async () => {
+    const fetched = Object.defineProperty(new Response("done"), "statusText", {
+      value: "성공",
+    });
+    const api = arthron({
+      baseURL: "https://a",
+      fetchFn: fakeFetch(fetched),
+      plugins: [timeout(1000)],
+    });
+    const res = await api.get("/u");
+    expect([res.status, res.ok, res.statusText]).toEqual([200, true, "성공"]);
+    expect(res.clone().statusText).toBe("성공");
+    expect(await res.text()).toBe("done");
+  });
   it("does not keep the Node process alive while a body sits unread", async () => {
     const spy = vi.spyOn(globalThis, "setTimeout");
     try {
